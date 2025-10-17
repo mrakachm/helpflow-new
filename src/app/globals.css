@@ -1,0 +1,27 @@
+﻿/* src/app/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Variables (facultatif) */
+:root{
+  --bg:#ffffff;
+  --panel:#ffffff;
+  --text:#0f172a;
+  --muted:#64748b;
+  --brand:#2563eb;
+}
+
+html, body { height:100%; }
+body { @apply bg-[var(--bg)] text-[var(--text)] font-sans; }
+
+/* Conteneur */
+.container { @apply max-w-6xl mx-auto px-4; }
+
+/* Cartes */
+.panel { @apply bg-[var(--panel)] rounded-2xl shadow-lg border; }
+
+/* Boutons */
+.btn { @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition; }
+.btn-primary { @apply bg-[var(--brand)] text-white hover:opacity-90; }
+.btn-outline { @apply border border-gray-300 bg-white hover:bg-gray-50; }
