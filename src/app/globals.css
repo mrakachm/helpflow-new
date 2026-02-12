@@ -1,27 +1,63 @@
-﻿/* src/app/globals.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Variables (facultatif) */
-:root{
-  --bg:#ffffff;
-  --panel:#ffffff;
-  --text:#0f172a;
-  --muted:#64748b;
-  --brand:#2563eb;
+/* =========================
+   BASE
+========================= */
+
+body {
+  @apply bg-gray-50 text-gray-900 antialiased;
 }
 
-html, body { height:100%; }
-body { @apply bg-[var(--bg)] text-[var(--text)] font-sans; }
+h1, h2, h3 {
+  @apply font-semibold text-gray-800;
+}
 
-/* Conteneur */
-.container { @apply max-w-6xl mx-auto px-4; }
+a {
+  @apply text-slate-700 hover:underline underline-offset-2;
+}
 
-/* Cartes */
-.panel { @apply bg-[var(--panel)] rounded-2xl shadow-lg border; }
+/* =========================
+   COMPOSANTS
+========================= */
+@layer components {
 
-/* Boutons */
-.btn { @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition; }
-.btn-primary { @apply bg-[var(--brand)] text-white hover:opacity-90; }
-.btn-outline { @apply border border-gray-300 bg-white hover:bg-gray-50; }
+  .btn-primary {
+    @apply px-6 py-3 rounded-xl bg-blue-600 text-white font-semibold
+           shadow-md transition-all duration-200
+           hover:bg-blue-700 hover:-translate-y-[1px];
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 rounded-xl bg-gray-100 text-gray-800 font-semibold
+           border border-gray-300 transition-all duration-200
+           hover:bg-gray-200 hover:-translate-y-[1px];
+  }
+}
+
+/* =========================
+   WATERMARK LOGO (FOND)
+   très discret, derrière tout
+========================= */
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+
+  background-image: url("/logo-helpflow.png");
+  background-repeat: no-repeat;
+  background-position: center 12%; /* centre + un peu en haut */
+  background-size: 520px auto;     /* taille du logo */
+  opacity: 0.08;                   /* clarté (0.06 à 0.10) */
+}
+
+/* Mobile : on enlève le watermark */
+@media (max-width: 768px) {
+  body::before {
+    display: none;
+  }
+}

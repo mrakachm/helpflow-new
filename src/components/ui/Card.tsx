@@ -1,13 +1,19 @@
-"use client";
+import { PropsWithChildren } from "react";
+import clsx from "clsx";
 
-export function Card({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-2xl bg-white shadow-sm border p-4">{children}</div>;
+export function Card({ children, className }: PropsWithChildren<{ className?: string }>) {
+  return <div className={clsx("rounded-2xl border bg-white shadow-sm", className)}>{children}</div>;
 }
-
-export function CardHeader({ children }: { children: React.ReactNode }) {
-  return <div className="flex items-start justify-between gap-4">{children}</div>;
+export function CardHeader({ children, className }: PropsWithChildren<{ className?: string }>) {
+  return (
+    <div className={clsx("border-b px-5 py-4 flex items-center justify-between gap-2", className)}>
+      {children}
+    </div>
+  );
 }
-
-export function CardBody({ children }: { children: React.ReactNode }) {
-  return <div className="mt-3 text-sm text-gray-700 leading-6">{children}</div>;
+export function CardBody({ children, className }: PropsWithChildren<{ className?: string }>) {
+  return <div className={clsx("px-5 py-4", className)}>{children}</div>;
+}
+export function CardFooter({ children, className }: PropsWithChildren<{ className?: string }>) {
+  return <div className={clsx("border-t px-5 py-4", className)}>{children}</div>;
 }

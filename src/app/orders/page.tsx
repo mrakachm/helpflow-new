@@ -1,244 +1,282 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
-import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/lib/supabase";
-import StatusBadge from "@/components/ui/StatusBadge";
-import { Card, CardHeader, CardBody } from "@/components/ui/Card";
-import EmptyState from "@/components/ui/EmptyState";
-import Skeleton from "@/components/ui/Skeleton";
-import Button from "@/components/ui/Button";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { supabase } from "@/lib/client";
 
-type Status =
-  | "CREATED"
-  | "ACCEPTED"
-  | "OUT_FOR_DELIVERY"
-  | "DELIVERED"
-  | "CANCELLED";
-
-type Order = {
+type OrderRow = {
   id: string;
-  description: string | null;
-
-  // anciens champs (compat)
-  city?: string | null;
-  postal_code?: string | null;
-
-  // nouveaux champs
-  pickup_address?: string | null;
-  pickup_city?: string | null;
-  pickup_postal_code?: string | null;
-
-  dropoff_address?: string | null;
-  dropoff_city?: string | null;
-  dropoff_postal_code?: string | null;
-
-  weight_kg?: number | null;
-  bags_count?: number | null;
-
-  status: Status;
-  created_at: string;
-  created_by: string;
-  accepted_by?: string | null;
+  client_id: string | null;
+  pickup_address: string | null;
+  dropoff_address: string | null;
+  pickup_city: string | null;
+  dropoff_city: string | null;
+  pickup_zip: string | null;
+  dropoff_zip: string | null;
+  distance_km: number | null;
+  weight_kg: number | null;
+  bag_count: number | null;
+  price_cents: number | null;
+  status: string | null;
+  created_at: string | null;
 };
 
-function mapsUrl(o: Partial<Order>) {
-  const addr = o.dropoff_address ?? "";
-  const cp = o.dropoff_postal_code ?? o.postal_code ?? "";
-  const city = o.dropoff_city ?? o.city ?? "";
-  const q = encodeURIComponent(`${addr}, ${cp} ${city}`.trim());
-  return `https://www.google.com/maps/search/?api=1&query=${q}`;
+function formatEURFromCents(cents?: number | null) {
+  if (cents == null) return "--";
+  return (cents / 100).toLocaleString("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+  });
 }
 
-export default function OrdersHistoryPage() {
-  const { user, loading } = useAuth();
+function statusLabel(status?: string | null) {
+  const s = (status || "").toLowerCase();
+  if (s === "pending" || s === "en_attente") return "⏳ En attente";
+  if (s === "accepted" || s === "en_cours") return "🚚 En cours";
+  if (s === "delivered" || s === "livree" || s === "livrée") return "✅ Livrée";
+  if (s === "canceled" || s === "annulee" || s === "annulée") return "❌ Annulée";
+  return status || "--";
+}
 
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [statusFilter, setStatusFilter] = useState<Status | "ALL">("ALL");
-  const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
-  const [q, setQ] = useState("");
-  const [busy, setBusy] = useState(true);
+export default function ClientOrdersPage() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>("");
+  const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [selected, setSelected] = useState<OrderRow | null>(null);
 
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState<10 | 20 | 50>(10);
+  async function load() {
+    setError("");
+    setLoading(true);
 
-  const loadOrders = useCallback(async () => {
-    if (!user?.id) return;
-    setBusy(true);
+    // ✅ 1) Utilisateur connecté
+    const { data: userData, error: userErr } = await supabase.auth.getUser();
 
-    let query = supabase
-      .from("orders")
-      .select("*")
-      .eq("created_by", user.id)
-      .order("created_at", { ascending: sortDir === "asc" });
-
-    if (statusFilter !== "ALL") query = query.eq("status", statusFilter);
-
-    if (q.trim()) {
-      const like = `%${q.trim()}%`;
-      query = query.or(
-        [
-          `description.ilike.${like}`,
-          `pickup_address.ilike.${like}`,
-          `dropoff_address.ilike.${like}`,
-          `pickup_city.ilike.${like}`,
-          `dropoff_city.ilike.${like}`,
-        ].join(",")
-      );
+    if (userErr) {
+      setError(userErr.message);
+      setOrders([]);
+      setLoading(false);
+      return;
     }
 
-    const from = (page - 1) * pageSize;
-    const to = from + pageSize - 1;
-    const { data, error } = await query.range(from, to);
+    const userId = userData.user?.id;
+    if (!userId) {
+      setError("Tu dois être connecté");
+      setOrders([]);
+      setLoading(false);
+      return;
+    }
 
-    setBusy(false);
-    if (!error && data) setOrders(data as Order[]);
-  }, [user?.id, statusFilter, sortDir, q, page, pageSize]);
+    // ✅ 2) Commandes du client
+    const { data: ordersData, error: ordersErr } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("client_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (ordersErr) {
+      setError(ordersErr.message);
+      setOrders([]);
+    } else {
+      setOrders((ordersData ?? []) as OrderRow[]);
+    }
+
+    setLoading(false);
+  }
+
+  async function setStatus(orderId: string, status: string) {
+    setError("");
+
+    const { error: updateErr } = await supabase
+      .from("orders")
+      .update({ status })
+      .eq("id", orderId);
+
+    if (updateErr) {
+      setError(updateErr.message);
+      return;
+    }
+
+    await load();
+  }
 
   useEffect(() => {
-    if (loading) return;
-    if (!user) return;
-    loadOrders();
-  }, [user, loading, loadOrders]);
-
-  const hasResults = orders.length > 0;
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
-    <main className="max-w-4xl mx-auto p-6 space-y-6">
-      <h1 className="text-2xl font-semibold">Mes commandes</h1>
+    <div className="p-4">
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <h1 className="text-xl font-bold">Mes commandes</h1>
 
-      {/* Filtres */}
-      <div className="flex flex-wrap gap-3 items-center">
-        <input
-          className="border rounded p-2 flex-1 min-w-[220px]"
-          placeholder="Recherche (adresse, ville, description)"
-          value={q}
-          onChange={(e) => {
-            setPage(1);
-            setQ(e.target.value);
-          }}
-        />
+        <div className="flex gap-2">
+          <Link
+            className="px-3 py-2 rounded border"
+            href="/client/new-order"
+          >
+            ➕ Nouvelle commande
+          </Link>
 
-        <select
-          className="border rounded p-2"
-          value={statusFilter}
-          onChange={(e) => {
-            setPage(1);
-            setStatusFilter(e.target.value as any);
-          }}
-        >
-          {(["ALL","CREATED","ACCEPTED","OUT_FOR_DELIVERY","DELIVERED","CANCELLED"] as const).map((s) => (
-            <option key={s} value={s}>
-              {s === "ALL" ? "Tous les statuts" : s}
-            </option>
-          ))}
-        </select>
-
-        <select
-          className="border rounded p-2"
-          value={sortDir}
-          onChange={(e) => setSortDir(e.target.value as "asc" | "desc")}
-        >
-          <option value="desc">Plus récentes d’abord</option>
-          <option value="asc">Plus anciennes d’abord</option>
-        </select>
-
-        <select
-          className="border rounded p-2"
-          value={pageSize}
-          onChange={(e) => {
-            setPage(1);
-            setPageSize(Number(e.target.value) as any);
-          }}
-        >
-          <option value={10}>10 / page</option>
-          <option value={20}>20 / page</option>
-          <option value={50}>50 / page</option>
-        </select>
+          <button
+            className="px-3 py-2 rounded border"
+            onClick={load}
+          >
+            🔄 Actualiser
+          </button>
+        </div>
       </div>
 
-      {/* Skeleton */}
-      {busy && (
-        <div className="space-y-3">
-          <Skeleton className="h-24" />
-          <Skeleton className="h-24" />
-          <Skeleton className="h-24" />
+      {error && (
+        <div className="mb-3 p-3 rounded border border-red-300 bg-red-50">
+          ❗ {error}
         </div>
       )}
 
-      {/* Vide */}
-      {!busy && !hasResults && (
-        <EmptyState title="Aucune commande pour le moment.">
-          <a className="inline-block mt-4" href="/client/new-order">
-            <Button>+ Nouvelle commande</Button>
-          </a>
-        </EmptyState>
+      {loading ? (
+        <p>Chargement…</p>
+      ) : orders.length === 0 ? (
+        <p>Aucune commande.</p>
+      ) : (
+        <div className="overflow-auto rounded border">
+          <table className="min-w-[1100px] w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left p-3">Date</th>
+                <th className="text-left p-3">Départ</th>
+                <th className="text-left p-3">Arrivée</th>
+                <th className="text-left p-3">Sacs</th>
+                <th className="text-left p-3">Poids</th>
+                <th className="text-left p-3">Distance</th>
+                <th className="text-left p-3">Prix</th>
+                <th className="text-left p-3">Statut</th>
+                <th className="text-left p-3">Actions</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {orders.map((o) => (
+                <tr key={o.id} className="border-t">
+                  <td className="p-3 whitespace-nowrap">
+                    {o.created_at ? new Date(o.created_at).toLocaleString("fr-FR") : "--"}
+                  </td>
+
+                  <td className="p-3">
+                    <div className="font-medium">{o.pickup_city || "--"}</div>
+                    <div className="text-gray-600">{o.pickup_address || ""}</div>
+                  </td>
+
+                  <td className="p-3">
+                    <div className="font-medium">{o.dropoff_city || "--"}</div>
+                    <div className="text-gray-600">{o.dropoff_address || ""}</div>
+                  </td>
+
+                  <td className="p-3">{o.bag_count ?? "--"}</td>
+                  <td className="p-3">{o.weight_kg != null ? `${o.weight_kg} kg` : "--"}</td>
+                  <td className="p-3">{o.distance_km != null ? `${o.distance_km} km` : "--"}</td>
+                  <td className="p-3">{formatEURFromCents(o.price_cents)}</td>
+                  <td className="p-3">{statusLabel(o.status)}</td>
+
+                  <td className="p-3">
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        className="px-2 py-1 rounded border"
+                        onClick={() => setSelected(o)}
+                      >
+                        🔎 Détails
+                      </button>
+
+                      <button
+                        className="px-2 py-1 rounded border"
+                        onClick={() => setStatus(o.id, "en_cours")}
+                      >
+                        🚚 En cours
+                      </button>
+
+                      <button
+                        className="px-2 py-1 rounded border"
+                        onClick={() => setStatus(o.id, "livree")}
+                      >
+                        ✅ Livrée
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
-      {/* Liste */}
-      {!busy && hasResults && (
-        <div className="space-y-3">
-          {orders.map((o) => (
-            <Card key={o.id}>
-              <CardHeader className="flex items-center justify-between gap-4">
-                <div className="font-medium">
-                  <span className="opacity-60 mr-2">#{o.id.slice(0, 8)}</span>
-                  <StatusBadge status={o.status} />
-                </div>
-                <div className="text-sm opacity-70">
-                  {new Date(o.created_at).toLocaleString()}
-                </div>
-              </CardHeader>
+      {/* Modal Détails */}
+      {selected && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-2xl rounded-lg shadow p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-bold">Détails commande</h2>
+              <button
+                className="px-2 py-1 rounded border"
+                onClick={() => setSelected(null)}
+              >
+                ✖ Fermer
+              </button>
+            </div>
 
-              <CardBody className="space-y-2">
-                <div className="text-sm">
-                  <div>
-                    <strong>Départ :</strong>{" "}
-                    {o.pickup_address} — {o.pickup_postal_code} {o.pickup_city}
-                  </div>
-                  <div>
-                    <strong>Arrivée :</strong>{" "}
-                    {o.dropoff_address} —{" "}
-                    {(o.dropoff_postal_code ?? o.postal_code) ?? ""}{" "}
-                    {(o.dropoff_city ?? o.city) ?? ""}
-                  </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+              <div className="p-3 rounded border">
+                <div className="font-semibold mb-1">Départ</div>
+                <div>{selected.pickup_address || "--"}</div>
+                <div>
+                  {selected.pickup_city || "--"}{" "}
+                  {selected.pickup_zip ? `(${selected.pickup_zip})` : ""}
                 </div>
+              </div>
 
-                <div className="text-sm opacity-80">
-                  <strong>Détails :</strong>{" "}
-                  {o.weight_kg != null ? `${o.weight_kg} kg` : "—"} •{" "}
-                  {o.bags_count != null ? `${o.bags_count} sac(s)` : "—"}
+              <div className="p-3 rounded border">
+                <div className="font-semibold mb-1">Arrivée</div>
+                <div>{selected.dropoff_address || "--"}</div>
+                <div>
+                  {selected.dropoff_city || "--"}{" "}
+                  {selected.dropoff_zip ? `(${selected.dropoff_zip})` : ""}
                 </div>
+              </div>
 
-                {o.description && (
-                  <div className="text-sm italic opacity-80">{o.description}</div>
-                )}
+              <div className="p-3 rounded border">
+                <div className="font-semibold mb-1">Infos</div>
+                <div>Sacs : {selected.bag_count ?? "--"}</div>
+                <div>Poids : {selected.weight_kg != null ? `${selected.weight_kg} kg` : "--"}</div>
+                <div>Distance : {selected.distance_km != null ? `${selected.distance_km} km` : "--"}</div>
+              </div>
 
-                <div className="pt-2">
-                  <a href={mapsUrl(o)} target="_blank" rel="noreferrer" className="inline-flex">
-                    <Button variant="secondary">Ouvrir dans Google Maps</Button>
-                  </a>
+              <div className="p-3 rounded border">
+                <div className="font-semibold mb-1">Paiement</div>
+                <div>Prix : {formatEURFromCents(selected.price_cents)}</div>
+                <div>Statut : {statusLabel(selected.status)}</div>
+                <div>
+                  Date :{" "}
+                  {selected.created_at
+                    ? new Date(selected.created_at).toLocaleString("fr-FR")
+                    : "--"}
                 </div>
-              </CardBody>
-            </Card>
-          ))}
+              </div>
+            </div>
 
-          {/* Pagination */}
-          <div className="flex items-center justify-between pt-2">
-            <Button
-              variant="secondary"
-              disabled={page === 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              ← Précédent
-            </Button>
-            <div className="text-sm opacity-70">Page {page}</div>
-            <Button variant="secondary" onClick={() => setPage((p) => p + 1)}>
-              Suivant →
-            </Button>
+            <div className="mt-4 flex gap-2 justify-end">
+              <button
+                className="px-3 py-2 rounded border"
+                onClick={() => setStatus(selected.id, "en_cours")}
+              >
+                🚚 Passer “En cours”
+              </button>
+              <button
+                className="px-3 py-2 rounded border"
+                onClick={() => setStatus(selected.id, "livree")}
+              >
+                ✅ Marquer “Livrée”
+              </button>
+            </div>
           </div>
         </div>
       )}
-    </main>
+    </div>
   );
 }

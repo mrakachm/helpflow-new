@@ -1,34 +1,25 @@
 "use client";
 
-import React from "react";
-import clsx from "clsx";
+type OrderStatus = "PENDING" | "ACCEPTED" | "OUT_FOR_DELIVERY" | "DELIVERED";
 
-type Color = "gray" | "blue" | "amber" | "green" | "red";
-
-type Props = {
-  children: React.ReactNode;
-  color?: Color;         // optionnel (par défaut "gray")
-  className?: string;    // classes tailwind supplémentaires si besoin
+const STYLES: Record<OrderStatus, string> = {
+  PENDING: "bg-yellow-50 text-yellow-800 border border-yellow-200",
+  ACCEPTED: "bg-blue-50 text-blue-800 border border-blue-200",
+  OUT_FOR_DELIVERY: "bg-purple-50 text-purple-800 border border-purple-200",
+  DELIVERED: "bg-green-50 text-green-800 border border-green-200",
 };
 
-const COLORS: Record<Color, string> = {
-  gray:  "bg-zinc-100 text-zinc-700 ring-1 ring-inset ring-zinc-200",
-  blue:  "bg-blue-100 text-blue-700 ring-1 ring-inset ring-blue-200",
-  amber: "bg-amber-100 text-amber-700 ring-1 ring-inset ring-amber-200",
-  green: "bg-green-100 text-green-700 ring-1 ring-inset ring-green-200",
-  red:   "bg-rose-100 text-rose-700 ring-1 ring-inset ring-rose-200",
+const LABELS: Record<OrderStatus, string> = {
+  PENDING: "En attente",
+  ACCEPTED: "Acceptée",
+  OUT_FOR_DELIVERY: "En livraison",
+  DELIVERED: "Livrée",
 };
 
-export default function Badge({ children, color = "gray", className }: Props) {
+export default function StatusBadge({ status }: { status: OrderStatus }) {
   return (
-    <span
-      className={clsx(
-        "px-2 py-0.5 rounded-full text-xs font-medium inline-flex items-center gap-1",
-        COLORS[color],
-        className
-      )}
-    >
-      {children}
+    <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium ${STYLES[status]}`}>
+      {LABELS[status]}
     </span>
   );
 }

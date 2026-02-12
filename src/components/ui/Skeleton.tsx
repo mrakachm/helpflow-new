@@ -1,10 +1,8 @@
-"use client";
-
-export default function Skeleton({ className = "" }: { className?: string }) {
+export default function EmptyState({ title, hint }: { title: string; hint?: string }) {
   return (
-    <div
-      className={`animate-pulse rounded-xl bg-gray-200/70 ${className}`}
-      aria-hidden="true"
-    />
+    <div className="text-center py-12 text-gray-500">
+      <p className="text-sm font-medium">{title}</p>
+      {hint && <p className="text-xs mt-1">{hint}</p>}
+    </div>
   );
 }

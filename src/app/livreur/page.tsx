@@ -1,242 +1,272 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/hooks/useAuth";
-import Button from "@/components/ui/Button";
-import StatusBadge from "@/components/ui/StatusBadge";
-import { Card, CardHeader, CardBody } from "@/components/ui/Card";
-import Skeleton from "@/components/ui/Skeleton";
-import EmptyState from "@/components/ui/EmptyState";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
-type Status = "CREATED" | "ACCEPTED" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CANCELLED";
-
-type Order = {
+type OrderRow = {
   id: string;
-  description: string | null;
-
-  pickup_address?: string | null;
-  pickup_city?: string | null;
-  pickup_postal_code?: string | null;
-
-  dropoff_address?: string | null;
-  dropoff_city?: string | null;
-  dropoff_postal_code?: string | null;
-  city?: string | null;         // compat
-  postal_code?: string | null;  // compat
-
-  weight_kg?: number | null;
-  bags_count?: number | null;
-
-  status: Status;
-  created_at: string;
-  created_by: string;
-  accepted_by?: string | null;
+  pickup_address: string | null;
+  dropoff_address: string | null;
+  distance_km: number | null;
+  bag_count: number | null;
+  weight_kg: number | null;
+  price_cents: number | null;
+  platform_fee_cents: number | null;
+  status: string;
+  courier_id: string | null;
+  created_at?: string;
 };
 
-function mapsUrl(o: Partial<Order>) {
-  const q = encodeURIComponent(
-    `${o.dropoff_address ?? ""}, ${(o.dropoff_postal_code ?? o.postal_code) ?? ""} ${(o.dropoff_city ?? o.city) ?? ""}`.trim()
-  );
-  return `https://www.google.com/maps/search/?api=1&query=${q}`;
+function formatEurosFromCents(cents: number | null) {
+  if (cents == null) return "—";
+  return (cents / 100).toFixed(2) + " €";
 }
 
 export default function LivreurPage() {
-  const { user, loading } = useAuth();
+ const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const router = useRouter();
 
-  const [toAccept, setToAccept] = useState<Order[]>([]);
-  const [inProgress, setInProgress] = useState<Order[]>([]);
-  const [delivered, setDelivered] = useState<Order[]>([]);
-  const [busy, setBusy] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [takingId, setTakingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  async function reload() {
-    setBusy(true);
+  const [available, setAvailable] = useState<OrderRow[]>([]);
+  const [myMissions, setMyMissions] = useState<OrderRow[]>([]);
 
-    const [r1, r2, r3] = await Promise.all([
-      supabase.from("orders").select("*").is("accepted_by", null).eq("status", "CREATED").order("created_at", { ascending: false }),
-      supabase.from("orders").select("*").eq("accepted_by", user?.id ?? "").in("status", ["ACCEPTED", "OUT_FOR_DELIVERY"]).order("created_at", { ascending: false }),
-      supabase.from("orders").select("*").eq("accepted_by", user?.id ?? "").eq("status", "DELIVERED").order("created_at", { ascending: false }).limit(10),
-    ]);
+  async function requireAuth() {
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data?.user) {
+      router.push("/login");
+      return null;
+    }
+    setUserId(data.user.id);
+    return data.user.id;
+  }
 
-    if (!r1.error && r1.data) setToAccept(r1.data as Order[]);
-    if (!r2.error && r2.data) setInProgress(r2.data as Order[]);
-    if (!r3.error && r3.data) setDelivered(r3.data as Order[]);
-    setBusy(false);
+  async function loadOrders(uid: string) {
+    setLoading(true);
+    setError(null);
+
+    // 1) commandes dispo
+    const a = await supabase
+      .from("orders")
+      .select(
+        "id,pickup_address,dropoff_address,distance_km,bag_count,weight_kg,price_cents,platform_fee_cents,status,courier_id,created_at"
+      )
+      .eq("status", "CREATED")
+      .is("courier_id", null)
+      .order("created_at", { ascending: false });
+
+    // 2) mes missions
+    const m = await supabase
+      .from("orders")
+      .select(
+        "id,pickup_address,dropoff_address,distance_km,bag_count,weight_kg,price_cents,platform_fee_cents,status,courier_id,created_at"
+      )
+      .eq("courier_id", uid)
+      .order("created_at", { ascending: false });
+
+    if (a.error) setError(a.error.message);
+    if (m.error) setError(m.error.message);
+
+    setAvailable((a.data as OrderRow[]) ?? []);
+    setMyMissions((m.data as OrderRow[]) ?? []);
+    setLoading(false);
   }
 
   useEffect(() => {
-    if (loading) return;
-    if (!user) return;
-    reload();
+    (async () => {
+      const uid = await requireAuth();
+      if (!uid) return;
+      await loadOrders(uid);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    // petit realtime (optionnel)
-    const ch = supabase
-      .channel("livreur-orders")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, reload)
-      .subscribe();
+  async function takeMission(orderId: string) {
+    if (!userId) return;
+    setTakingId(orderId);
+    setError(null);
 
-    return () => {
-      supabase.removeChannel(ch);
-    };
-  }, [user, loading]);
+    /**
+     * Important :
+     * On sécurise en update conditionnel :
+     * - status doit être CREATED
+     * - courier_id doit être null
+     * Si quelqu’un d’autre prend avant toi, l’update ne touche aucune ligne.
+     */
+    const { data, error } = await supabase
+      .from("orders")
+      .update({
+        courier_id: userId,
+        status: "ASSIGNED",
+      })
+      .eq("id", orderId)
+      .eq("status", "CREATED")
+      .is("courier_id", null)
+      .select("id");
 
-  async function accept(o: Order) {
-    await supabase.from("orders").update({ accepted_by: user?.id, status: "ACCEPTED" }).eq("id", o.id);
-    reload();
+    if (error) {
+      setError(error.message);
+      setTakingId(null);
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      setError("Mission déjà prise par un autre livreur.");
+      setTakingId(null);
+      await loadOrders(userId);
+      return;
+    }
+
+    setTakingId(null);
+    await loadOrders(userId);
   }
 
-  async function setOutForDelivery(o: Order) {
-    await supabase.from("orders").update({ status: "OUT_FOR_DELIVERY" }).eq("id", o.id);
-    reload();
-  }
+  async function setStatus(orderId: string, nextStatus: string) {
+    if (!userId) return;
+    setError(null);
 
-  async function setDeliveredStatus(o: Order) {
-    await supabase.from("orders").update({ status: "DELIVERED" }).eq("id", o.id);
-    reload();
-  }
+    const { error } = await supabase
+      .from("orders")
+      .update({ status: nextStatus })
+      .eq("id", orderId)
+      .eq("courier_id", userId);
 
-  if (loading) return <p className="p-6">Chargement…</p>;
-  if (!user) return <p className="p-6">Veuillez vous connecter.</p>;
+    if (error) setError(error.message);
+    await loadOrders(userId);
+  }
 
   return (
-    <main className="max-w-5xl mx-auto p-6 space-y-8">
-      <h1 className="text-2xl font-semibold">Tableau du livreur</h1>
+    <div className="p-4 max-w-5xl mx-auto">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Espace livreur</h1>
+          <p className="text-sm text-gray-600">
+            Prends une mission, puis fais avancer le statut.
+          </p>
+        </div>
+        <button
+          className="px-3 py-2 rounded bg-black text-white text-sm"
+          onClick={() => userId && loadOrders(userId)}
+          disabled={loading}
+        >
+          Rafraîchir
+        </button>
+      </div>
 
-      {/* À accepter */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-medium">À accepter</h2>
-        {busy ? (
-          <div className="space-y-2">
-            <Skeleton className="h-24" />
-            <Skeleton className="h-24" />
-          </div>
-        ) : toAccept.length === 0 ? (
-          <EmptyState title="Rien à accepter pour le moment." />
-        ) : (
-          toAccept.map((o) => (
-            <Card key={o.id}>
-              <CardHeader className="flex items-center justify-between">
-                <div className="font-medium">
-                  <span className="opacity-60 mr-2">#{o.id.slice(0, 8)}</span>
-                  <StatusBadge status={o.status} />
-                </div>
-                <a href={mapsUrl(o)} target="_blank" rel="noreferrer">
-                  <Button variant="secondary">Google Maps</Button>
-                </a>
-              </CardHeader>
-              <CardBody className="text-sm space-y-1">
-                <div><strong>Départ :</strong> {o.pickup_address} — {o.pickup_postal_code} {o.pickup_city}</div>
-                <div><strong>Arrivée :</strong> {o.dropoff_address} — {(o.dropoff_postal_code ?? o.postal_code) ?? ""} {(o.dropoff_city ?? o.city) ?? ""}</div>
-                <div className="pt-2">
-                  <Button onClick={() => accept(o)}>Accepter</Button>
-                </div>
-              </CardBody>
-            </Card>
-          ))
-        )}
-      </section>
+      {error && (
+        <div className="mt-4 p-3 rounded bg-red-50 text-red-700 text-sm">
+          {error}
+        </div>
+      )}
 
-      {/* En cours */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-medium">En cours</h2>
-        {busy ? (
-          <div className="space-y-2">
-            <Skeleton className="h-24" />
-            <Skeleton className="h-24" />
-          </div>
-        ) : inProgress.length === 0 ? (
-          <EmptyState title="Aucune commande en cours." />
-        ) : (
-          inProgress.map((o) => (
-            <Card key={o.id}>
-              <CardHeader className="flex items-center justify-between">
-                <div className="font-medium">
-                  <span className="opacity-60 mr-2">#{o.id.slice(0, 8)}</span>
-                  <StatusBadge status={o.status} />
-                </div>
-                <a href={mapsUrl(o)} target="_blank" rel="noreferrer">
-                  <Button variant="secondary">Google Maps</Button>
-                </a>
-              </CardHeader>
-              <CardBody className="text-sm space-y-2">
-                <div><strong>Départ :</strong> {o.pickup_address} — {o.pickup_postal_code} {o.pickup_city}</div>
-                <div><strong>Arrivée :</strong> {o.dropoff_address} — {(o.dropoff_postal_code ?? o.postal_code) ?? ""} {(o.dropoff_city ?? o.city) ?? ""}</div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+        {/* Disponible */}
+        <section className="p-4 rounded border">
+          <h2 className="font-semibold text-lg">Missions disponibles</h2>
+          <p className="text-xs text-gray-600 mt-1">
+            Status = CREATED et pas encore attribuées.
+          </p>
 
-                <div className="flex gap-2 pt-2">
-                  {o.status === "ACCEPTED" && (
-                    <Button onClick={() => setOutForDelivery(o)}>Passer « En livraison »</Button>
-                  )}
-                  {o.status === "OUT_FOR_DELIVERY" && (
-                    <Button onClick={() => setDeliveredStatus(o)}>Marquer « Livrée »</Button>
-                  )}
-                </div>
-              </CardBody>
-            </Card>
-          ))
-        )}
-      </section>
+          {loading ? (
+            <p className="mt-4 text-sm">Chargement…</p>
+          ) : available.length === 0 ? (
+            <p className="mt-4 text-sm text-gray-600">Aucune mission pour le moment.</p>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {available.map((o) => (
+                <div key={o.id} className="p-3 rounded border bg-white">
+                  <div className="text-sm font-medium">
+                    {o.pickup_address ?? "Pickup —"}
+                  </div>
+                  <div className="text-sm text-gray-700 mt-1">
+                    → {o.dropoff_address ?? "Dropoff —"}
+                  </div>
 
-      {/* Livrées */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-medium">Livrées (10 dernières)</h2>
-        {busy ? (
-          <Skeleton className="h-24" />
-        ) : delivered.length === 0 ? (
-          <EmptyState title="Aucune commande livrée pour l’instant." />
-        ) : (
-          delivered.map((o) => (
-            <Card key={o.id}>
-              <CardHeader className="flex items-center justify-between">
-                <div className="font-medium">
-                  <span className="opacity-60 mr-2">#{o.id.slice(0, 8)}</span>
-                  <StatusBadge status={o.status} />
+                  <div className="text-xs text-gray-600 mt-2 flex flex-wrap gap-3">
+                    <span>Distance: {o.distance_km ?? "—"} km</span>
+                    <span>Sacs: {o.bag_count ?? "—"}</span>
+                    <span>Poids: {o.weight_kg ?? "—"} kg</span>
+                  </div>
+
+                  <div className="text-xs text-gray-600 mt-2">
+                    Prix: {formatEurosFromCents(o.price_cents)} — Commission:{" "}
+                    {formatEurosFromCents(o.platform_fee_cents)}
+                  </div>
+
+                  <button
+                    className="mt-3 w-full px-3 py-2 rounded bg-green-600 text-white text-sm disabled:opacity-60"
+                    onClick={() => takeMission(o.id)}
+                    disabled={takingId === o.id}
+                  >
+                    {takingId === o.id ? "Attribution…" : "Je prends la mission"}
+                  </button>
                 </div>
-                <a href={mapsUrl(o)} target="_blank" rel="noreferrer">
-                  <Button variant="secondary">Google Maps</Button>
-                </a>
-              </CardHeader>
-              <CardBody className="text-sm">
-                <div><strong>Arrivée :</strong> {o.dropoff_address} — {(o.dropoff_postal_code ?? o.postal_code) ?? ""} {(o.dropoff_city ?? o.city) ?? ""}</div>
-              </CardBody>
-            </Card>
-          ))
-        )}
-      </section>
-    </main>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Mes missions */}
+        <section className="p-4 rounded border">
+          <h2 className="font-semibold text-lg">Mes missions</h2>
+          <p className="text-xs text-gray-600 mt-1">
+            Assignées à toi (courier_id = ton user id).
+          </p>
+
+          {loading ? (
+            <p className="mt-4 text-sm">Chargement…</p>
+          ) : myMissions.length === 0 ? (
+            <p className="mt-4 text-sm text-gray-600">Tu n’as aucune mission.</p>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {myMissions.map((o) => (
+                <div key={o.id} className="p-3 rounded border bg-white">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-medium">
+                        {o.pickup_address ?? "Pickup —"}
+                      </div>
+                      <div className="text-sm text-gray-700 mt-1">
+                        → {o.dropoff_address ?? "Dropoff —"}
+                      </div>
+                    </div>
+                    <span className="text-xs px-2 py-1 rounded bg-gray-100">
+                      {o.status}
+                    </span>
+                  </div>
+
+                  <div className="text-xs text-gray-600 mt-2 flex flex-wrap gap-3">
+                    <span>Distance: {o.distance_km ?? "—"} km</span>
+                    <span>Sacs: {o.bag_count ?? "—"}</span>
+                    <span>Poids: {o.weight_kg ?? "—"} kg</span>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      className="px-3 py-2 rounded bg-blue-600 text-white text-sm"
+                      onClick={() => setStatus(o.id, "IN_PROGRESS")}
+                      disabled={o.status === "IN_PROGRESS"}
+                    >
+                      Démarrer
+                    </button>
+                    <button
+                      className="px-3 py-2 rounded bg-purple-600 text-white text-sm"
+                      onClick={() => setStatus(o.id, "DELIVERED")}
+                      disabled={o.status === "DELIVERED"}
+                    >
+                      Livré
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
   );
-}
-async function accept(o: { id: string }) {
-  const { user } = useAuth(); // ou récupère user.id comme tu le fais déjà
-  const { error } = await supabase
-    .from("orders")
-    .update({
-      accepted_by: user!.id,
-      status: "ACCEPTED",
-    })
-    .eq("id", o.id)
-    // ces garde-fous aident et évitent les races :
-    .eq("status", "CREATED")
-    .is("accepted_by", null);
-
-  if (error) alert("Erreur acceptation : " + error.message);
-}
-async function start(o: { id: string }) {
-  const { user } = useAuth();
-  const { error } = await supabase
-    .from("orders")
-    .update({ status: "OUT_FOR_DELIVERY" })
-    .eq("id", o.id)
-    .eq("accepted_by", user!.id);
-
-  if (error) alert("Erreur démarrage : " + error.message);
-}
-async function delivered(o: { id: string }) {
-  const { user } = useAuth();
-  const { error } = await supabase
-    .from("orders")
-    .update({ status: "DELIVERED" })
-    .eq("id", o.id)
-    .eq("accepted_by", user!.id);
-
-  if (error) alert("Erreur livraison : " + error.message);
 }

@@ -1,46 +1,15 @@
-"use client";
-import React, { useEffect, useState, useContext, createContext } from "react";
-// si tu as activé l'alias:
-import { supabase } from "@/lib/supabase";
-// sinon (chemin relatif):
-// import { supabase } from "../lib/supabase";
+import { useEffect, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabaseClient";
 
-type AuthValue = {
-  user: any;
-  loading: boolean;
-};
-
-const AuthContext = createContext<AuthValue>({ user: null, loading: true });
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+export default function useAuth() {
+  const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
-    // session au démarrage
-    supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null);
-      setLoading(false);
-    });
+    supabase.auth.getSession().then(({ data }) => setSession(data.session ?? null));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, sess) => setSession(sess));
+    return () => sub.subscription.unsubscribe();
+  }, [supabase]);
 
-    // écoute login/logout
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => {
-      listener.subscription.unsubscribe();
-    };
-  }, []);
-
-  return (
-    <AuthContext.Provider value={{ user, loading }}>
-      {children}
-    </AuthContext.Provider>
-  );
-}
-
-export function useAuth() {
-  return useContext(AuthContext);
+  return { session, user: session?.user, supabase };
 }

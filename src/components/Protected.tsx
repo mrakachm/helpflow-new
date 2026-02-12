@@ -1,70 +1,48 @@
 "use client";
 
-import { ReactNode, useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { useAuth } from "@/hooks/useAuth";
-import { supabase } from '@/lib/supabase'
+import useAuth from "@/hooks/useAuth";
 
-type Props = { children: ReactNode };
-
-export default function Protected({ children }: Props) {
+/**
+ * Composant de protection de page :
+ * - Redirige vers /login si l'utilisateur n'est pas connecté
+ * - Vérifie le rôle selon le chemin d'accès (/admin, /livreur, /client)
+ */
+export default function Protected({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const redirected = useRef(false);
- 
 
   useEffect(() => {
-    if (loading || redirected.current) return;
+    // En attente de chargement → on ne fait rien
+    if (loading) return;
 
-    async function run() {
-      // Pas connecté -> /login
-      if (!user) {
-        redirected.current = true;
-        router.replace("/login");
-        return;
-      }
-
-      // Vérifie le rôle vs route
-      const need =
-        pathname.startsWith("/admin") ? "admin" :
-        pathname.startsWith("/client") ? "client" :
-        pathname.startsWith("/livreur") ? "livreur" : null;
-
-      const role = String(user.user_metadata?.role ?? "").toLowerCase();
-      if (need && role && role !== need) {
-        redirected.current = true;
-        router.replace("/login");
-        return;
-      }
-
-      // Si on est sur /client ou /livreur -> profil doit être complet
-      if (pathname.startsWith("/client") || pathname.startsWith("/livreur")) {
-        const { data } = await supabase
-          .from("profiles")
-          .select("first_name,last_name,address,phone")
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        const incomplete =
-          !data ||
-          !data.first_name ||
-          !data.last_name ||
-          !data.address ||
-          !data.phone;
-
-        if (incomplete) {
-          redirected.current = true;
-          router.replace("/profile");
-          return;
-        }
-      }
+    // Utilisateur non connecté → redirection vers /login
+    if (!user) {
+      const next = encodeURIComponent(pathname || "/");
+      router.replace(`/login?next=${next}`);
+      return;
     }
 
-    run();
-  }, [user, loading, pathname]);
+    // Vérifie le rôle selon l’URL
+    const need =
+      pathname?.startsWith("/admin") ? "admin" :
+      pathname?.startsWith("/livreur") ? "livreur" :
+      pathname?.startsWith("/client") ? "client" :
+      null;
 
+    const role = (user.user_metadata?.role as string) || "client";
+
+    // Si le rôle ne correspond pas à la route demandée → redirection
+    if (need && role !== need) {
+      router.replace("/");
+    }
+  }, [loading, user, pathname, router]);
+
+  // Si non connecté ou en chargement → rien à afficher
+  if (loading || !user) return null;
+
+  // Si tout est bon → on affiche le contenu protégé
   return <>{children}</>;
 }
-
-
