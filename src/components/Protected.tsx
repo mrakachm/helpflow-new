@@ -5,39 +5,36 @@ import { usePathname, useRouter } from "next/navigation";
 import useAuth from "@/hooks/useAuth";
 
 export default function Protected({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, ready } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
-  // ✅ Pendant le chargement initial (user pas encore connu)
-  if (user === undefined) return null;
+  // Tant que l’auth n’est pas prête -> on n’affiche rien
+  if (!ready) return null;
 
   useEffect(() => {
-    // si toujours en "chargement", on ne fait rien
-    if (user === undefined) return;
-
-    // ✅ pas connecté => redirection login
+    // Pas connecté -> login
     if (!user) {
       const next = encodeURIComponent(pathname || "/");
       router.replace(`/login?next=${next}`);
       return;
     }
 
-    // ✅ rôle selon l'URL
+    // Vérifie rôle selon l’URL (si tu utilises user_metadata.role)
     const need =
       pathname?.startsWith("/admin") ? "admin" :
       pathname?.startsWith("/livreur") ? "livreur" :
       pathname?.startsWith("/client") ? "client" :
       null;
 
-    const role = (user as any)?.user_metadata?.role as string | undefined;
+    const role = (user.user_metadata?.role as string | undefined) ?? null;
 
-    if (need && role && role !== need) {
+    if (need && role !== need) {
       router.replace("/");
     }
-  }, [user, pathname, router]);
+  }, [ready, user, pathname, router]);
 
-  // ✅ si pas connecté => rien à afficher (la redirection se fait)
+  // Si prêt mais pas connecté (le useEffect va rediriger) -> rien
   if (!user) return null;
 
   return <>{children}</>;
