@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { supabase } from "@/lib/client";
+import { supabaseBrowser } from "@/lib/supabaseClient";
 
 type OrderRow = {
   id: string;
@@ -49,8 +49,9 @@ export default function ClientOrdersPage() {
     setLoading(true);
 
     // ✅ 1) Utilisateur connecté
-    const { data: userData, error: userErr } = await supabase.auth.getUser();
-
+   
+const supabase = supabaseBrowser();
+const { data, error } = await supabase.from("orders").select("*");
     if (userErr) {
       setError(userErr.message);
       setOrders([]);
