@@ -44,61 +44,63 @@ export default function ClientOrdersPage() {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [selected, setSelected] = useState<OrderRow | null>(null);
 
-  async function load() {
-    setError("");
-    setLoading(true);
+async function load() {
+  setError("");
+  setLoading(true);
 
-    // ✅ 1) Utilisateur connecté
-   
-const supabase = supabaseBrowser();
-const { data, error } = await supabase.from("orders").select("*");
-    if (userErr) {
-      setError(userErr.message);
-      setOrders([]);
-      setLoading(false);
-      return;
-    }
+  const supabase = supabaseBrowser();
 
-    const userId = userData.user?.id;
-    if (!userId) {
-      setError("Tu dois être connecté");
-      setOrders([]);
-      setLoading(false);
-      return;
-    }
+  // 1️⃣ Utilisateur connecté
+  const { data: userData, error: userErr } = await supabase.auth.getUser();
 
-    // ✅ 2) Commandes du client
-    const { data: ordersData, error: ordersErr } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("client_id", userId)
-      .order("created_at", { ascending: false });
-
-    if (ordersErr) {
-      setError(ordersErr.message);
-      setOrders([]);
-    } else {
-      setOrders((ordersData ?? []) as OrderRow[]);
-    }
-
+  if (userErr) {
+    setError(userErr.message);
+    setOrders([]);
     setLoading(false);
+    return;
   }
 
+  const userId = userData.user?.id;
+  if (!userId) {
+    setError("Tu dois être connecté");
+    setOrders([]);
+    setLoading(false);
+    return;
+  }
+
+  // 2️⃣ Commandes du client
+  const { data: ordersData, error: ordersErr } = await supabase
+    .from("orders")
+    .select("*")
+    .eq("client_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (ordersErr) {
+    setError(ordersErr.message);
+    setOrders([]);
+  } else {
+    setOrders((ordersData ?? []) as OrderRow[]);
+  }
+
+  setLoading(false);
+}
   async function setStatus(orderId: string, status: string) {
-    setError("");
+  setError("");
 
-    const { error: updateErr } = await supabase
-      .from("orders")
-      .update({ status })
-      .eq("id", orderId);
+  const supabase = supabaseBrowser();
 
-    if (updateErr) {
-      setError(updateErr.message);
-      return;
-    }
+  const { error: updateErr } = await supabase
+    .from("orders")
+    .update({ status })
+    .eq("id", orderId);
 
-    await load();
+  if (updateErr) {
+    setError(updateErr.message);
+    return;
   }
+
+  await load();
+}
 
   useEffect(() => {
     load();

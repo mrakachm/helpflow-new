@@ -1,38 +1,25 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
-
-export default function AuthCallback() {
+function CallbackInner() {
   const router = useRouter();
-  const params = useSearchParams();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
-    const supabase = createBrowserSupabaseClient();
+    // Exemple : si tu récupères un paramètre ?next=/...
+    const next = searchParams.get("next") || "/";
+    router.replace(next);
+  }, [router, searchParams]);
 
-    const code = params.get("code");
-    const next = params.get("next") || "/client";
+  return <p className="p-4">Connexion en cours...</p>;
+}
 
-    if (!code) {
-      router.replace("/login");
-      return;
-    }
-
-    supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-      if (error) {
-        console.error("Callback error:", error.message);
-        router.replace("/login");
-        return;
-      }
-      router.replace(next);
-    });
-  }, [params, router]);
-
+export default function Page() {
   return (
-    <div className="p-6 text-center">
-      Connexion en cours...
-    </div>
+    <Suspense fallback={<p className="p-4">Chargement...</p>}>
+      <CallbackInner />
+    </Suspense>
   );
 }
