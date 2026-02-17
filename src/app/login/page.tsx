@@ -24,7 +24,7 @@ const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  // ✅ une seule vérif de session au chargement
+  // ✅ une seule vérif de session au Chargement…
   useEffect(() => {
     (async () => {
 
