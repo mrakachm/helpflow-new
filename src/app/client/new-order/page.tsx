@@ -134,6 +134,8 @@ const [parcelNote, setParcelNote] = useState<string>("");
   // ====== User ======
   const [userId, setUserId] = useState<string | null>(null);
 
+  const [recipientEmail, setRecipientEmail] = useState("");
+
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getUser();
@@ -281,6 +283,8 @@ async function onSubmit(e: React.FormEvent) {
   e.preventDefault();
   setMsg(null);
 
+  ("🚀 SUBMIT START");
+
   const err = validate();
   if (err) {
     setMsg(err);
@@ -289,52 +293,49 @@ async function onSubmit(e: React.FormEvent) {
 
   setLoading(true);
 
-  try {
-    // ✅ payload UNIQUE (pas de doublon)
-    const payload: any = {
-      client_id: userId,
+const payload: any = {
+  // Expéditeur
+  sender_name: senderName,
+  sender_phone: senderPhone,
+  pickup_address: senderAddress,
+  pickup_city: senderCity,
 
-      sender_name: senderName,
-      sender_phone: senderPhone,
-      pickup_address: senderAddress,
-      pickup_city: senderCity,
+  // Receveur
+  receiver_name: receiverName,
+  receiver_phone: receiverPhone,
+  recipient_email: recipientEmail,
+  dropoff_address: receiverAddress,
+  dropoff_city: receiverCity,
 
-      receiver_name: receiverName,
-      receiver_phone: receiverPhone,
-      dropoff_address: receiverAddress,
-      dropoff_city: receiverCity,
+  // Colis / livraison
+  bag_count: Number(bagCount || 0),
+  distance_km: distanceKm,
+  scheduled_at: scheduledAt || null,
 
-      parcel_type: parcelType,
-      parcel_note: parcelNote,
+  // Prix
+  price_cents: pricingView.finalPriceCents,
+  client_proposed_price_cents: pricingView.proposedPriceCents,
+  platform_fee_cents: pricingView.platformFeeCents,
+  courier_earnings_cents: pricingView.courierEarningsCents,
+  pricing_mode: pricingView.proposedPriceCents ? "client_proposal" : "standard",
 
-      bag_count: Number(bagCount || 0),
-      distance_km: distanceKm,
-      scheduled_at: scheduledAt || null,
+  status: "DRAFT",
+};
 
-      // ✅ PRIX FINAL enregistré
-      price_cents: pricingView.finalPriceCents,
-      client_proposed_price_cents: pricingView.proposedPriceCents,
-      platform_fee_cents: pricingView.platformFeeCents,
-      courier_earnings_cents: pricingView.courierEarningsCents,
-      pricing_mode: pricingView.proposedPriceCents ? "client" : "standard",
+("📦 PAYLOAD:", payload);
 
-      status: "DRAFT",
-    };
+const { data, error } = await supabase
+  .from("orders")
+  .insert(payload)
+  .select("id")
+  .single();
 
-    const { data, error } = await supabase
-      .from("orders")
-      .insert(payload)
-      .select("id")
-      .single();
+("📡 RESPONSE:", { data, error });
 
-    if (error) throw error;
+if (error) throw error;
 
-    router.push(`/client/orders/${data.id}`);
-  } catch (e: any) {
-    setMsg(e?.message || "Erreur création commande.");
-  } finally {
-    setLoading(false);
-  }
+router.push(`/client/orders/${data.id}`);
+
 }
 
 return (
@@ -448,6 +449,12 @@ return (
               className="w-full rounded-xl border border-gray-200 px-3 py-2"
             />
 
+<input
+  type="email"
+  placeholder="Email du receveur"
+  value={recipientEmail}
+  onChange={(e) => setRecipientEmail(e.target.value)}
+/>
             <input
               value={receiverAddress}
               onChange={(e) => setReceiverAddress(e.target.value)}

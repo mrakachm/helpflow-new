@@ -26,16 +26,30 @@ const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   // ✅ une seule vérif de session au Chargement…
   useEffect(() => {
-    (async () => {
+  let cancelled = false;
 
-      const { data } = await supabase.auth.getSession();
-      if (data.session?.user) {
+  (async () => {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const { data: userData } = await supabase.auth.getUser();
+
+      if (cancelled) return;
+
+      if (userData?.user) {
         router.replace(nextUrl);
         return;
       }
+
       setChecking(false);
-    })();
-  }, [router, nextUrl]);
+    } catch {
+      setChecking(false);
+    }
+  })();
+
+  return () => {
+    cancelled = true;
+  };
+}, [supabase, router, nextUrl]);
 
   async function onLogin(e: React.FormEvent) {
     e.preventDefault();

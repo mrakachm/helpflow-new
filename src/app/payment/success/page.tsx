@@ -1,243 +1,268 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+export default function PaymentSuccessPage() {
+  const searchParams = useSearchParams();
+  const orderId = searchParams.get("orderId");
+  const sessionId = searchParams.get("session_id");
 
-type OrderStatus = "DRAFT" | "PENDING" | "ACCEPTED" | "OUT_FOR_DELIVERY" | "DELIVERED";
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const hasRunRef = useRef(false);
 
-type Order = {
-  id: string;
-  created_at: string;
-  pickup_city: string | null;
-  dropoff_city: string | null;
-  bag_count: number | null;
-  weight_kg: number | null;
-  status: OrderStatus;
-  courier_id?: string | null;
-  courier_amount?: number | null; // ✅ ce que le livreur doit gagner
-};
-
-export default function LivreurPage() {
-  const [pending, setPending] = useState<Order[]>([]);
-  const [mine, setMine] = useState<Order[]>([]);
-  const [err, setErr] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
-const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  async function refresh() {
-    setErr(null);
-
-    // Commandes disponibles (PENDING)
-    const { data: p, error: e1 } = await supabase
-      .from("orders")
-      .select("id, created_at, pickup_city, dropoff_city, bag_count, weight_kg, status, courier_amount")
-      .eq("status", "PENDING")
-      .order("created_at", { ascending: false });
-
-    if (e1) return setErr(e1.message);
-    setPending((p as any) || []);
-
-    // Mes courses
-    const { data: userRes } = await supabase.auth.getUser();
-    const uid = userRes?.user?.id;
-    if (!uid) return setErr("Non connecté.");
-
-    const { data: m, error: e2 } = await supabase
-      .from("orders")
-      .select("id, created_at, pickup_city, dropoff_city, bag_count, weight_kg, status, courier_amount")
-      .eq("courier_id", uid)
-      .order("created_at", { ascending: false });
-
-    if (e2) return setErr(e2.message);
-    setMine((m as any) || []);
-  }
+  const [loading, setLoading] = useState(true);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (hasRunRef.current) return;
+    hasRunRef.current = true;
 
-  async function accept(id: string) {
-    try {
-      setBusyId(id);
-      setErr(null);
+    async function finalizePayment() {
+      try {
+        setLoading(true);
+        setError(null);
 
-      const { data: userRes } = await supabase.auth.getUser();
-      const uid = userRes?.user?.id;
-      if (!uid) throw new Error("Non connecté.");
+        if (!orderId) {
+          throw new Error("orderId manquant dans l'URL.");
+        }
 
-      const { error } = await supabase
-        .from("orders")
-        .update({ status: "ACCEPTED", courier_id: uid })
-        .eq("id", id);
+        const uuidRegex =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-      if (error) throw error;
-      await refresh();
-    } catch (e: any) {
-      setErr(e?.message || "Erreur");
-    } finally {
-      setBusyId(null);
-    }
-  }
+        if (!uuidRegex.test(orderId)) {
+          throw new Error("orderId invalide.");
+        }
 
-  async function advance(id: string, from: OrderStatus) {
-    const next: Record<OrderStatus, OrderStatus> = {
-      DRAFT: "DRAFT",
-      PENDING: "PENDING",
-      ACCEPTED: "OUT_FOR_DELIVERY",
-      OUT_FOR_DELIVERY: "DELIVERED",
-      DELIVERED: "DELIVERED",
-    };
-
-    try {
-      setBusyId(id);
-      setErr(null);
-
-      // Si on veut passer à DELIVERED -> demander OTP
-      const goingTo = next[from];
-      if (from === "OUT_FOR_DELIVERY" && goingTo === "DELIVERED") {
-        const otp = window.prompt("Entrez le code OTP (4 chiffres) donné par le client :");
-        if (!otp) throw new Error("OTP requis.");
-
-        // Vérifie OTP en base (pour test : otp_code en clair)
-        const { data: order, error: e1 } = await supabase
+        const { data: existingOrder, error: existingError } = await supabase
           .from("orders")
-          .select("otp_code")
-          .eq("id", id)
+          .select("id, payment_status, status, delivery_otp")
+          .eq("id", orderId)
           .single();
 
-        if (e1) throw e1;
-        if ((order as any)?.otp_code !== otp.trim()) {
-          throw new Error("OTP incorrect.");
+        if (existingError) {
+          throw new Error(existingError.message);
         }
-      }
 
-      const { error } = await supabase
-        .from("orders")
-        .update({ status: goingTo })
-        .eq("id", id);
+        if (!existingOrder) {
+          throw new Error("Commande introuvable.");
+        }
 
-      if (error) throw error;
-      await refresh();
-    } catch (e: any) {
-      setErr(e?.message || "Erreur");
-    } finally {
-      setBusyId(null);
-    }
-  }
+        if (existingOrder.payment_status === "paid") {
+          setDone(true);
+          return;
+        }
+
+        const { data: existing } = await supabase
+  .from("orders")
+  .select("delivery_otp")
+  .eq("id", orderId)
+  .single();
+
+if (existing?.delivery_otp) {
+  setDone(true);
+  setLoading(false);
+  return;
+}
+        const otp = Math.floor(1000 + Math.random() * 9000).toString();
+
+        const payload: Record<string, unknown> = {
+          payment_status: "paid",
+          status: "PENDING",
+          delivery_otp: otp,
+          updated_at: new Date().toISOString(),
+        };
+
+        if (sessionId) {
+          payload.stripe_session_id = sessionId;
+        }
+if (sessionId) {
+  payload.stripe_session_id = sessionId;
+}
+
+await fetch("/api/send-otp-email", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    to: "test@example.com",
+    otp,
+    orderId,
+  }),
+});
+
+const { error: updateError } = await supabase
+  .from("orders")
+  .update(payload)
+  .eq("id", orderId);
+
+if (updateError) {
+  throw new Error(updateError.message);
+}
+
+setDone(true);
+
+} catch (e: any) {
+  setError(e?.message || "Erreur pendant la validation du paiement");
+} finally {
+  setLoading(false);
+}
+}
+
+finalizePayment();
+}, [orderId, sessionId, supabase]);
 
   return (
-    <main className="p-6 max-w-5xl mx-auto space-y-8">
-      <h1 className="text-2xl font-bold">Espace livreur</h1>
+    <main style={{ minHeight: "100vh", background: "white", padding: 24 }}>
+      <div
+        style={{
+          maxWidth: 700,
+          margin: "0 auto",
+          border: "1px solid #e5e7eb",
+          borderRadius: 16,
+          padding: 24,
+          boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+        }}
+      >
+        <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 16 }}>
+          Paiement validé
+        </h1>
 
-      {err && <p className="text-red-600">{err}</p>}
+        {loading && (
+          <div
+            style={{
+              border: "1px solid #bfdbfe",
+              background: "#eff6ff",
+              color: "#1d4ed8",
+              padding: 16,
+              borderRadius: 12,
+            }}
+          >
+            Validation du paiement en cours...
+          </div>
+        )}
 
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Commandes disponibles</h2>
-        <div className="overflow-auto">
-          <table className="min-w-full text-sm border">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="p-2 border">#</th>
-                <th className="p-2 border">Départ</th>
-                <th className="p-2 border">Arrivée</th>
-                <th className="p-2 border">Sacs / Poids</th>
-                <th className="p-2 border">Gain livreur</th>
-                <th className="p-2 border">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pending.map((o) => (
-                <tr key={o.id}>
-                  <td className="p-2 border">{o.id.slice(0, 8)}</td>
-                  <td className="p-2 border">{o.pickup_city ?? "-"}</td>
-                  <td className="p-2 border">{o.dropoff_city ?? "-"}</td>
-                  <td className="p-2 border">
-                    {o.bag_count ?? 0} sac(s) / {o.weight_kg ?? 0} kg
-                  </td>
-                  <td className="p-2 border">
-                    {(o.courier_amount ?? 0).toFixed(2)} €
-                  </td>
-                  <td className="p-2 border">
-                    <button
-                      className="px-3 py-1 rounded bg-blue-600 text-white"
-                      disabled={busyId === o.id}
-                      onClick={() => accept(o.id)}
-                    >
-                      {busyId === o.id ? "..." : "Accepter"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {pending.length === 0 && (
-                <tr>
-                  <td className="p-3 border text-center" colSpan={6}>
-                    Aucune commande disponible
-                  </td>
-                </tr>
+        {!loading && error && (
+          <div style={{ display: "grid", gap: 16 }}>
+            <div
+              style={{
+                border: "1px solid #fecaca",
+                background: "#fef2f2",
+                color: "#b91c1c",
+                padding: 16,
+                borderRadius: 12,
+              }}
+            >
+              {error}
+            </div>
+
+            {orderId && (
+              <Link
+                href={`/client/orders/${orderId}`}
+                style={{
+                  display: "inline-block",
+                  background: "#2563eb",
+                  color: "white",
+                  padding: "12px 16px",
+                  borderRadius: 12,
+                  textDecoration: "none",
+                  fontWeight: 600,
+                  width: "fit-content",
+                }}
+              >
+                Retour à la commande
+              </Link>
+            )}
+          </div>
+        )}
+
+        {!loading && done && (
+          <div style={{ display: "grid", gap: 16 }}>
+            <div
+              style={{
+                border: "1px solid #bbf7d0",
+                background: "#f0fdf4",
+                color: "#15803d",
+                padding: 16,
+                borderRadius: 12,
+              }}
+            >
+              ✅ Votre paiement a bien été confirmé.
+              <br />
+              La commande est maintenant publiée et visible côté livreur.
+            </div>
+
+            <div
+              style={{
+                border: "1px solid #e5e7eb",
+                background: "#f9fafb",
+                padding: 16,
+                borderRadius: 12,
+                color: "#374151",
+              }}
+            >
+              <div>
+                <strong>Commande :</strong> {orderId || "-"}
+              </div>
+              <div>
+                <strong>Session Stripe :</strong> {sessionId || "-"}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              {orderId && (
+                <Link
+                  href={`/client/orders/${orderId}`}
+                  style={{
+                    display: "inline-block",
+                    background: "#2563eb",
+                    color: "white",
+                    padding: "12px 16px",
+                    borderRadius: 12,
+                    textDecoration: "none",
+                    fontWeight: 600,
+                  }}
+                >
+                  Voir ma commande
+                </Link>
               )}
-            </tbody>
-          </table>
-        </div>
-      </section>
 
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Mes commandes</h2>
-        <div className="overflow-auto">
-          <table className="min-w-full text-sm border">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="p-2 border">#</th>
-                <th className="p-2 border">Départ</th>
-                <th className="p-2 border">Arrivée</th>
-                <th className="p-2 border">Statut</th>
-                <th className="p-2 border">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mine.map((o) => (
-                <tr key={o.id}>
-                  <td className="p-2 border">{o.id.slice(0, 8)}</td>
-                  <td className="p-2 border">{o.pickup_city ?? "-"}</td>
-                  <td className="p-2 border">{o.dropoff_city ?? "-"}</td>
-                  <td className="p-2 border">{o.status}</td>
-                  <td className="p-2 border">
-                    {o.status === "ACCEPTED" && (
-                      <button
-                        className="px-3 py-1 rounded bg-amber-600 text-white"
-                        disabled={busyId === o.id}
-                        onClick={() => advance(o.id, o.status)}
-                      >
-                        Démarrer livraison
-                      </button>
-                    )}
+              <Link
+                href="/client/orders"
+                style={{
+                  display: "inline-block",
+                  border: "1px solid #d1d5db",
+                  color: "#111827",
+                  padding: "12px 16px",
+                  borderRadius: 12,
+                  textDecoration: "none",
+                  fontWeight: 600,
+                }}
+              >
+                Mes commandes
+              </Link>
 
-                    {o.status === "OUT_FOR_DELIVERY" && (
-                      <button
-                        className="px-3 py-1 rounded bg-green-600 text-white"
-                        disabled={busyId === o.id}
-                        onClick={() => advance(o.id, o.status)}
-                      >
-                        Marquer livrée (OTP)
-                      </button>
-                    )}
-
-                    {o.status === "DELIVERED" && (
-                      <span className="text-green-700 font-semibold">Terminée ✅</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {mine.length === 0 && (
-                <tr>
-                  <td className="p-3 border text-center" colSpan={5}>
-                    Aucune commande
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+              <Link
+                href="/client/new-order"
+                style={{
+                  display: "inline-block",
+                  border: "1px solid #d1d5db",
+                  color: "#111827",
+                  padding: "12px 16px",
+                  borderRadius: 12,
+                  textDecoration: "none",
+                  fontWeight: 600,
+                }}
+              >
+                Nouvelle commande
+              </Link>
+            </div>
+          </div>
+        )}
+      </div>
     </main>
   );
 }

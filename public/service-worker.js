@@ -1,5 +1,5 @@
 self.addEventListener("install", (event) => {
-  console.log("Service Worker: install");
+  ("Service Worker: install");
   event.waitUntil(
     caches.open("helpflow-cache").then((cache) =>
       cache.addAll([
@@ -15,7 +15,7 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", () => {
-  console.log("Service Worker: activate");
+  ("Service Worker: activate");
   self.clients.claim();
 });
 

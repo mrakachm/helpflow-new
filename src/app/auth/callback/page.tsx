@@ -1,3 +1,4 @@
+// src/app/auth/callback/page.tsx
 "use client";
 
 import { Suspense, useEffect } from "react";
@@ -8,7 +9,6 @@ function CallbackInner() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    // Exemple : si tu récupères un paramètre ?next=/...
     const next = searchParams.get("next") || "/";
     router.replace(next);
   }, [router, searchParams]);

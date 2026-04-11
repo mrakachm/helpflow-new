@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 
 type OrderRow = {
@@ -36,58 +37,55 @@ function formatLine(address?: string | null, zip?: string | null, city?: string 
 }
 
 export default function OrdersPage() {
-const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const router = useRouter();
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [orders, setOrders] = useState<OrderRow[]>([]);
+
+  function openOrder(id: string) {
+  if (!id) {
+    alert("Erreur: ID commande manquant");
+    return;
+  }
+  router.push(`/client/orders/${id}`);
+}
 
   async function loadOrders() {
     setLoading(true);
     setError(null);
 
     try {
-      // 1) Vérifier session
+      // 1) session
       const { data: userData, error: userErr } = await supabase.auth.getUser();
       if (userErr) throw userErr;
+      if (!userData.user) {
+  ("⏳ user pas encore chargé");
+  return;
+}
 
-      const userId = userData?.user?.id;
-      if (!userId) {
-        setError("Tu dois être connecté");
-        setOrders([]);
-        return;
-      }
-
-      // 2) Charger commandes
-      const { data: ordersData, error: selErr } = await supabase
+      // 2) fetch orders
+      const { data, error } = await supabase
         .from("orders")
         .select(
           `
-          id,
-          created_at,
-          status,
-          pickup_address,
-          dropoff_address,
-          pickup_city,
-          dropoff_city,
-          pickup_zip,
-          dropoff_zip,
-          distance_km,
-          bag_count,
-          weight_kg,
-          price_cents,
-          platform_fee_cents
+          id, created_at, status,
+          pickup_address, dropoff_address,
+          pickup_city, dropoff_city,
+          pickup_zip, dropoff_zip,
+          distance_km, bag_count, weight_kg,
+          price_cents, platform_fee_cents
         `
         )
-        .eq("client_id", userId)
+        .eq("client_id", userData.user.id)
         .order("created_at", { ascending: false });
 
-      if (selErr) throw selErr;
+      if (error) throw error;
 
-      // ✅ LIGNE DEMANDÉE (la dernière ligne, suite d'orders)
-      setOrders(ordersData ?? []);
+      setOrders((data ?? []) as OrderRow[]);
     } catch (e: any) {
-      setError(e?.message || "Erreur inconnue");
+      setError(e?.message ?? "Erreur chargement");
       setOrders([]);
     } finally {
       setLoading(false);
@@ -101,7 +99,7 @@ const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   return (
     <div className="p-4 max-w-3xl mx-auto">
-      <div className="flex items-center justify-between gap-3 mb-4">
+      <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold">Mes commandes</h1>
 
         <button
@@ -114,15 +112,13 @@ const supabase = useMemo(() => createBrowserSupabaseClient(), []);
       </div>
 
       {error && (
-        <div className="mb-4 p-3 rounded border border-red-300 bg-red-50 text-red-800">
+        <div className="mb-4 p-3 rounded border border-red-300 bg-red-50 text-red-700">
           {error}
         </div>
       )}
 
       {!loading && !error && orders.length === 0 && (
-        <div className="p-3 rounded border bg-white">
-          Aucune commande pour le moment.
-        </div>
+        <div className="p-3 rounded border bg-white">Aucune commande pour le moment.</div>
       )}
 
       <div className="space-y-3">
@@ -134,7 +130,16 @@ const supabase = useMemo(() => createBrowserSupabaseClient(), []);
           const dropoff = formatLine(o.dropoff_address, o.dropoff_zip, o.dropoff_city);
 
           return (
-            <div key={o.id} className="border rounded p-3">
+            <div
+              key={o.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => router.push(`/client/orders/${o.id}`)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") router.push(`/client/orders/${o.id}`);
+              }}
+              className="border rounded p-3 cursor-pointer hover:bg-gray-50"
+            >
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="font-semibold">
@@ -153,19 +158,11 @@ const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
               <div className="mt-3 text-sm">
                 <p>
-                  <span className="font-semibold">Départ :</span>{" "}
-                  {pickup || "—"}
+                  <span className="font-semibold">Départ :</span> {pickup || "—"}
                 </p>
                 <p>
-                  <span className="font-semibold">Arrivée :</span>{" "}
-                  {dropoff || "—"}
+                  <span className="font-semibold">Arrivée :</span> {dropoff || "—"}
                 </p>
-              </div>
-
-              <div className="mt-3 text-xs text-gray-600 flex gap-4 flex-wrap">
-                <span>Distance : {o.distance_km ?? "—"} km</span>
-                <span>Sacs : {o.bag_count ?? "—"}</span>
-                <span>Poids : {o.weight_kg ?? "—"} kg</span>
               </div>
             </div>
           );
