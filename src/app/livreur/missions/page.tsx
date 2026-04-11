@@ -218,7 +218,7 @@ export default function MissionsPage() {
     setOtpLoadingId(orderId);
 
     try {
-      ("VERIFY FINAL FRONT =>", {
+      console.log("VERIFY FINAL FRONT =>", {
   orderId,
   otp: inputOtp,
   mission: myMissions.find((m) => m.id === orderId),
@@ -236,10 +236,10 @@ export default function MissionsPage() {
 
       const result = await res.json();
 
-      ("VERIFY OTP RESPONSE =>", {
-        status: res.status,
-        result,
-      });
+      console.log("VERIFY OTP RESPONSE =>", {
+  status: res.status,
+  result,
+});
 
       if (!res.ok) {
         setError(result?.error || "Impossible de valider le code OTP.");
