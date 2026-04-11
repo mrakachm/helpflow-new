@@ -43,13 +43,13 @@ export async function POST(req: Request) {
             product_data: {
               name: "Paiement HelpFlow",
             },
-            unit_amount: 100,
+            unit_amount: 100, // ✅ 1€
           },
           quantity: 1,
         },
       ],
       metadata: { orderId },
-      success_url: `${siteUrl}/payment/success?orderId=${orderId}&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${siteUrl}/payment/success?orderId=${orderId}`,
       cancel_url: `${siteUrl}/payment/cancel?orderId=${orderId}`,
     });
 
@@ -80,6 +80,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ url: session.url });
+
   } catch (e: any) {
     return NextResponse.json(
       { error: e?.message || "checkout error" },
