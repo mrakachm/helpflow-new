@@ -1,90 +1,64 @@
-import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
+// Supabase server (IMPORTANT)
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-  process.env.SUPABASE_SERVICE_ROLE_KEY as string
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-
-    const orderId = String(body?.orderId ?? "").trim();
-    const amountCents = Number(body?.amountCents ?? 0);
+    const { orderId } = await req.json();
 
     if (!orderId) {
-      return NextResponse.json(
-        { error: "orderId manquant" },
-        { status: 400 }
-      );
+      return new Response("Missing orderId", { status: 400 });
     }
 
-    if (!amountCents || amountCents <= 0) {
-      return NextResponse.json(
-        { error: "Montant invalide" },
-        { status: 400 }
-      );
+    // 🔍 1. Récupérer la commande
+    const { data: order, error } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("id", orderId)
+      .single();
+
+    if (error || !order) {
+      return new Response("Order not found", { status: 404 });
     }
 
-    const siteUrl =
-      process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    const origin = req.headers.get("origin");
 
+    // 💰 2. Créer session Stripe
     const session = await stripe.checkout.sessions.create({
-      mode: "payment",
       payment_method_types: ["card"],
+      mode: "payment",
+
       line_items: [
         {
           price_data: {
             currency: "eur",
             product_data: {
-              name: "Paiement HelpFlow",
+              name: `Commande HelpFlow (${order.id})`,
             },
-            unit_amount: 100, // ✅ 1€
+            unit_amount: order.price_cents, // ✅ PRIX TOTAL
           },
           quantity: 1,
         },
       ],
-      metadata: { orderId },
-      success_url: `${siteUrl}/payment/success?orderId=${orderId}`,
-      cancel_url: `${siteUrl}/payment/cancel?orderId=${orderId}`,
+
+      metadata: {
+        orderId: order.id,
+      },
+
+      success_url: `${origin}/payment/success?orderId=${order.id}`,
+      cancel_url: `${origin}/client/orders/${order.id}`,
     });
 
-    const { error: updateError } = await supabase
-      .from("orders")
-      .update({
-        stripe_session_id: session.id,
-        payment_status: "pending",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", orderId);
-
-    if (updateError) {
-      return NextResponse.json(
-        {
-          error: "Erreur mise à jour commande",
-          details: updateError.message,
-        },
-        { status: 500 }
-      );
-    }
-
-    if (!session.url) {
-      return NextResponse.json(
-        { error: "URL Stripe manquante" },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ url: session.url });
-
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: e?.message || "checkout error" },
-      { status: 500 }
-    );
+    return Response.json({ url: session.url });
+  } catch (err: any) {
+    console.error("Stripe error:", err);
+    return new Response("Internal error", { status: 500 });
   }
 }

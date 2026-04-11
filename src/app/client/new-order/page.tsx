@@ -119,7 +119,7 @@ const [parcelNote, setParcelNote] = useState<string>("");
   const [scheduledAt, setScheduledAt] = useState<string>("");
 
   // ====== Proposition client (optionnel) ======
-  const [clientProposedPrice, setClientProposedPrice] = useState<string>("5");
+const [clientProposedPrice, setClientProposedPrice] = useState<string>("");
 
   // ====== GPS ======
   const [gpsLoading, setGpsLoading] = useState(false);
@@ -291,6 +291,12 @@ async function onSubmit(e: React.FormEvent) {
     return;
   }
 
+  if (clientProposedPrice && Number(clientProposedPrice) < 5) {
+  setMsg("Le prix minimum est 5€");
+  setLoading(false);
+  return;
+}
+
   setLoading(true);
 
 const payload: any = {
@@ -334,7 +340,7 @@ console.log("📦 RESPONSE:", { data, error });
 
 if (error) throw error;
 
-router.push(`/client/orders/${data.id}`);
+router.push(`/payment/success?orderId=${data.id}`);
 
 }
 
@@ -372,6 +378,10 @@ return (
       <form onSubmit={onSubmit} className="space-y-4">
         {/* distanceKm caché */}
         <input type="hidden" name="distanceKm" value={distanceKm ?? ""} />
+
+{clientProposedPrice && Number(clientProposedPrice) < 5 && (
+  <p className="text-red-500 text-sm">Minimum 5€</p>
+)}
 
         {/* ===================== */}
         {/* Expéditeur */}
@@ -553,15 +563,18 @@ return (
         <input
   type="number"
   inputMode="decimal"
-  min="5"
+  min="0"
   step="0.5"
   value={clientProposedPrice}
   onChange={(e) => {
     const v = e.target.value;
-    if (v === "") return setClientProposedPrice("");
+if (v === "") {
+  setClientProposedPrice("");
+  return;
+}
     const n = Number(v.replace(",", "."));
     if (Number.isNaN(n)) return;
-    setClientProposedPrice(String(Math.max(5, n)));
+   setClientProposedPrice(String(n));
   }}
   placeholder="Ex : 5"
   className="w-full rounded-xl border border-gray-200 px-3 py-2"
