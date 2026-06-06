@@ -18,15 +18,15 @@ export async function sendOtpEmail({
   const resend = new Resend(apiKey);
 
   return await resend.emails.send({
-    from: "onboarding@resend.dev",
+    from: "HelpFlow <onboarding@resend.dev>",
     to,
-    subject: "Code OTP de livraison",
+    subject: "Votre code OTP de livraison",
     html: `
       <h2>Votre livraison est en cours</h2>
-      <p>Commande : ${orderId}</p>
+      <p>Commande : <strong>${orderId}</strong></p>
       <p>Votre code OTP :</p>
       <h1>${otp}</h1>
-      <p>Donnez ce code uniquement au livreur lors de la livraison.</p>
+      <p>Donnez ce code uniquement au livreur quand vous recevez bien la commande.</p>
     `,
   });
 }

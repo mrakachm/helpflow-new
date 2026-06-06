@@ -12,12 +12,20 @@ export async function POST(req: Request) {
       );
     }
 
-    await sendOtpEmail({ to, otp, orderId });
+    await sendOtpEmail({
+      to,
+      otp,
+      orderId,
+    });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+    });
   } catch (error: any) {
     return NextResponse.json(
-      { error: error?.message || "Erreur envoi email" },
+      {
+        error: error?.message || "Erreur envoi email",
+      },
       { status: 500 }
     );
   }
