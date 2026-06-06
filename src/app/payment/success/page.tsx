@@ -11,7 +11,9 @@ export default function PaymentSuccessContent() {
     <main className="min-h-screen bg-gray-50">
       <div className="mx-auto max-w-xl px-4 py-10">
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h1 className="mb-4 text-2xl font-semibold">Paiement validé</h1>
+          <h1 className="mb-4 text-2xl font-semibold">
+            Paiement validé
+          </h1>
 
           {orderId ? (
             <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm">
