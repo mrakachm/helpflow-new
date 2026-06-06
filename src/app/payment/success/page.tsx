@@ -15,7 +15,8 @@ export default function PaymentSuccessContent() {
 
           {orderId ? (
             <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm">
-              Commande confirmée : <span className="font-medium">{orderId}</span>
+              Commande confirmée :{" "}
+              <span className="font-medium">{orderId}</span>
             </div>
           ) : (
             <div className="mb-4 rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-sm">
@@ -24,14 +25,14 @@ export default function PaymentSuccessContent() {
           )}
 
           <div className="flex flex-col gap-3">
-            {orderId ? (
+            {orderId && (
               <Link
                 href={`/client/orders/${orderId}`}
                 className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-3 text-white"
               >
                 Voir la commande
               </Link>
-            ) : null}
+            )}
 
             <Link
               href="/client/orders"
