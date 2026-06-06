@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { sendOtpEmail } from "@/lib/email";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -26,7 +27,7 @@ export async function POST(req: Request) {
       process.env.STRIPE_WEBHOOK_SECRET!
     );
   } catch (err) {
-    console.error("❌ Webhook error:", err);
+    console.error("❌ Webhook Stripe error:", err);
     return new NextResponse("Webhook Error", { status: 400 });
   }
 
@@ -36,24 +37,48 @@ export async function POST(req: Request) {
 
     console.log("✅ Paiement reçu:", orderId);
 
-    if (orderId) {
-      const otp = generateOtp();
+    if (!orderId) {
+      return new NextResponse("OrderId manquant", { status: 400 });
+    }
 
-     const { error } = await supabase
-  .from("orders")
-  .update({
-    status: "PENDING",
-    payment_status: "PAID",
-    delivery_otp: otp,
-    updated_at: new Date().toISOString(),
-  })
-  .eq("id", orderId);
+    const otp = generateOtp();
 
-if (error) {
-  console.error("❌ Erreur DB:", error);
-} else {
-  console.log("✅ Commande mise à jour avec OTP !");
-}
+    const { data: updatedOrder, error } = await supabase
+      .from("orders")
+      .update({
+        status: "PENDING",
+        payment_status: "PAID",
+        delivery_otp: otp,
+        delivery_otp_expires_at: new Date(
+          Date.now() + 30 * 60 * 1000
+        ).toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", orderId)
+      .select("id, receiver_email, delivery_otp")
+      .single();
+
+    if (error) {
+      console.error("❌ Erreur DB:", error);
+      return new NextResponse("Erreur DB", { status: 500 });
+    }
+
+    console.log("✅ Commande mise à jour avec OTP:", updatedOrder);
+
+    if (updatedOrder?.receiver_email) {
+      try {
+        await sendOtpEmail({
+          to: updatedOrder.receiver_email,
+          otp,
+          orderId: updatedOrder.id,
+        });
+
+        console.log("✅ Email OTP envoyé à:", updatedOrder.receiver_email);
+      } catch (emailError) {
+        console.error("❌ Erreur envoi email OTP:", emailError);
+      }
+    } else {
+      console.log("⚠️ Aucun email receveur trouvé pour cette commande");
     }
   }
 
