@@ -5,25 +5,41 @@ import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type OrderStatus =
+  | "DRAFT"
   | "PENDING"
   | "ACCEPTED"
   | "OUT_FOR_DELIVERY"
-  | "DELIVERED";
+  | "DELIVERED"
+  | string;
 
 type Order = {
   id: string;
   pickup_address: string | null;
   dropoff_address: string | null;
   price_cents: number | null;
-  status: OrderStatus;
+  payment_status?: string | null;
+  status: OrderStatus | null;
   courier_id: string | null;
+  delivery_otp?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
 
-function euros(cents: number | null) {
+function euros(cents: number | null | undefined) {
   if (cents == null) return "-";
   return (cents / 100).toFixed(2) + " €";
+}
+
+function normalize(value: string | null | undefined) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function isPaid(order: Order) {
+  return normalize(order.payment_status) === "PAID";
+}
+
+function isPendingPaid(order: Order) {
+  return normalize(order.status) === "PENDING" && isPaid(order) && !order.courier_id;
 }
 
 export default function MissionsPage() {
@@ -81,6 +97,7 @@ export default function MissionsPage() {
         .from("orders")
         .select("*")
         .eq("status", "PENDING")
+        .eq("payment_status", "PAID")
         .is("courier_id", null)
         .order("created_at", { ascending: false });
 
@@ -101,8 +118,19 @@ export default function MissionsPage() {
         setError("Erreur chargement de tes missions.");
       }
 
-      setAvailable((availableData as Order[]) || []);
-      setMyMissions((myData as Order[]) || []);
+      const cleanAvailable = ((availableData as Order[]) || []).filter(isPendingPaid);
+      const cleanMyMissions = ((myData as Order[]) || []).filter((order) =>
+        ["ACCEPTED", "OUT_FOR_DELIVERY"].includes(normalize(order.status))
+      );
+
+      console.log("MISSIONS LOAD =>", {
+        uid,
+        available: cleanAvailable,
+        myMissions: cleanMyMissions,
+      });
+
+      setAvailable(cleanAvailable);
+      setMyMissions(cleanMyMissions);
     } catch (err) {
       console.error("LOAD ORDERS UNCAUGHT ERROR =>", err);
       setError("Erreur serveur lors du chargement des commandes.");
@@ -134,10 +162,12 @@ export default function MissionsPage() {
         .update({
           status: "ACCEPTED",
           courier_id: userId,
+          accepted_at: now,
           updated_at: now,
         })
         .eq("id", orderId)
         .eq("status", "PENDING")
+        .eq("payment_status", "PAID")
         .is("courier_id", null);
 
       if (error) {
@@ -171,6 +201,7 @@ export default function MissionsPage() {
         .from("orders")
         .update({
           status: "OUT_FOR_DELIVERY",
+          started_at: now,
           updated_at: now,
         })
         .eq("id", orderId)
@@ -219,10 +250,11 @@ export default function MissionsPage() {
 
     try {
       console.log("VERIFY FINAL FRONT =>", {
-  orderId,
-  otp: inputOtp,
-  mission: myMissions.find((m) => m.id === orderId),
-});
+        orderId,
+        otp: inputOtp,
+        mission: myMissions.find((m) => m.id === orderId),
+      });
+
       const res = await fetch("/api/verify-otp", {
         method: "POST",
         headers: {
@@ -237,9 +269,9 @@ export default function MissionsPage() {
       const result = await res.json();
 
       console.log("VERIFY OTP RESPONSE =>", {
-  status: res.status,
-  result,
-});
+        status: res.status,
+        result,
+      });
 
       if (!res.ok) {
         setError(result?.error || "Impossible de valider le code OTP.");
@@ -277,6 +309,8 @@ export default function MissionsPage() {
         .update({
           status: "PENDING",
           courier_id: null,
+          accepted_at: null,
+          started_at: null,
           updated_at: now,
         })
         .eq("id", orderId)
@@ -304,16 +338,17 @@ export default function MissionsPage() {
       if (!uid) return;
       await loadOrders(uid);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <div className="p-4 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-bold">Espace livreur</h1>
 
         <button
           type="button"
-          className="px-3 py-2 rounded bg-black text-white text-sm"
+          className="px-3 py-2 rounded bg-black text-white text-sm disabled:opacity-60"
           onClick={refreshOrders}
           disabled={refreshing || loading}
         >
@@ -337,22 +372,26 @@ export default function MissionsPage() {
             {available.length === 0 && <p>Aucune mission disponible.</p>}
 
             {available.map((order) => (
-              <div
-                key={order.id}
-                className="border p-4 rounded space-y-3"
-              >
+              <div key={order.id} className="border p-4 rounded space-y-3">
                 <div>
                   <p className="font-semibold">
                     {order.pickup_address || "Adresse de retrait inconnue"}
                   </p>
+
                   <p className="text-sm text-gray-500">
                     Livraison vers : {order.dropoff_address || "-"}
                   </p>
+
                   <p className="text-sm text-gray-500">
                     Prix : {euros(order.price_cents)}
                   </p>
+
                   <p className="text-sm text-gray-500">
                     Statut : {order.status}
+                  </p>
+
+                  <p className="text-sm text-gray-500">
+                    Paiement : {order.payment_status || "-"}
                   </p>
                 </div>
 
@@ -360,11 +399,9 @@ export default function MissionsPage() {
                   type="button"
                   onClick={() => takeMission(order.id)}
                   disabled={actionLoadingId === order.id}
-                  className="px-3 py-2 rounded bg-blue-600 text-white text-sm"
+                  className="px-3 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-60"
                 >
-                  {actionLoadingId === order.id
-                    ? "Prise..."
-                    : "Prendre mission"}
+                  {actionLoadingId === order.id ? "Prise..." : "Prendre mission"}
                 </button>
               </div>
             ))}
@@ -376,32 +413,36 @@ export default function MissionsPage() {
             {myMissions.length === 0 && <p>Aucune mission en cours.</p>}
 
             {myMissions.map((order) => (
-              <div
-                key={order.id}
-                className="border p-4 rounded space-y-3"
-              >
+              <div key={order.id} className="border p-4 rounded space-y-3">
                 <div>
                   <p className="font-semibold">
                     {order.pickup_address || "Adresse de retrait inconnue"}
                   </p>
+
                   <p className="text-sm text-gray-500">
                     Livraison vers : {order.dropoff_address || "-"}
                   </p>
+
                   <p className="text-sm text-gray-500">
                     Prix : {euros(order.price_cents)}
                   </p>
+
                   <p className="text-sm text-gray-500">
                     Statut : {order.status}
                   </p>
+
+                  <p className="text-sm text-gray-500">
+                    Paiement : {order.payment_status || "-"}
+                  </p>
                 </div>
 
-                {order.status === "ACCEPTED" && (
-                  <div className="flex gap-2">
+                {normalize(order.status) === "ACCEPTED" && (
+                  <div className="flex gap-2 flex-wrap">
                     <button
                       type="button"
                       onClick={() => startDelivery(order.id)}
                       disabled={actionLoadingId === order.id}
-                      className="px-3 py-2 rounded bg-blue-600 text-white text-sm"
+                      className="px-3 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-60"
                     >
                       {actionLoadingId === order.id
                         ? "Démarrage..."
@@ -412,23 +453,21 @@ export default function MissionsPage() {
                       type="button"
                       onClick={() => cancelMission(order.id)}
                       disabled={actionLoadingId === order.id}
-                      className="px-3 py-2 rounded border text-sm"
+                      className="px-3 py-2 rounded border text-sm disabled:opacity-60"
                     >
                       Annuler mission
                     </button>
                   </div>
                 )}
 
-                {order.status === "OUT_FOR_DELIVERY" && (
+                {normalize(order.status) === "OUT_FOR_DELIVERY" && (
                   <div className="space-y-2">
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                       <input
                         type="text"
                         placeholder="Code OTP"
                         value={otpInputs[order.id] || ""}
-                        onChange={(e) =>
-                          updateOtpInput(order.id, e.target.value)
-                        }
+                        onChange={(e) => updateOtpInput(order.id, e.target.value)}
                         className="border px-2 py-1 rounded w-32"
                       />
 
@@ -436,11 +475,9 @@ export default function MissionsPage() {
                         type="button"
                         onClick={() => validateOtpAndDeliver(order.id)}
                         disabled={otpLoadingId === order.id}
-                        className="bg-green-600 text-white px-3 py-1 rounded"
+                        className="bg-green-600 text-white px-3 py-1 rounded disabled:opacity-60"
                       >
-                        {otpLoadingId === order.id
-                          ? "Validation..."
-                          : "Valider OTP"}
+                        {otpLoadingId === order.id ? "Validation..." : "Valider OTP"}
                       </button>
                     </div>
 
@@ -448,7 +485,7 @@ export default function MissionsPage() {
                       type="button"
                       onClick={() => cancelMission(order.id)}
                       disabled={actionLoadingId === order.id}
-                      className="text-sm text-red-600"
+                      className="text-sm text-red-600 disabled:opacity-60"
                     >
                       Annuler mission
                     </button>

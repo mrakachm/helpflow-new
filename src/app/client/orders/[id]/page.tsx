@@ -4,16 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
-type OrderStatus =
-  | "DRAFT"
-  | "PENDING"
-  | "ACCEPTED"
-  | "OUT_FOR_DELIVERY"
-  | "DELIVERED";
-
 type OrderRow = {
   id: string;
-  status: OrderStatus;
+  status?: string | null;
   payment_status?: string | null;
   pickup_address?: string | null;
   dropoff_address?: string | null;
@@ -22,24 +15,16 @@ type OrderRow = {
   weight_kg?: number | null;
   price_cents?: number | null;
   platform_fee_cents?: number | null;
-  courier_id?: string | null;
   delivery_otp?: string | null;
-  created_at?: string | null;
-  accepted_at?: string | null;
-  started_at?: string | null;
-  delivered_at?: string | null;
-  updated_at?: string | null;
 };
 
-function formatEurosFromCents(cents: number | null | undefined) {
+function formatEurosFromCents(cents?: number | null) {
   if (cents == null) return "-";
   return (cents / 100).toFixed(2) + " €";
 }
 
-function getStatusLabel(status?: OrderStatus) {
+function getStatusLabel(status?: string | null) {
   switch (status) {
-    case "DRAFT":
-      return "Brouillon";
     case "PENDING":
       return "Payée - en attente d’un livreur";
     case "ACCEPTED":
@@ -49,7 +34,7 @@ function getStatusLabel(status?: OrderStatus) {
     case "DELIVERED":
       return "Livrée";
     default:
-      return "-";
+      return "Brouillon";
   }
 }
 
@@ -64,73 +49,79 @@ export default function ClientOrderDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   async function fetchOrder() {
-  if (!orderId) return;
+    if (!orderId) return;
 
-  setLoadingOrder(true);
-  setError(null);
+    setLoadingOrder(true);
+    setError(null);
 
-  const { data, error } = await supabase
-    .from("orders")
-    .select("*")
-    .eq("id", orderId)
-    .maybeSingle();
+    const { data, error } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("id", orderId)
+      .maybeSingle();
 
-  if (error || !data) {
-    setError("Commande introuvable");
-    setOrder(null);
+    if (error || !data) {
+      setError("Commande introuvable");
+      setOrder(null);
+    } else {
+      setOrder(data as OrderRow);
+    }
+
     setLoadingOrder(false);
-    return;
   }
 
-  setOrder(data as OrderRow);
-  setLoadingOrder(false);
-}
+  useEffect(() => {
+    fetchOrder();
+  }, [orderId]);
 
-useEffect(() => {
-  fetchOrder();
-}, [orderId]);
+  const isPaid =
+    order?.payment_status?.toLowerCase() === "paid" ||
+    order?.status === "PENDING" ||
+    order?.status === "ACCEPTED" ||
+    order?.status === "OUT_FOR_DELIVERY" ||
+    order?.status === "DELIVERED";
 
-async function goToStripe(orderId: string) {
-  try {
-    const amountCents =
-      typeof order?.price_cents === "number" && order.price_cents > 0
-        ? order.price_cents
-        : 0;
+  const canPay = !!order && !isPaid && order.status === "DRAFT";
 
-    const res = await fetch("/api/checkout", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        orderId,
-        amountCents,
-      }),
-    });
+  async function goToStripe(orderId: string) {
+    if (!order) return;
 
-    const data = await res.json();
-
-    if (!res.ok) {
-      console.error("Erreur checkout:", data);
-      alert(data?.error || "Erreur paiement");
+    if (isPaid) {
+      alert("Cette commande est déjà payée.");
       return;
     }
 
-    if (data.url) {
-      window.location.href = data.url;
-    } else {
-      alert("URL Stripe manquante");
-    }
-  } catch (err) {
-    console.error(err);
-    alert("Erreur réseau");
-  }
-}
+    try {
+      setLoading(true);
 
-  const invalid = !orderId;
-  const canPay =
-    order &&
-    (order.status === "DRAFT" || order.payment_status !== "paid");
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ orderId }),
+      });
+
+     const text = await res.text();
+const data = text ? JSON.parse(text) : {};
+
+      if (!res.ok) {
+        alert(data?.error || "Erreur paiement");
+        return;
+      }
+
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert("URL Stripe manquante");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Erreur réseau");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <div style={{ padding: 24, maxWidth: 760, margin: "0 auto" }}>
@@ -141,11 +132,6 @@ async function goToStripe(orderId: string) {
       <p>
         <strong>ID :</strong> {orderId}
       </p>
-
-      {invalid && (
-        <p style={{ color: "red" }}>ERREUR : ID commande invalide</p>
-      )}
-
 
       {loadingOrder && <p>Chargement de la commande...</p>}
 
@@ -180,8 +166,7 @@ async function goToStripe(orderId: string) {
             </div>
 
             <div style={{ marginBottom: 8 }}>
-              <strong>Paiement :</strong>{" "}
-              {order.payment_status === "paid" ? "Confirmé" : "Non payé"}
+              <strong>Paiement :</strong> {isPaid ? "Confirmé" : "Non payé"}
             </div>
 
             <div style={{ marginBottom: 8 }}>
@@ -213,7 +198,7 @@ async function goToStripe(orderId: string) {
               {formatEurosFromCents(order.platform_fee_cents)}
             </div>
 
-            {order.status !== "DRAFT" && (
+            {isPaid && (
               <div
                 style={{
                   marginTop: 16,
@@ -245,16 +230,8 @@ async function goToStripe(orderId: string) {
           <div style={{ marginTop: 20 }}>
             {canPay ? (
               <button
-                disabled={loading || invalid}
-                onClick={async () => {
-                  if (!orderId) {
-                    alert("ID manquant");
-                    return;
-                  }
-                  setLoading(true);
-                  await goToStripe(orderId);
-                  setLoading(false);
-                }}
+                onClick={() => goToStripe(orderId)}
+                disabled={loading}
                 style={{
                   padding: "12px 16px",
                   borderRadius: 10,
@@ -276,19 +253,28 @@ async function goToStripe(orderId: string) {
                   color: "#166534",
                 }}
               >
-                ✅ Commande déjà payée. Tu n’as plus besoin de repayer.
+                ✅ Paiement confirmé.
+
+                <div style={{ marginTop: 12 }}>
+                  <button
+                    onClick={() => (window.location.href = "/client")}
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: 10,
+                      background: "#2563eb",
+                      color: "white",
+                      border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Retour à l'accueil
+                  </button>
+                </div>
               </div>
             )}
           </div>
 
-          <div
-            style={{
-              marginTop: 20,
-              display: "flex",
-              gap: 12,
-              flexWrap: "wrap",
-            }}
-          >
+          <div style={{ marginTop: 20 }}>
             <button
               onClick={fetchOrder}
               style={{

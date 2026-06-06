@@ -85,7 +85,7 @@ export default function NewOrderPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   // ===== TARIF =====
-  const BASE_PRICE_CENTS = 500;
+  const BASE_PRICE_CENTS = 100;
   const PRICE_PER_KM_CENTS = 20;
 
   function calculatePrice(distanceKm: number | null | undefined) {
@@ -291,8 +291,8 @@ async function onSubmit(e: React.FormEvent) {
     return;
   }
 
-  if (clientProposedPrice && Number(clientProposedPrice) < 5) {
-  setMsg("Le prix minimum est 5€");
+  if (clientProposedPrice && Number(clientProposedPrice) < 1) {
+  setMsg("Le prix minimum est 1€");
   setLoading(false);
   return;
 }
@@ -380,7 +380,7 @@ return (
         <input type="hidden" name="distanceKm" value={distanceKm ?? ""} />
 
 {clientProposedPrice && Number(clientProposedPrice) < 5 && (
-  <p className="text-red-500 text-sm">Minimum 5€</p>
+  <p className="text-red-500 text-sm">Minimum 1€</p>
 )}
 
         {/* ===================== */}
