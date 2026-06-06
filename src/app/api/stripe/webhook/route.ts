@@ -59,9 +59,12 @@ export async function POST(req: Request) {
       .single();
 
     if (error) {
-      console.error("❌ Erreur DB:", error);
-      return new NextResponse("Erreur DB", { status: 500 });
-    }
+  console.error("❌ Erreur DB:", JSON.stringify(error, null, 2));
+  return NextResponse.json(
+    { error: "Erreur DB", details: error },
+    { status: 500 }
+  );
+}
 
     console.log("✅ Commande mise à jour avec OTP:", updatedOrder);
 
