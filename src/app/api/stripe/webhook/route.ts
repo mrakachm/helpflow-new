@@ -55,7 +55,7 @@ export async function POST(req: Request) {
         updated_at: new Date().toISOString(),
       })
       .eq("id", orderId)
-      .select("id, receiver_email, delivery_otp")
+      .select("id, recipient_email, delivery_otp")
       .single();
 
     if (error) {
@@ -68,13 +68,13 @@ export async function POST(req: Request) {
 
     console.log("✅ Commande mise à jour avec OTP:", updatedOrder);
 
-    if (updatedOrder?.receiver_email) {
-      try {
-        await sendOtpEmail({
-          to: updatedOrder.receiver_email,
-          otp,
-          orderId: updatedOrder.id,
-        });
+    if (updatedOrder?.recipient_email) {
+  await sendOtpEmail({
+    to: updatedOrder.recipient_email,
+    otp,
+    orderId: updatedOrder.id,
+  });
+}
 
         console.log("✅ Email OTP envoyé à:", updatedOrder.receiver_email);
       } catch (emailError) {
