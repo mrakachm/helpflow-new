@@ -83,10 +83,11 @@ export async function POST(req: Request) {
     const { data: updatedOrder, error: updateError } = await supabase
       .from("orders")
       .update({
-        status: "LIVRÉ",
-        delivered_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
+  status: "LIVRÉ",
+  delivery_otp_verified_at: new Date().toISOString(),
+  delivered_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+})
       .eq("id", orderId)
       .select()
       .single();

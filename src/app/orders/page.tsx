@@ -1,23 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { supabaseBrowser } from "@/lib/supabaseClient";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type OrderRow = {
   id: string;
-  client_id: string | null;
+  client_id?: string | null;
   pickup_address: string | null;
   dropoff_address: string | null;
-  pickup_city: string | null;
-  dropoff_city: string | null;
-  pickup_zip: string | null;
-  dropoff_zip: string | null;
+  pickup_city?: string | null;
+  dropoff_city?: string | null;
+  pickup_zip?: string | null;
+  dropoff_zip?: string | null;
   distance_km: number | null;
   weight_kg: number | null;
   bag_count: number | null;
   price_cents: number | null;
+  platform_fee_cents?: number | null;
   status: string | null;
+  payment_status: string | null;
+  delivery_otp: string | null;
+  delivered_at: string | null;
   created_at: string | null;
 };
 
@@ -31,255 +35,243 @@ function formatEURFromCents(cents?: number | null) {
 
 function statusLabel(status?: string | null) {
   const s = (status || "").toLowerCase();
+
   if (s === "pending" || s === "en_attente") return "⏳ En attente";
   if (s === "accepted" || s === "en_cours") return "🚚 En cours";
-  if (s === "delivered" || s === "livree" || s === "livrée") return "✅ Livrée";
-  if (s === "canceled" || s === "annulee" || s === "annulée") return "❌ Annulée";
+  if (
+    s === "out_for_delivery" ||
+    s === "livraison" ||
+    s === "livraison_en_cours"
+  )
+    return "🚚 Livraison en cours";
+
+  if (
+    s === "delivered" ||
+    s === "livre" ||
+    s === "livré" ||
+    s === "livrée"
+  )
+    return "✅ Livrée";
+
+  if (s === "draft" || s === "brouillon") return "📝 Brouillon";
+  if (s === "canceled" || s === "cancelled" || s === "annulee" || s === "annulée")
+    return "❌ Annulée";
+
   return status || "--";
 }
 
+function paymentLabel(payment?: string | null) {
+  const p = (payment || "").toLowerCase();
+
+  if (p === "paid" || p === "payé" || p === "paye") return "Confirmé";
+  if (p === "unpaid" || p === "non payé" || p === "non_paye") return "Non payé";
+
+  return payment || "--";
+}
+
 export default function ClientOrdersPage() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>("");
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const router = useRouter();
+
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [selected, setSelected] = useState<OrderRow | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-async function load() {
-  setError("");
-  setLoading(true);
+  async function loadOrders(silent = false) {
+    if (!silent) setLoading(true);
+    else setRefreshing(true);
 
-  const supabase = supabaseBrowser();
+    setError(null);
 
-  // 1️⃣ Utilisateur connecté
-  const { data: userData, error: userErr } = await supabase.auth.getUser();
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-  if (userErr) {
-    setError(userErr.message);
-    setOrders([]);
-    setLoading(false);
-    return;
+      if (userError || !user) {
+        router.push("/login");
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("client_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("LOAD CLIENT ORDERS ERROR =>", error);
+        setError("Impossible de charger vos commandes.");
+        return;
+      }
+
+      const rows = (data || []) as OrderRow[];
+      setOrders(rows);
+
+      if (selected) {
+        const freshSelected = rows.find((o) => o.id === selected.id) || null;
+        setSelected(freshSelected);
+      } else {
+        setSelected(rows[0] || null);
+      }
+    } catch (err) {
+      console.error("LOAD CLIENT ORDERS UNCAUGHT ERROR =>", err);
+      setError("Erreur serveur pendant le chargement.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }
-
-  const userId = userData.user?.id;
-  if (!userId) {
-    setError("Tu dois être connecté");
-    setOrders([]);
-    setLoading(false);
-    return;
-  }
-
-  // 2️⃣ Commandes du client
-  const { data: ordersData, error: ordersErr } = await supabase
-    .from("orders")
-    .select("*")
-    .eq("client_id", userId)
-    .order("created_at", { ascending: false });
-
-  if (ordersErr) {
-    setError(ordersErr.message);
-    setOrders([]);
-  } else {
-    setOrders((ordersData ?? []) as OrderRow[]);
-  }
-
-  setLoading(false);
-}
-  async function setStatus(orderId: string, status: string) {
-  setError("");
-
-  const supabase = supabaseBrowser();
-
-  const { error: updateErr } = await supabase
-    .from("orders")
-    .update({ status })
-    .eq("id", orderId);
-
-  if (updateErr) {
-    setError(updateErr.message);
-    return;
-  }
-
-  await load();
-}
 
   useEffect(() => {
-    load();
+    loadOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <div className="p-4">
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <h1 className="text-xl font-bold">Mes commandes</h1>
+    <main className="p-4 max-w-5xl mx-auto space-y-6">
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">Mes commandes</h1>
 
-        <div className="flex gap-2">
-          <Link
-            className="px-3 py-2 rounded border"
-            href="/client/new-order"
-          >
-            ➕ Nouvelle commande
-          </Link>
-
-          <button
-            className="px-3 py-2 rounded border"
-            onClick={load}
-          >
-            🔄 Actualiser
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => loadOrders(true)}
+          disabled={loading || refreshing}
+          className="px-3 py-2 rounded border"
+        >
+          {refreshing ? "Actualisation..." : "Rafraîchir"}
+        </button>
       </div>
 
       {error && (
-        <div className="mb-3 p-3 rounded border border-red-300 bg-red-50">
-          ❗ {error}
+        <div className="p-3 rounded bg-red-100 text-red-700 text-sm">
+          {error}
         </div>
       )}
 
-      {loading ? (
-        <p>Chargement…</p>
-      ) : orders.length === 0 ? (
-        <p>Aucune commande.</p>
-      ) : (
-        <div className="overflow-auto rounded border">
-          <table className="min-w-[1100px] w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="text-left p-3">Date</th>
-                <th className="text-left p-3">Départ</th>
-                <th className="text-left p-3">Arrivée</th>
-                <th className="text-left p-3">Sacs</th>
-                <th className="text-left p-3">Poids</th>
-                <th className="text-left p-3">Distance</th>
-                <th className="text-left p-3">Prix</th>
-                <th className="text-left p-3">Statut</th>
-                <th className="text-left p-3">Actions</th>
-              </tr>
-            </thead>
+      {loading && <p>Chargement...</p>}
 
-            <tbody>
-              {orders.map((o) => (
-                <tr key={o.id} className="border-t">
-                  <td className="p-3 whitespace-nowrap">
-                    {o.created_at ? new Date(o.created_at).toLocaleString("fr-FR") : "--"}
-                  </td>
+      {!loading && orders.length === 0 && <p>Aucune commande trouvée.</p>}
 
-                  <td className="p-3">
-                    <div className="font-medium">{o.pickup_city || "--"}</div>
-                    <div className="text-gray-600">{o.pickup_address || ""}</div>
-                  </td>
+      {!loading && orders.length > 0 && (
+        <div className="grid md:grid-cols-2 gap-4">
+          <section className="space-y-3">
+            {orders.map((o) => {
+              const isSelected = selected?.id === o.id;
 
-                  <td className="p-3">
-                    <div className="font-medium">{o.dropoff_city || "--"}</div>
-                    <div className="text-gray-600">{o.dropoff_address || ""}</div>
-                  </td>
+              return (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => setSelected(o)}
+                  className={`w-full text-left border rounded p-3 ${
+                    isSelected ? "bg-blue-50 border-blue-500" : ""
+                  }`}
+                >
+                  <div className="font-semibold">
+                    Statut :{" "}
+                    <span className="uppercase">{statusLabel(o.status)}</span>
+                  </div>
 
-                  <td className="p-3">{o.bag_count ?? "--"}</td>
-                  <td className="p-3">{o.weight_kg != null ? `${o.weight_kg} kg` : "--"}</td>
-                  <td className="p-3">{o.distance_km != null ? `${o.distance_km} km` : "--"}</td>
-                  <td className="p-3">{formatEURFromCents(o.price_cents)}</td>
-                  <td className="p-3">{statusLabel(o.status)}</td>
+                  <div className="text-sm text-gray-600">
+                    Paiement : {paymentLabel(o.payment_status)}
+                  </div>
 
-                  <td className="p-3">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        className="px-2 py-1 rounded border"
-                        onClick={() => setSelected(o)}
-                      >
-                        🔎 Détails
-                      </button>
+                  <div className="text-sm text-gray-600">
+                    Prix : {formatEURFromCents(o.price_cents)}
+                  </div>
 
-                      <button
-                        className="px-2 py-1 rounded border"
-                        onClick={() => setStatus(o.id, "en_cours")}
-                      >
-                        🚚 En cours
-                      </button>
+                  <div className="text-xs text-gray-500 mt-1">
+                    ID : {o.id}
+                  </div>
+                </button>
+              );
+            })}
+          </section>
 
-                      <button
-                        className="px-2 py-1 rounded border"
-                        onClick={() => setStatus(o.id, "livree")}
-                      >
-                        ✅ Livrée
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+          {selected && (
+            <section className="border rounded p-4 space-y-4">
+              <h2 className="text-xl font-bold">Détail commande</h2>
 
-      {/* Modal Détails */}
-      {selected && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-2xl rounded-lg shadow p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-bold">Détails commande</h2>
-              <button
-                className="px-2 py-1 rounded border"
-                onClick={() => setSelected(null)}
-              >
-                ✖ Fermer
-              </button>
-            </div>
+              <div>ID : {selected.id}</div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-              <div className="p-3 rounded border">
-                <div className="font-semibold mb-1">Départ</div>
-                <div>{selected.pickup_address || "--"}</div>
+              <div className="p-3 rounded border space-y-2">
                 <div>
-                  {selected.pickup_city || "--"}{" "}
-                  {selected.pickup_zip ? `(${selected.pickup_zip})` : ""}
+                  <strong>Statut :</strong> {statusLabel(selected.status)}
                 </div>
-              </div>
 
-              <div className="p-3 rounded border">
-                <div className="font-semibold mb-1">Arrivée</div>
-                <div>{selected.dropoff_address || "--"}</div>
                 <div>
-                  {selected.dropoff_city || "--"}{" "}
-                  {selected.dropoff_zip ? `(${selected.dropoff_zip})` : ""}
+                  <strong>Paiement :</strong>{" "}
+                  {paymentLabel(selected.payment_status)}
                 </div>
-              </div>
 
-              <div className="p-3 rounded border">
-                <div className="font-semibold mb-1">Infos</div>
-                <div>Sacs : {selected.bag_count ?? "--"}</div>
-                <div>Poids : {selected.weight_kg != null ? `${selected.weight_kg} kg` : "--"}</div>
-                <div>Distance : {selected.distance_km != null ? `${selected.distance_km} km` : "--"}</div>
-              </div>
-
-              <div className="p-3 rounded border">
-                <div className="font-semibold mb-1">Paiement</div>
-                <div>Prix : {formatEURFromCents(selected.price_cents)}</div>
-                <div>Statut : {statusLabel(selected.status)}</div>
                 <div>
-                  Date :{" "}
-                  {selected.created_at
-                    ? new Date(selected.created_at).toLocaleString("fr-FR")
+                  <strong>Départ :</strong>{" "}
+                  {selected.pickup_address || "--"}
+                  {selected.pickup_city ? `, ${selected.pickup_city}` : ""}
+                  {selected.pickup_zip ? ` (${selected.pickup_zip})` : ""}
+                </div>
+
+                <div>
+                  <strong>Arrivée :</strong>{" "}
+                  {selected.dropoff_address || "--"}
+                  {selected.dropoff_city ? `, ${selected.dropoff_city}` : ""}
+                  {selected.dropoff_zip ? ` (${selected.dropoff_zip})` : ""}
+                </div>
+
+                <div>
+                  <strong>Distance :</strong>{" "}
+                  {selected.distance_km != null
+                    ? `${selected.distance_km} km`
                     : "--"}
                 </div>
-              </div>
-            </div>
 
-            <div className="mt-4 flex gap-2 justify-end">
-              <button
-                className="px-3 py-2 rounded border"
-                onClick={() => setStatus(selected.id, "en_cours")}
-              >
-                🚚 Passer “En cours”
-              </button>
-              <button
-                className="px-3 py-2 rounded border"
-                onClick={() => setStatus(selected.id, "livree")}
-              >
-                ✅ Marquer “Livrée”
-              </button>
-            </div>
-          </div>
+                <div>
+                  <strong>Sacs :</strong> {selected.bag_count ?? "--"}
+                </div>
+
+                <div>
+                  <strong>Poids :</strong>{" "}
+                  {selected.weight_kg != null ? `${selected.weight_kg} kg` : "--"}
+                </div>
+
+                <div>
+                  <strong>Prix :</strong>{" "}
+                  {formatEURFromCents(selected.price_cents)}
+                </div>
+
+                <div>
+                  <strong>Frais plateforme :</strong>{" "}
+                  {formatEURFromCents(selected.platform_fee_cents)}
+                </div>
+
+                {selected.delivery_otp && !selected.delivered_at && (
+                  <div className="mt-4 p-3 rounded border bg-gray-50">
+                    <div className="font-semibold">Code OTP de livraison :</div>
+                    <div className="text-3xl font-bold tracking-widest">
+                      {selected.delivery_otp}
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      Donne ce code uniquement au livreur quand tu reçois bien la
+                      commande.
+                    </p>
+                  </div>
+                )}
+
+                {selected.delivered_at && (
+                  <div className="mt-4 p-3 rounded bg-green-100 text-green-700">
+                    ✅ Commande livrée le{" "}
+                    {new Date(selected.delivered_at).toLocaleString("fr-FR")}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
         </div>
       )}
-    </div>
+    </main>
   );
 }
