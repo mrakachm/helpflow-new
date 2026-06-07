@@ -1,6 +1,18 @@
 "use client";
 
+import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import Link from "next/link";
+
+<button
+  onClick={async () => {
+    const supabase = createBrowserSupabaseClient();
+    await supabase.auth.signOut();
+    window.location.href = "/login";
+  }}
+  className="px-4 py-2 rounded-xl border"
+>
+  Déconnexion
+</button>
 
 export default function ClientHomePage() {
   return (
