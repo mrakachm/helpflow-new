@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import { Eye, EyeOff } from "lucide-react";
+
 function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -12,12 +12,12 @@ function LoginPageInner() {
 
   const nextUrl = useMemo(() => {
     const raw = searchParams.get("next") || "/client";
-    if (!raw.startsWith("/")) return "/client";
-    return raw;
+    return raw.startsWith("/") ? raw : "/client";
   }, [searchParams]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const [checking, setChecking] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -25,67 +25,56 @@ function LoginPageInner() {
 
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    (async () => {
-      try {
-        const { data: userData } = await supabase.auth.getUser();
+    async function checkUser() {
+      const { data } = await supabase.auth.getUser();
 
-        if (cancelled) return;
+      if (cancelled) return;
 
-        if (userData?.user) {
-          router.replace(nextUrl);
-          return;
-        }
-
-        setChecking(false);
-      } catch {
-        setChecking(false);
+      if (data.user) {
+        router.replace(nextUrl);
+        return;
       }
-    })();
+
+      setChecking(false);
+    }
+
+    checkUser();
 
     return () => {
       cancelled = true;
     };
   }, [supabase, router, nextUrl]);
 
- async function onLogin(e: React.FormEvent) {
-  e.preventDefault();
+  async function onLogin(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setInfo(null);
 
-  setLoading(true);
-  setError(null);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-  try {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+      if (error) {
+        if (error.message.includes("Invalid login credentials")) {
+          throw new Error("Email ou mot de passe incorrect.");
+        }
+        throw error;
+      }
 
-    if (error) throw error;
-
-    const { data: s } = await supabase.auth.getSession();
-
-    if (!s.session) {
-      throw new Error("Session non créée.");
-    }
-
-    router.replace(nextUrl);
-
-  } catch (err: any) {
-    if (
-      err?.message?.includes("Invalid login credentials")
-    ) {
-      setError("Email ou mot de passe incorrect.");
-    } else {
+      router.replace(nextUrl);
+    } catch (err: any) {
       setError(err?.message || "Erreur de connexion");
+    } finally {
+      setLoading(false);
     }
-  } finally {
-    setLoading(false);
   }
-}
 
   async function onForgotPassword() {
     setError(null);
@@ -100,7 +89,7 @@ const [showPassword, setShowPassword] = useState(false);
       setResetLoading(true);
 
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: "https://www.helpflow.fr/reset-password",
+        redirectTo: "https://www.helpflow.fr/update-password",
       });
 
       if (error) throw error;
@@ -113,66 +102,89 @@ const [showPassword, setShowPassword] = useState(false);
     }
   }
 
-  if (checking) return <div className="p-4">Chargement…</div>;
+  if (checking) {
+    return <div className="p-4">Chargement...</div>;
+  }
 
   return (
-    <main className="p-4 max-w-md mx-auto">
-      <h1 className="text-xl font-semibold mb-4">Connexion</h1>
+    <main className="min-h-screen bg-slate-950 px-4 py-8 flex items-center justify-center">
+      <div className="w-full max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500 text-2xl font-bold text-white">
+          HF
+        </div>
 
-      {error && <p className="text-red-500 mb-2">{error}</p>}
-      {info && <p className="text-green-600 mb-2">{info}</p>}
+        <h1 className="text-center text-3xl font-bold text-white">
+          Connexion
+        </h1>
 
-      <form onSubmit={onLogin} className="grid gap-3">
-        <input
-          className="border p-2 rounded"
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
+        <p className="mt-2 text-center text-slate-300">
+          Connectez-vous à votre espace HelpFlow.
+        </p>
 
-         <div className="relative">
+        {error && (
+          <p className="mt-4 rounded-xl bg-red-500/10 p-3 text-sm text-red-300">
+            {error}
+          </p>
+        )}
+
+        {info && (
+          <p className="mt-4 rounded-xl bg-emerald-500/10 p-3 text-sm text-emerald-300">
+            {info}
+          </p>
+        )}
+
+        <form onSubmit={onLogin} className="mt-6 grid gap-4">
           <input
-            className="border p-2 rounded w-full pr-12"
-            type={showPassword ? "text" : "password"}
-            placeholder="Mot de passe"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-white outline-none placeholder:text-slate-400 focus:border-emerald-400"
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             required
           />
 
+          <div className="relative">
+            <input
+              className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 pr-14 text-white outline-none placeholder:text-slate-400 focus:border-emerald-400"
+              type={showPassword ? "text" : "password"}
+              placeholder="Mot de passe"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-xl text-slate-300"
+            >
+              👁️
+            </button>
+          </div>
+
+          <button
+            className="rounded-xl bg-emerald-500 px-4 py-3 font-semibold text-white disabled:opacity-60"
+            disabled={loading}
+            type="submit"
+          >
+            {loading ? "Connexion..." : "Se connecter"}
+          </button>
+        </form>
+
+        <div className="mt-5 grid gap-3 text-center text-sm">
           <button
             type="button"
-            onClick={() => setShowPassword(!showPassword)}
-           
-          >className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"
-            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            onClick={onForgotPassword}
+            disabled={resetLoading}
+            className="text-emerald-300 disabled:opacity-60"
+          >
+            {resetLoading ? "Envoi..." : "Mot de passe oublié ?"}
           </button>
+
+          <Link href="/signup" className="font-semibold text-emerald-400">
+            Créer un compte
+          </Link>
         </div>
-
-        <button
-          className="px-4 py-2 rounded-xl bg-black text-white disabled:opacity-60"
-          disabled={loading}
-          type="submit"
-        >
-          {loading ? "Connexion…" : "Se connecter"}
-        </button>
-      </form>
-
-      <div className="mt-4 grid gap-2 text-sm">
-        <button
-          type="button"
-          onClick={onForgotPassword}
-          disabled={resetLoading}
-          className="text-left text-blue-600 disabled:opacity-60"
-        >
-          {resetLoading ? "Envoi..." : "Mot de passe oublié ?"}
-        </button>
-
-        <Link href="/signup" className="text-blue-600">
-          Créer un compte
-        </Link>
       </div>
     </main>
   );
