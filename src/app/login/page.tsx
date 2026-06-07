@@ -25,6 +25,7 @@ function LoginPageInner() {
 
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,14 +124,24 @@ function LoginPageInner() {
           required
         />
 
-        <input
-          className="border p-2 rounded"
-          type="password"
-          placeholder="Mot de passe"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
+         <div className="relative">
+          <input
+            className="border p-2 rounded w-full pr-12"
+            type={showPassword ? "text" : "password"}
+            placeholder="Mot de passe"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-2"
+          >
+            {showPassword ? "🙈" : "👁️"}
+          </button>
+        </div>
 
         <button
           className="px-4 py-2 rounded-xl bg-black text-white disabled:opacity-60"
