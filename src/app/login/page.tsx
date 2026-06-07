@@ -110,7 +110,11 @@ function LoginPageInner() {
     <main className="min-h-screen bg-slate-950 px-4 py-8 flex items-center justify-center">
       <div className="w-full max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
         <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500 text-2xl font-bold text-white">
-          HF
+          <img
+  src="/logo-helpflow.png"
+  alt="HelpFlow"
+  className="mx-auto h-16 w-16 rounded-2xl object-contain"
+/>
         </div>
 
         <h1 className="text-center text-3xl font-bold text-white">

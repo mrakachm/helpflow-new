@@ -59,7 +59,11 @@ export default function SignupPage() {
 
         <div className="text-center mb-8">
           <div className="mx-auto mb-4 h-16 w-16 rounded-2xl bg-emerald-500 flex items-center justify-center text-white text-2xl font-bold">
-            HF
+           <img
+  src="/logo-helpflow.png"
+  alt="HelpFlow"
+  className="mx-auto h-16 w-16 rounded-2xl object-contain"
+/>
           </div>
 
           <h1 className="text-3xl font-bold text-white">
