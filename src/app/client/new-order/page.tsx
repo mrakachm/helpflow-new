@@ -67,19 +67,28 @@ function formatEuro(cents: number) {
 export default function NewOrderPage() {
 
   const PARCEL_TYPES = [
-    "Documents",
-    "Gâteau / alimentaire fragile",
-    "Courses",
-    "Fragile (verre/vaisselle)",
-    "Électroménager",
-    "Cafetière",
-    "Imprimante",
-    "Vêtements",
-    "Garde-robe",
-    "Armoire",
-    "Moteur / pièce mécanique",
-    "Autre",
-  ];
+  "Documents",
+  "Électronique",
+  "Téléphone",
+  "Ordinateur portable",
+  "Tablette",
+  "Télévision",
+  "Gâteau / alimentaire fragile",
+  "Courses",
+  "Fragile (verre/vaisselle)",
+  "Électroménager",
+  "Cafetière",
+  "Imprimante",
+  "Vêtements",
+  "Garde-robe",
+  "Armoire",
+  "Petit mobilier",
+  "Matériel professionnel",
+  "Pièces détachées",
+  "Moteur / pièce mécanique",
+  "Clés",
+  "Autre",
+];
 
   const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
@@ -115,7 +124,7 @@ const [parcelNote, setParcelNote] = useState<string>("");
 
   // ====== Colis / livraison ======
   const [bagCount, setBagCount] = useState<string>("");
-  const [distanceKm, setDistanceKm] = useState<number>(1); // caché dans le form
+  const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [scheduledAt, setScheduledAt] = useState<string>("");
 
   // ====== Proposition client (optionnel) ======
@@ -186,32 +195,47 @@ const [clientProposedPrice, setClientProposedPrice] = useState<string>("");
   }, [pricing?.priceCents, clientProposedPrice]);
 
   async function computeDistance() {
-    setMsg(null);
+  setMsg(null);
 
-    const from = `${senderAddress}, ${senderCity}`;
-    const to = `${receiverAddress}, ${receiverCity}`;
+  if (
+    !senderAddress.trim() ||
+    !senderCity.trim() ||
+    !receiverAddress.trim() ||
+    !receiverCity.trim()
+  ) {
+    setMsg("Merci de remplir adresse + ville pour l’expéditeur et le receveur.");
+    return;
+  }
 
-    if (!senderAddress.trim() || !receiverAddress.trim()) {
-      setMsg("Merci de renseigner l’adresse expéditeur et l’adresse receveur.");
+  const from = `${senderAddress}, ${senderCity}, France`;
+  const to = `${receiverAddress}, ${receiverCity}, France`;
+
+  setGeoLoading(true);
+
+  try {
+    const [a, b] = await Promise.all([
+      geocodeOSM(from),
+      geocodeOSM(to),
+    ]);
+
+    if (!a || !b) {
+      setDistanceKm(null);
+      setMsg("Adresse introuvable. Vérifie bien la rue, la ville et le code postal si possible.");
       return;
     }
 
-    setGeoLoading(true);
-    try {
-      const [a, b] = await Promise.all([geocodeOSM(from), geocodeOSM(to)]);
-      if (!a || !b) {
-        setMsg("Impossible de localiser une des adresses. Vérifie adresse + ville.");
-        return;
-      }
+    const realKm = haversineKm(a, b);
+    const roundedKm = Math.max(1, Math.ceil(realKm));
 
-      const km = Math.ceil(haversineKm(a, b));
-      setDistanceKm(Math.max(1, km));
-    } catch (e: any) {
-      setMsg(e?.message || "Erreur calcul distance");
-    } finally {
-      setGeoLoading(false);
-    }
+    setDistanceKm(roundedKm);
+    setMsg(`✅ Distance calculée : ${roundedKm} km`);
+  } catch (e: any) {
+    setDistanceKm(null);
+    setMsg(e?.message || "Erreur pendant le calcul de distance.");
+  } finally {
+    setGeoLoading(false);
   }
+}
 
   async function useMyLocationAsSender() {
     setMsg(null);
@@ -317,6 +341,8 @@ const payload: any = {
   bag_count: Number(bagCount || 0),
   distance_km: distanceKm,
   scheduled_at: scheduledAt || null,
+parcel_type: parcelType || null,
+parcel_note: parcelNote || null,
 
   // Prix
   price_cents: pricingView.finalPriceCents,
