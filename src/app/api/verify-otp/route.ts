@@ -16,7 +16,9 @@ type OrderRow = {
   courier_id: string | null;
 };
 
-const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseUrl =
+  process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !serviceRoleKey) {
@@ -70,9 +72,8 @@ export async function POST(req: Request) {
 
     if (order.delivery_otp_expires_at) {
       const expiresAt = new Date(order.delivery_otp_expires_at).getTime();
-      const now = Date.now();
 
-      if (expiresAt < now) {
+      if (expiresAt < Date.now()) {
         return NextResponse.json(
           { error: "Code OTP expiré" },
           { status: 400 }
@@ -83,11 +84,11 @@ export async function POST(req: Request) {
     const { data: updatedOrder, error: updateError } = await supabase
       .from("orders")
       .update({
-  status: "LIVRÉ",
-  delivery_otp_verified_at: new Date().toISOString(),
-  delivered_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-})
+        status: "LIVRÉ",
+        delivery_otp_verified_at: new Date().toISOString(),
+        delivered_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", orderId)
       .select()
       .single();
@@ -105,9 +106,7 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      {
-        error: error?.message || "Erreur vérification OTP",
-      },
+      { error: error?.message || "Erreur vérification OTP" },
       { status: 500 }
     );
   }

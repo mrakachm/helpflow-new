@@ -17,7 +17,7 @@ export async function sendOtpEmail({
 
   const resend = new Resend(apiKey);
 
-  return await resend.emails.send({
+  const result = await resend.emails.send({
     from: "HelpFlow <onboarding@resend.dev>",
     to,
     subject: "Votre code OTP de livraison",
@@ -29,4 +29,8 @@ export async function sendOtpEmail({
       <p>Donnez ce code uniquement au livreur quand vous recevez bien la commande.</p>
     `,
   });
+
+  console.log("✅ Résultat Resend:", JSON.stringify(result, null, 2));
+
+  return result;
 }

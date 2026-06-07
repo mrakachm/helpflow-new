@@ -35,6 +35,26 @@ function formatLine(address?: string | null, zip?: string | null, city?: string 
   const parts = [address, zip, city].filter((v) => v && String(v).trim().length > 0);
   return parts.join(", ");
 }
+function normalizeStatus(status?: string | null) {
+  return String(status || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function getStatusLabel(status?: string | null) {
+  const s = normalizeStatus(status);
+
+  if (s === "pending") return "Payée - en attente";
+  if (s === "accepted") return "Livreur accepté";
+  if (s === "out_for_delivery" || s === "en_cours") return "En cours";
+  if (s === "livre" || s === "livree" || s === "delivered") return "Livrée";
+  if (s === "draft" || s === "brouillon") return "Brouillon";
+
+  return status || "—";
+}
+
 
 export default function OrdersPage() {
   const router = useRouter();
@@ -143,7 +163,7 @@ export default function OrdersPage() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="font-semibold">
-                    Statut : <span className="uppercase">{o.status ?? "—"}</span>
+                    Statut : <span>{getStatusLabel(o.status)}</span>
                   </p>
                   <p className="text-xs text-gray-600">
                     {new Date(o.created_at).toLocaleString()}

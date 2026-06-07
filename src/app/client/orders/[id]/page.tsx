@@ -23,16 +23,32 @@ function formatEurosFromCents(cents?: number | null) {
   return (cents / 100).toFixed(2) + " €";
 }
 
+function normalizeStatus(status?: string | null) {
+  return String(status || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 function getStatusLabel(status?: string | null) {
-  switch (status) {
-    case "PENDING":
+  const s = normalizeStatus(status);
+
+  switch (s) {
+    case "pending":
       return "Payée - en attente d’un livreur";
-    case "ACCEPTED":
+    case "accepted":
       return "Livreur accepté";
-    case "OUT_FOR_DELIVERY":
+    case "out_for_delivery":
+    case "en_cours":
       return "Livraison en cours";
-    case "DELIVERED":
+    case "livre":
+    case "livree":
+    case "delivered":
       return "Livrée";
+    case "draft":
+    case "brouillon":
+      return "Brouillon";
     default:
       return "Brouillon";
   }

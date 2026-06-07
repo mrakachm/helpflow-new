@@ -66,9 +66,7 @@ export async function POST(req: Request) {
           error: "Erreur DB",
           details: error,
         },
-        {
-          status: 500,
-        }
+        { status: 500 }
       );
     }
 
@@ -76,26 +74,19 @@ export async function POST(req: Request) {
 
     if (updatedOrder?.recipient_email) {
       try {
-        await sendOtpEmail({
+        const emailResult = await sendOtpEmail({
           to: updatedOrder.recipient_email,
           otp,
           orderId: updatedOrder.id,
         });
 
-        console.log(
-          "✅ Email OTP envoyé à:",
-          updatedOrder.recipient_email
-        );
+        console.log("✅ Résultat Resend:", JSON.stringify(emailResult, null, 2));
+        console.log("✅ Email OTP envoyé à:", updatedOrder.recipient_email);
       } catch (emailError) {
-        console.error(
-          "❌ Erreur envoi email OTP:",
-          emailError
-        );
+        console.error("❌ Erreur envoi email OTP:", emailError);
       }
     } else {
-      console.log(
-        "⚠️ Aucun email receveur trouvé pour cette commande"
-      );
+      console.log("⚠️ Aucun recipient_email trouvé pour cette commande");
     }
   }
 
