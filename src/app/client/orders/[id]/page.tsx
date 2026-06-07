@@ -64,6 +64,10 @@ export default function ClientOrderDetailPage() {
   const [order, setOrder] = useState<OrderRow | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+  const [reviewMsg, setReviewMsg] = useState<string | null>(null);
+
   async function fetchOrder() {
     if (!orderId) return;
 
@@ -90,16 +94,17 @@ export default function ClientOrderDetailPage() {
     fetchOrder();
   }, [orderId]);
 
+  const status = normalizeStatus(order?.status);
+  const paymentStatus = normalizeStatus(order?.payment_status);
+
   const isPaid =
-    order?.payment_status?.toLowerCase() === "paid" ||
-    order?.status === "PENDING" ||
-    order?.status === "ACCEPTED" ||
-    order?.status === "OUT_FOR_DELIVERY" ||
-    order?.status === "DELIVERED";
+    paymentStatus === "paid" ||
+    paymentStatus === "paye" ||
+    ["pending", "accepted", "out_for_delivery", "delivered", "livre", "livree"].includes(status);
 
-  const canPay = !!order && !isPaid && order.status === "DRAFT";
+  const canPay = !!order && !isPaid && status === "draft";
 
-  async function goToStripe(orderId: string) {
+  async function goToStripe(id: string) {
     if (!order) return;
 
     if (isPaid) {
@@ -115,11 +120,11 @@ export default function ClientOrderDetailPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ orderId }),
+        body: JSON.stringify({ orderId: id }),
       });
 
-     const text = await res.text();
-const data = text ? JSON.parse(text) : {};
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
 
       if (!res.ok) {
         alert(data?.error || "Erreur paiement");
@@ -139,6 +144,24 @@ const data = text ? JSON.parse(text) : {};
     }
   }
 
+  async function submitReview() {
+    if (!orderId) return;
+
+    const { error } = await supabase.from("reviews").insert({
+      order_id: orderId,
+      rating,
+      comment,
+    });
+
+    if (error) {
+      setReviewMsg("Erreur avis : " + error.message);
+      return;
+    }
+
+    setReviewMsg("Merci pour votre avis !");
+    setComment("");
+  }
+
   return (
     <div style={{ padding: 24, maxWidth: 760, margin: "0 auto" }}>
       <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 16 }}>
@@ -152,31 +175,14 @@ const data = text ? JSON.parse(text) : {};
       {loadingOrder && <p>Chargement de la commande...</p>}
 
       {error && (
-        <div
-          style={{
-            marginTop: 16,
-            padding: 16,
-            borderRadius: 12,
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            color: "#b91c1c",
-          }}
-        >
+        <div style={{ marginTop: 16, padding: 16, borderRadius: 12, background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c" }}>
           {error}
         </div>
       )}
 
       {order && (
         <>
-          <div
-            style={{
-              marginTop: 20,
-              padding: 16,
-              borderRadius: 12,
-              border: "1px solid #e5e7eb",
-              background: "#fff",
-            }}
-          >
+          <div style={{ marginTop: 20, padding: 16, borderRadius: 12, border: "1px solid #e5e7eb", background: "#fff" }}>
             <div style={{ marginBottom: 8 }}>
               <strong>Statut :</strong> {getStatusLabel(order.status)}
             </div>
@@ -215,30 +221,62 @@ const data = text ? JSON.parse(text) : {};
             </div>
 
             {isPaid && (
-              <div
-                style={{
-                  marginTop: 16,
-                  padding: 16,
-                  borderRadius: 12,
-                  background: "#f9fafb",
-                  border: "1px solid #e5e7eb",
-                }}
-              >
+              <div style={{ marginTop: 16, padding: 16, borderRadius: 12, background: "#f9fafb", border: "1px solid #e5e7eb" }}>
                 <strong>Code OTP de livraison :</strong>
-                <div
-                  style={{
-                    marginTop: 8,
-                    fontSize: 24,
-                    fontWeight: 700,
-                    letterSpacing: 2,
-                  }}
-                >
+                <div style={{ marginTop: 8, fontSize: 24, fontWeight: 700, letterSpacing: 2 }}>
                   {order.delivery_otp || "Non généré"}
                 </div>
                 <div style={{ marginTop: 8, fontSize: 14, color: "#6b7280" }}>
-                  Donne ce code uniquement au livreur quand tu reçois bien la
-                  commande.
+                  Donne ce code uniquement au livreur quand tu reçois bien la commande.
                 </div>
+              </div>
+            )}
+
+            {getStatusLabel(order.status) === "Livrée" && (
+              <div style={{ marginTop: 20, padding: 16, borderRadius: 12, border: "1px solid #e5e7eb" }}>
+                <strong>Laisser un avis</strong>
+
+                <div style={{ marginTop: 12 }}>
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => setRating(n)}
+                      style={{
+                        fontSize: 24,
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        color: n <= rating ? "#f59e0b" : "#d1d5db",
+                      }}
+                    >
+                      ★
+                    </button>
+                  ))}
+                </div>
+
+                <textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="Votre commentaire..."
+                  style={{ width: "100%", marginTop: 12, padding: 10, borderRadius: 8 }}
+                />
+
+                <button
+                  onClick={submitReview}
+                  style={{
+                    marginTop: 12,
+                    padding: "10px 14px",
+                    borderRadius: 10,
+                    background: "#2563eb",
+                    color: "white",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  Envoyer l'avis
+                </button>
+
+                {reviewMsg && <p>{reviewMsg}</p>}
               </div>
             )}
           </div>
@@ -248,40 +286,17 @@ const data = text ? JSON.parse(text) : {};
               <button
                 onClick={() => goToStripe(orderId)}
                 disabled={loading}
-                style={{
-                  padding: "12px 16px",
-                  borderRadius: 10,
-                  background: "#2563eb",
-                  color: "white",
-                  border: "none",
-                  cursor: "pointer",
-                }}
+                style={{ padding: "12px 16px", borderRadius: 10, background: "#2563eb", color: "white", border: "none", cursor: "pointer" }}
               >
                 {loading ? "Redirection..." : "Payer et valider"}
               </button>
             ) : (
-              <div
-                style={{
-                  padding: 16,
-                  borderRadius: 12,
-                  background: "#ecfdf5",
-                  border: "1px solid #bbf7d0",
-                  color: "#166534",
-                }}
-              >
+              <div style={{ padding: 16, borderRadius: 12, background: "#ecfdf5", border: "1px solid #bbf7d0", color: "#166534" }}>
                 ✅ Paiement confirmé.
-
                 <div style={{ marginTop: 12 }}>
                   <button
                     onClick={() => (window.location.href = "/client")}
-                    style={{
-                      padding: "10px 14px",
-                      borderRadius: 10,
-                      background: "#2563eb",
-                      color: "white",
-                      border: "none",
-                      cursor: "pointer",
-                    }}
+                    style={{ padding: "10px 14px", borderRadius: 10, background: "#2563eb", color: "white", border: "none", cursor: "pointer" }}
                   >
                     Retour à l'accueil
                   </button>
@@ -293,13 +308,7 @@ const data = text ? JSON.parse(text) : {};
           <div style={{ marginTop: 20 }}>
             <button
               onClick={fetchOrder}
-              style={{
-                padding: "10px 14px",
-                borderRadius: 10,
-                border: "1px solid #d1d5db",
-                background: "white",
-                cursor: "pointer",
-              }}
+              style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #d1d5db", background: "white", cursor: "pointer" }}
             >
               Rafraîchir
             </button>
