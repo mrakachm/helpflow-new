@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-
+import { Eye, EyeOff } from "lucide-react";
 function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -52,32 +52,40 @@ const [showPassword, setShowPassword] = useState(false);
     };
   }, [supabase, router, nextUrl]);
 
-  async function onLogin(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setInfo(null);
+ async function onLogin(e: React.FormEvent) {
+  e.preventDefault();
 
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+  setLoading(true);
+  setError(null);
 
-      if (error) throw error;
+  try {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-      const { data: s } = await supabase.auth.getSession();
-      if (!s.session) {
-        throw new Error("Session non créée.");
-      }
+    if (error) throw error;
 
-      router.replace(nextUrl);
-    } catch (err: any) {
-      setError(err?.message || "Erreur de connexion");
-    } finally {
-      setLoading(false);
+    const { data: s } = await supabase.auth.getSession();
+
+    if (!s.session) {
+      throw new Error("Session non créée.");
     }
+
+    router.replace(nextUrl);
+
+  } catch (err: any) {
+    if (
+      err?.message?.includes("Invalid login credentials")
+    ) {
+      setError("Email ou mot de passe incorrect.");
+    } else {
+      setError(err?.message || "Erreur de connexion");
+    }
+  } finally {
+    setLoading(false);
   }
+}
 
   async function onForgotPassword() {
     setError(null);
@@ -137,9 +145,9 @@ const [showPassword, setShowPassword] = useState(false);
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-2"
-          >
-            {showPassword ? "🙈" : "👁️"}
+           
+          >className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"
+            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
           </button>
         </div>
 
