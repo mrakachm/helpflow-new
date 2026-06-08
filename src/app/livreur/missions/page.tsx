@@ -351,21 +351,6 @@ export default function MissionsPage() {
           </div>
         </header>
 
-        <label className="flex gap-3 rounded-3xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-700">
-          <input
-            type="checkbox"
-            checked={acceptedRules}
-            onChange={(e) => setAcceptedRules(e.target.checked)}
-            className="mt-1 h-4 w-4"
-          />
-          <span>
-            J'ai lu et j'accepte les Conditions d'utilisation, les Mentions
-            légales et la Politique de confidentialité de HelpFlow. Je reconnais
-            que HelpFlow est une plateforme de mise en relation et je m'engage à
-            ne transporter aucun produit interdit, dangereux ou illégal.
-          </span>
-        </label>
-
         {error && (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
             {error}
@@ -472,7 +457,7 @@ export default function MissionsPage() {
                     <button
                       type="button"
                       onClick={() => takeMission(order.id)}
-                      disabled={!acceptedRules || actionLoadingId === order.id}
+                      disabled={actionLoadingId === order.id}
                       className="mt-5 w-full rounded-2xl bg-white px-4 py-4 font-bold text-blue-700 disabled:opacity-50"
                     >
                       {actionLoadingId === order.id

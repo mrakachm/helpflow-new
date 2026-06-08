@@ -351,7 +351,8 @@ parcel_note: parcelNote || null,
   courier_earnings_cents: pricingView.courierEarningsCents,
   pricing_mode: pricingView.proposedPriceCents ? "client_proposal" : "standard",
 
-  status: "DRAFT",
+status: "PENDING",
+payment_status: "PAID",
 };
 
 console.log("📦 PAYLOAD:", payload);
@@ -366,7 +367,7 @@ console.log("📦 RESPONSE:", { data, error });
 
 if (error) throw error;
 
-router.push(`/payment/success?orderId=${data.id}`);
+router.push(`/client/orders/${data.id}`);
 
 }
 
