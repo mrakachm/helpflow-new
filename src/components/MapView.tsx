@@ -8,7 +8,7 @@ type LatLng = { lat: number; lng: number }
 
 export default function MapView() {
   const mapRef = useRef<HTMLDivElement | null>(null)
-  const mapInstanceRef = useRef<google.maps.Map | null>(null)
+const mapInstanceRef = useRef<any>(null)
 
   const [distance, setDistance] = useState<number | null>(null)
   const [price, setPrice] = useState<number | null>(null)
@@ -19,7 +19,7 @@ export default function MapView() {
   useEffect(() => {
     if (!window.google || !mapRef.current) return
 
-    mapInstanceRef.current = new google.maps.Map(mapRef.current, {
+    mapInstanceRef.current = new (window as any).google.maps.Map(mapRef.current, {
       center: { lat: 49.2583, lng: 4.0317 },
       zoom: 13,
     })
@@ -29,13 +29,13 @@ export default function MapView() {
   }, [])
 
   const calculateDistance = () => {
-    const service = new google.maps.DistanceMatrixService()
+   new (window as any).google.maps.DistanceMatrixService()
 
     service.getDistanceMatrix(
       {
         origins: [origin],
         destinations: [destination],
-        travelMode: google.maps.TravelMode.DRIVING,
+        travelMode: (window as any).google.maps.TravelMode.DRIVING,
       },
       (response, status) => {
         if (status !== "OK" || !response) return
