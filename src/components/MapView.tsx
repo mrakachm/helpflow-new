@@ -1,35 +1,35 @@
-"use client"
+"use client";
 
-import { useEffect, useRef, useState } from "react"
-import Script from "next/script"
-import { calculatePrice } from "@/lib/pricing"
-
-type LatLng = { lat: number; lng: number }
+import { useEffect, useRef, useState } from "react";
+import Script from "next/script";
+import { calculatePrice } from "@/lib/pricing";
 
 export default function MapView() {
-  const mapRef = useRef<HTMLDivElement | null>(null)
-const mapInstanceRef = useRef<any>(null)
+  const mapRef = useRef<HTMLDivElement | null>(null);
+  const mapInstanceRef = useRef<any>(null);
 
-  const [distance, setDistance] = useState<number | null>(null)
-  const [price, setPrice] = useState<number | null>(null)
+  const [distance, setDistance] = useState<number | null>(null);
+  const [price, setPrice] = useState<number | null>(null);
 
-  const origin = "7 Rue Lesage, Reims"
-  const destination = "26 Rue Emile Zola, Reims"
+  const origin = "7 Rue Lesage, Reims";
+  const destination = "26 Rue Emile Zola, Reims";
 
   useEffect(() => {
-    if (!window.google || !mapRef.current) return
+    if (!(window as any).google || !mapRef.current) return;
 
-    mapInstanceRef.current = new (window as any).google.maps.Map(mapRef.current, {
-      center: { lat: 49.2583, lng: 4.0317 },
-      zoom: 13,
-    })
+    mapInstanceRef.current = new (window as any).google.maps.Map(
+      mapRef.current,
+      {
+        center: { lat: 49.2583, lng: 4.0317 },
+        zoom: 13,
+      }
+    );
 
-    calculateDistance()
-
-  }, [])
+    calculateDistance();
+  }, []);
 
   const calculateDistance = () => {
-   new (window as any).google.maps.DistanceMatrixService()
+    const service = new (window as any).google.maps.DistanceMatrixService();
 
     service.getDistanceMatrix(
       {
@@ -37,19 +37,19 @@ const mapInstanceRef = useRef<any>(null)
         destinations: [destination],
         travelMode: (window as any).google.maps.TravelMode.DRIVING,
       },
-      (response, status) => {
-        if (status !== "OK" || !response) return
+      (response: any, status: string) => {
+        if (status !== "OK" || !response) return;
 
         const meters =
-          response.rows[0].elements[0].distance.value
+          response.rows[0].elements[0].distance.value;
 
-        const pricing = calculatePrice(meters)
+        const pricing = calculatePrice(meters);
 
-        setDistance(pricing.distanceKm)
-        setPrice(pricing.price)
+        setDistance(pricing.distanceKm);
+        setPrice(pricing.price);
       }
-    )
-  }
+    );
+  };
 
   return (
     <>
@@ -58,7 +58,10 @@ const mapInstanceRef = useRef<any>(null)
         strategy="afterInteractive"
       />
 
-      <div className="w-full h-[400px]" ref={mapRef} />
+      <div
+        ref={mapRef}
+        className="w-full h-[400px] rounded-lg border"
+      />
 
       <div className="mt-4 p-4 bg-white shadow rounded">
         {distance && price && (
@@ -69,5 +72,5 @@ const mapInstanceRef = useRef<any>(null)
         )}
       </div>
     </>
-  )
+  );
 }
