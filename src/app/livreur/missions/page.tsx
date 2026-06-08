@@ -80,7 +80,7 @@ export default function MissionsPage() {
   const [available, setAvailable] = useState<Order[]>([]);
   const [myMissions, setMyMissions] = useState<Order[]>([]);
   const [otpInputs, setOtpInputs] = useState<Record<string, string>>({});
-  const [acceptedRules, setAcceptedRules] = useState(false);
+  
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -147,10 +147,6 @@ export default function MissionsPage() {
   async function takeMission(orderId: string) {
     if (!userId) return;
 
-    if (!acceptedRules) {
-      setError("Merci d'accepter les conditions HelpFlow avant de prendre une mission.");
-      return;
-    }
 
     setError(null);
     setActionLoadingId(orderId);
