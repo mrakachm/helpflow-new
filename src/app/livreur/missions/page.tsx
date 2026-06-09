@@ -80,7 +80,6 @@ export default function MissionsPage() {
   const [available, setAvailable] = useState<Order[]>([]);
   const [myMissions, setMyMissions] = useState<Order[]>([]);
   const [otpInputs, setOtpInputs] = useState<Record<string, string>>({});
-  
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -146,7 +145,6 @@ export default function MissionsPage() {
 
   async function takeMission(orderId: string) {
     if (!userId) return;
-
 
     setError(null);
     setActionLoadingId(orderId);
@@ -292,7 +290,6 @@ export default function MissionsPage() {
       const uid = await requireAuth();
       if (uid) await loadOrders(uid);
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -301,9 +298,7 @@ export default function MissionsPage() {
         <header className="rounded-3xl bg-blue-600 p-5 text-white shadow-xl">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-blue-100">
-                HelpFlow Livreur
-              </p>
+              <p className="text-sm font-semibold text-blue-100">HelpFlow Livreur</p>
               <h1 className="mt-1 text-3xl font-bold">Missions disponibles</h1>
               <p className="mt-2 text-blue-100">
                 Choisissez une mission claire, payée et prête à être prise.
@@ -381,9 +376,7 @@ export default function MissionsPage() {
                 >
                   <div className="h-36 bg-gradient-to-br from-blue-200 via-green-100 to-blue-100 p-4 text-slate-800">
                     <p className="text-sm font-semibold">Carte GPS</p>
-                    <p className="mt-2 text-xs">
-                      Retrait → Livraison
-                    </p>
+                    <p className="mt-2 text-xs">Retrait → Livraison</p>
                     <button
                       type="button"
                       onClick={() => window.open(getMapUrl(order), "_blank")}
@@ -433,16 +426,19 @@ export default function MissionsPage() {
                           {order.distance_km} km
                         </span>
                       )}
+
                       {order.bag_count != null && (
                         <span className="rounded-full bg-white/15 px-3 py-1">
                           {order.bag_count} sac(s)
                         </span>
                       )}
+
                       {order.weight_kg != null && (
                         <span className="rounded-full bg-white/15 px-3 py-1">
                           {order.weight_kg} kg
                         </span>
                       )}
+
                       {order.category && (
                         <span className="rounded-full bg-white/15 px-3 py-1">
                           {order.category}
