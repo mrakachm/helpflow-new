@@ -26,7 +26,7 @@ export async function sendOtpEmail({
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "HelpFlow <onboarding@resend.dev>",
+      from: "HelpFlow <noreply@helpflow.fr>",
       to: [to],
       subject: "Votre code OTP HelpFlow",
       html: `
