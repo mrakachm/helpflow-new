@@ -307,68 +307,103 @@ async function onSubmit(e: React.FormEvent) {
   e.preventDefault();
   setMsg(null);
 
-  ("🚀 SUBMIT START");
-
   const err = validate();
   if (err) {
     setMsg(err);
     return;
   }
 
+  if (!recipientEmail.trim()) {
+    setMsg("Email du receveur manquant pour envoyer le code OTP.");
+    return;
+  }
+
   if (clientProposedPrice && Number(clientProposedPrice) < 1) {
-  setMsg("Le prix minimum est 1€");
-  setLoading(false);
-  return;
-}
+    setMsg("Le prix minimum est 1€");
+    return;
+  }
 
   setLoading(true);
 
-const payload: any = {
-  // Expéditeur
-  sender_name: senderName,
-  sender_phone: senderPhone,
-  pickup_address: senderAddress,
-  pickup_city: senderCity,
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-  // Receveur
-  receiver_name: receiverName,
-  receiver_phone: receiverPhone,
-  recipient_email: recipientEmail,
-  dropoff_address: receiverAddress,
-  dropoff_city: receiverCity,
+  const payload: any = {
+    // Expéditeur
+    sender_name: senderName,
+    sender_phone: senderPhone,
+    pickup_address: senderAddress,
+    pickup_city: senderCity,
 
-  // Colis / livraison
-  bag_count: Number(bagCount || 0),
-  distance_km: distanceKm,
-  scheduled_at: scheduledAt || null,
-parcel_type: parcelType || null,
-parcel_note: parcelNote || null,
+    // Receveur
+    receiver_name: receiverName,
+    receiver_phone: receiverPhone,
+    recipient_email: recipientEmail.trim(),
+    dropoff_address: receiverAddress,
+    dropoff_city: receiverCity,
 
-  // Prix
-  price_cents: pricingView.finalPriceCents,
-  client_proposed_price_cents: pricingView.proposedPriceCents,
-  platform_fee_cents: pricingView.platformFeeCents,
-  courier_earnings_cents: pricingView.courierEarningsCents,
-  pricing_mode: pricingView.proposedPriceCents ? "client_proposal" : "standard",
+    // Colis / livraison
+    bag_count: Number(bagCount || 0),
+    distance_km: distanceKm,
+    scheduled_at: scheduledAt || null,
+    parcel_type: parcelType || null,
+    parcel_note: parcelNote || null,
 
-status: "PENDING",
-payment_status: "PAID",
-};
+    // Prix
+    price_cents: pricingView.finalPriceCents,
+    client_proposed_price_cents: pricingView.proposedPriceCents,
+    platform_fee_cents: pricingView.platformFeeCents,
+    courier_earnings_cents: pricingView.courierEarningsCents,
+    pricing_mode: pricingView.proposedPriceCents ? "client_proposal" : "standard",
 
-console.log("📦 PAYLOAD:", payload);
+    // Mode test sans paiement Stripe
+    status: "PENDING",
+    payment_status: "PAID",
 
-const { data, error } = await supabase
-  .from("orders")
-  .insert(payload)
-  .select("id")
-  .single();
+    // OTP stocké dans Supabase
+    otp_code: otp,
+  };
 
-console.log("📦 RESPONSE:", { data, error });
+  console.log("📦 PAYLOAD:", payload);
 
-if (error) throw error;
+  const { data, error } = await supabase
+    .from("orders")
+    .insert(payload)
+    .select("id, otp_code, recipient_email")
+    .single();
 
-router.push(`/client/orders/${data.id}`);
+  console.log("📦 RESPONSE:", { data, error });
 
+  if (error) {
+    console.error("ERREUR SUPABASE INSERT:", JSON.stringify(error, null, 2));
+    setMsg(error.message || JSON.stringify(error));
+    setLoading(false);
+    return;
+  }
+
+  const emailRes = await fetch("/api/send-otp-email", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      to: data.recipient_email || recipientEmail.trim(),
+      otp: data.otp_code || otp,
+      orderId: data.id,
+    }),
+  });
+
+  const emailData = await emailRes.json().catch(() => ({}));
+
+  if (!emailRes.ok) {
+    console.error("ERREUR EMAIL OTP:", emailData);
+    setMsg(
+      emailData?.error ||
+        emailData?.message ||
+        "Commande créée, mais email OTP non envoyé."
+    );
+    setLoading(false);
+    return;
+  }
+
+  router.push(`/client/orders/${data.id}`);
 }
 
 return (

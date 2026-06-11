@@ -6,16 +6,6 @@ type VerifyOtpBody = {
   otp?: string;
 };
 
-type OrderRow = {
-  id: string;
-  status: string | null;
-  delivery_otp: string | null;
-  delivery_otp_expires_at: string | null;
-  delivered_at: string | null;
-  updated_at: string | null;
-  courier_id: string | null;
-};
-
 const supabaseUrl =
   process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 
@@ -43,11 +33,9 @@ export async function POST(req: Request) {
 
     const { data: order, error: fetchError } = await supabase
       .from("orders")
-      .select(
-        "id,status,delivery_otp,delivery_otp_expires_at,delivered_at,updated_at,courier_id"
-      )
+      .select("id,status,otp_code,courier_id")
       .eq("id", orderId)
-      .single<OrderRow>();
+      .single();
 
     if (fetchError || !order) {
       return NextResponse.json(
@@ -56,38 +44,30 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!order.delivery_otp) {
+    const dbOtp = String(order.otp_code || "").trim();
+
+    if (!dbOtp) {
       return NextResponse.json(
         { error: "Aucun code OTP généré pour cette commande" },
         { status: 400 }
       );
     }
 
-    if (order.delivery_otp !== otp) {
+    if (dbOtp !== otp) {
       return NextResponse.json(
         { error: "Code OTP incorrect" },
         { status: 400 }
       );
     }
 
-    if (order.delivery_otp_expires_at) {
-      const expiresAt = new Date(order.delivery_otp_expires_at).getTime();
-
-      if (expiresAt < Date.now()) {
-        return NextResponse.json(
-          { error: "Code OTP expiré" },
-          { status: 400 }
-        );
-      }
-    }
+    const now = new Date().toISOString();
 
     const { data: updatedOrder, error: updateError } = await supabase
       .from("orders")
       .update({
-        status: "LIVRÉ",
-        delivery_otp_verified_at: new Date().toISOString(),
-        delivered_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        status: "DELIVERED",
+        delivered_at: now,
+        updated_at: now,
       })
       .eq("id", orderId)
       .select()

@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type OrderRow = {
+  [key: string]: any;
   id: string;
   status?: string | null;
   payment_status?: string | null;
@@ -16,6 +17,8 @@ type OrderRow = {
   price_cents?: number | null;
   platform_fee_cents?: number | null;
   delivery_otp?: string | null;
+  otp_code?: string | null;
+  code_otp?: string | null;
 };
 
 function formatEurosFromCents(cents?: number | null) {
@@ -52,6 +55,21 @@ function getStatusLabel(status?: string | null) {
     default:
       return "Brouillon";
   }
+}
+
+function getOtp(order: OrderRow | null) {
+  if (!order) return "";
+
+  return (
+    order.otp_code ||
+    order.delivery_otp ||
+    order.code_otp ||
+    order["code otp"] ||
+    order["otp"] ||
+    order["otpCode"] ||
+    order["delivery_code"] ||
+    ""
+  );
 }
 
 export default function ClientOrderDetailPage() {
@@ -96,6 +114,7 @@ export default function ClientOrderDetailPage() {
 
   const status = normalizeStatus(order?.status);
   const paymentStatus = normalizeStatus(order?.payment_status);
+  const otpToShow = getOtp(order);
 
   const isPaid =
     paymentStatus === "paid" ||
@@ -117,9 +136,7 @@ export default function ClientOrderDetailPage() {
 
       const res = await fetch("/api/checkout", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderId: id }),
       });
 
@@ -175,14 +192,31 @@ export default function ClientOrderDetailPage() {
       {loadingOrder && <p>Chargement de la commande...</p>}
 
       {error && (
-        <div style={{ marginTop: 16, padding: 16, borderRadius: 12, background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c" }}>
+        <div
+          style={{
+            marginTop: 16,
+            padding: 16,
+            borderRadius: 12,
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            color: "#b91c1c",
+          }}
+        >
           {error}
         </div>
       )}
 
       {order && (
         <>
-          <div style={{ marginTop: 20, padding: 16, borderRadius: 12, border: "1px solid #e5e7eb", background: "#fff" }}>
+          <div
+            style={{
+              marginTop: 20,
+              padding: 16,
+              borderRadius: 12,
+              border: "1px solid #e5e7eb",
+              background: "#fff",
+            }}
+          >
             <div style={{ marginBottom: 8 }}>
               <strong>Statut :</strong> {getStatusLabel(order.status)}
             </div>
@@ -221,11 +255,28 @@ export default function ClientOrderDetailPage() {
             </div>
 
             {isPaid && (
-              <div style={{ marginTop: 16, padding: 16, borderRadius: 12, background: "#f9fafb", border: "1px solid #e5e7eb" }}>
+              <div
+                style={{
+                  marginTop: 16,
+                  padding: 16,
+                  borderRadius: 12,
+                  background: "#f9fafb",
+                  border: "1px solid #e5e7eb",
+                }}
+              >
                 <strong>Code OTP de livraison :</strong>
-                <div style={{ marginTop: 8, fontSize: 24, fontWeight: 700, letterSpacing: 2 }}>
-                  {order.delivery_otp || "Non généré"}
+
+                <div
+                  style={{
+                    marginTop: 8,
+                    fontSize: 24,
+                    fontWeight: 700,
+                    letterSpacing: 2,
+                  }}
+                >
+                  {otpToShow || "Non généré"}
                 </div>
+
                 <div style={{ marginTop: 8, fontSize: 14, color: "#6b7280" }}>
                   Donne ce code uniquement au livreur quand tu reçois bien la commande.
                 </div>
@@ -233,7 +284,14 @@ export default function ClientOrderDetailPage() {
             )}
 
             {getStatusLabel(order.status) === "Livrée" && (
-              <div style={{ marginTop: 20, padding: 16, borderRadius: 12, border: "1px solid #e5e7eb" }}>
+              <div
+                style={{
+                  marginTop: 20,
+                  padding: 16,
+                  borderRadius: 12,
+                  border: "1px solid #e5e7eb",
+                }}
+              >
                 <strong>Laisser un avis</strong>
 
                 <div style={{ marginTop: 12 }}>
@@ -258,7 +316,12 @@ export default function ClientOrderDetailPage() {
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   placeholder="Votre commentaire..."
-                  style={{ width: "100%", marginTop: 12, padding: 10, borderRadius: 8 }}
+                  style={{
+                    width: "100%",
+                    marginTop: 12,
+                    padding: 10,
+                    borderRadius: 8,
+                  }}
                 />
 
                 <button
@@ -286,17 +349,40 @@ export default function ClientOrderDetailPage() {
               <button
                 onClick={() => goToStripe(orderId)}
                 disabled={loading}
-                style={{ padding: "12px 16px", borderRadius: 10, background: "#2563eb", color: "white", border: "none", cursor: "pointer" }}
+                style={{
+                  padding: "12px 16px",
+                  borderRadius: 10,
+                  background: "#2563eb",
+                  color: "white",
+                  border: "none",
+                  cursor: "pointer",
+                }}
               >
                 {loading ? "Redirection..." : "Payer et valider"}
               </button>
             ) : (
-              <div style={{ padding: 16, borderRadius: 12, background: "#ecfdf5", border: "1px solid #bbf7d0", color: "#166534" }}>
+              <div
+                style={{
+                  padding: 16,
+                  borderRadius: 12,
+                  background: "#ecfdf5",
+                  border: "1px solid #bbf7d0",
+                  color: "#166534",
+                }}
+              >
                 ✅ Paiement confirmé.
+
                 <div style={{ marginTop: 12 }}>
                   <button
                     onClick={() => (window.location.href = "/client")}
-                    style={{ padding: "10px 14px", borderRadius: 10, background: "#2563eb", color: "white", border: "none", cursor: "pointer" }}
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: 10,
+                      background: "#2563eb",
+                      color: "white",
+                      border: "none",
+                      cursor: "pointer",
+                    }}
                   >
                     Retour à l'accueil
                   </button>
@@ -308,7 +394,13 @@ export default function ClientOrderDetailPage() {
           <div style={{ marginTop: 20 }}>
             <button
               onClick={fetchOrder}
-              style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #d1d5db", background: "white", cursor: "pointer" }}
+              style={{
+                padding: "10px 14px",
+                borderRadius: 10,
+                border: "1px solid #d1d5db",
+                background: "white",
+                cursor: "pointer",
+              }}
             >
               Rafraîchir
             </button>
