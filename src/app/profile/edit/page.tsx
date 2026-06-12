@@ -13,7 +13,6 @@ type Profile = {
   city?: string | null;
   intervention_radius?: number | null;
   long_distance?: boolean | null;
-  
 };
 
 export default function ProfileEditPage() {
@@ -36,7 +35,6 @@ export default function ProfileEditPage() {
     city: "",
     intervention_radius: 0,
     long_distance: false,
-    
   });
 
   function updateField(name: keyof Profile, value: string | number | boolean) {
@@ -46,8 +44,16 @@ export default function ProfileEditPage() {
   useEffect(() => {
     async function loadProfile() {
       setLoading(true);
+      setMsg(null);
 
-      const { data: userData } = await supabase.auth.getUser();
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+
+      if (userError) {
+        setMsg(userError.message);
+        setLoading(false);
+        return;
+      }
+
       const uid = userData.user?.id;
 
       if (!uid) {
@@ -57,11 +63,17 @@ export default function ProfileEditPage() {
 
       setUserId(uid);
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("profiles")
         .select("*")
-        .or(`user_id.eq.${uid},id.eq.${uid}`)
+        .eq("id", uid)
         .maybeSingle();
+
+      if (error) {
+        setMsg(error.message);
+        setLoading(false);
+        return;
+      }
 
       if (data) {
         setForm({
@@ -73,7 +85,6 @@ export default function ProfileEditPage() {
           city: data.city || "",
           intervention_radius: data.intervention_radius ?? 0,
           long_distance: data.long_distance ?? false,
-          
         });
       }
 
@@ -84,12 +95,15 @@ export default function ProfileEditPage() {
   }, [router, supabase]);
 
   async function uploadAvatar(file: File) {
-    if (!userId) return;
+    if (!userId) {
+      setMsg("Utilisateur non connecté.");
+      return;
+    }
 
     setUploading(true);
     setMsg(null);
 
-    const ext = file.name.split(".").pop();
+    const ext = file.name.split(".").pop() || "jpg";
     const path = `${userId}/avatar-${Date.now()}.${ext}`;
 
     const { error } = await supabase.storage
@@ -106,10 +120,14 @@ export default function ProfileEditPage() {
 
     updateField("avatar_url", data.publicUrl);
     setUploading(false);
+    setMsg("Photo ajoutée. Clique sur Enregistrer mon profil.");
   }
 
   async function saveProfile() {
-    if (!userId) return;
+    if (!userId) {
+      setMsg("Utilisateur non connecté.");
+      return;
+    }
 
     setSaving(true);
     setMsg(null);
