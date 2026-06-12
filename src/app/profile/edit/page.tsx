@@ -13,7 +13,7 @@ type Profile = {
   city?: string | null;
   intervention_radius?: number | null;
   long_distance?: boolean | null;
-  is_courier?: boolean | null;
+  
 };
 
 export default function ProfileEditPage() {
@@ -36,7 +36,7 @@ export default function ProfileEditPage() {
     city: "",
     intervention_radius: 0,
     long_distance: false,
-    is_courier: true,
+    
   });
 
   function updateField(name: keyof Profile, value: string | number | boolean) {
@@ -73,7 +73,7 @@ export default function ProfileEditPage() {
           city: data.city || "",
           intervention_radius: data.intervention_radius ?? 0,
           long_distance: data.long_distance ?? false,
-          is_courier: data.is_courier ?? true,
+          
         });
       }
 
@@ -115,7 +115,7 @@ export default function ProfileEditPage() {
     setMsg(null);
 
     const payload = {
-      user_id: userId,
+      id: userId,
       full_name: form.full_name || null,
       phone: form.phone || null,
       avatar_url: form.avatar_url || null,
@@ -124,13 +124,13 @@ export default function ProfileEditPage() {
       city: form.city || null,
       intervention_radius: form.intervention_radius ?? 0,
       long_distance: form.long_distance ?? false,
-      is_courier: true,
+      role: "courier",
       updated_at: new Date().toISOString(),
     };
 
     const { error } = await supabase
       .from("profiles")
-      .upsert(payload, { onConflict: "user_id" });
+      .upsert(payload, { onConflict: "id" });
 
     setSaving(false);
 
