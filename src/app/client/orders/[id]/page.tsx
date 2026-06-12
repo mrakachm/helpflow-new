@@ -1,412 +1,352 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
-type OrderRow = {
-  [key: string]: any;
+type Order = {
   id: string;
-  status?: string | null;
-  payment_status?: string | null;
+  created_at?: string | null;
+  sender_name?: string | null;
+  sender_phone?: string | null;
+  receiver_name?: string | null;
+  receiver_phone?: string | null;
+  recipient_email?: string | null;
   pickup_address?: string | null;
+  pickup_city?: string | null;
   dropoff_address?: string | null;
-  distance_km?: number | null;
+  dropoff_city?: string | null;
   bag_count?: number | null;
-  weight_kg?: number | null;
+  distance_km?: number | null;
   price_cents?: number | null;
   platform_fee_cents?: number | null;
-  delivery_otp?: string | null;
+  courier_earnings_cents?: number | null;
+  status?: string | null;
+  payment_status?: string | null;
   otp_code?: string | null;
-  code_otp?: string | null;
+  parcel_type?: string | null;
+  parcel_note?: string | null;
+  parcel_photo_url?: string | null;
+  required_vehicle?: string | null;
+  parcel_size?: string | null;
+  service_zone?: string | null;
+  zone_level?: string | null;
+  courier_id?: string | null;
 };
 
-function formatEurosFromCents(cents?: number | null) {
-  if (cents == null) return "-";
-  return (cents / 100).toFixed(2) + " €";
+type CourierProfile = {
+  id?: string;
+  user_id?: string;
+  full_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  avatar_url?: string | null;
+  vehicle_type?: string | null;
+  vehicle_label?: string | null;
+};
+
+function formatEuro(cents?: number | null) {
+  return `${((cents ?? 0) / 100).toFixed(2)} €`;
 }
 
-function normalizeStatus(status?: string | null) {
-  return String(status || "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+function cleanStatus(status?: string | null) {
+  return String(status || "").trim().toUpperCase();
 }
 
-function getStatusLabel(status?: string | null) {
-  const s = normalizeStatus(status);
+function statusLabel(status?: string | null) {
+  const s = cleanStatus(status);
 
-  switch (s) {
-    case "pending":
-      return "Payée - en attente d’un livreur";
-    case "accepted":
-      return "Livreur accepté";
-    case "out_for_delivery":
-    case "en_cours":
-      return "Livraison en cours";
-    case "livre":
-    case "livree":
-    case "delivered":
-      return "Livrée";
-    case "draft":
-    case "brouillon":
-      return "Brouillon";
-    default:
-      return "Brouillon";
-  }
+  if (s === "PENDING") return "Payée · en attente d’un livreur";
+  if (s === "ACCEPTED") return "Livreur accepté";
+  if (s === "OUT_FOR_DELIVERY") return "Livraison en cours";
+  if (s === "DELIVERED") return "Livrée";
+  if (s === "CANCELLED") return "Annulée";
+
+  return status || "En attente";
 }
 
-function getOtp(order: OrderRow | null) {
-  if (!order) return "";
-
-  return (
-    order.otp_code ||
-    order.delivery_otp ||
-    order.code_otp ||
-    order["code otp"] ||
-    order["otp"] ||
-    order["otpCode"] ||
-    order["delivery_code"] ||
-    ""
-  );
+function formatAddress(address?: string | null, city?: string | null) {
+  return [address, city].filter(Boolean).join(", ") || "-";
 }
 
 export default function ClientOrderDetailPage() {
-  const params = useParams<{ id: string }>();
-  const orderId = params?.id;
+  const params = useParams();
+  const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
-  const [loading, setLoading] = useState(false);
-  const [loadingOrder, setLoadingOrder] = useState(true);
-  const [order, setOrder] = useState<OrderRow | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const orderId = String(params?.id || "");
 
-  const [rating, setRating] = useState(5);
-  const [comment, setComment] = useState("");
-  const [reviewMsg, setReviewMsg] = useState<string | null>(null);
+  const [order, setOrder] = useState<Order | null>(null);
+  const [courier, setCourier] = useState<CourierProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [msg, setMsg] = useState<string | null>(null);
 
-  async function fetchOrder() {
+  async function loadOrder() {
     if (!orderId) return;
 
-    setLoadingOrder(true);
-    setError(null);
+    setLoading(true);
+    setMsg(null);
 
     const { data, error } = await supabase
       .from("orders")
       .select("*")
       .eq("id", orderId)
-      .maybeSingle();
+      .single();
 
-    if (error || !data) {
-      setError("Commande introuvable");
-      setOrder(null);
-    } else {
-      setOrder(data as OrderRow);
+    if (error) {
+      setMsg(error.message || "Impossible de charger la commande.");
+      setLoading(false);
+      return;
     }
 
-    setLoadingOrder(false);
+    setOrder(data as Order);
+
+    if (data?.courier_id) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", data.courier_id)
+        .maybeSingle();
+
+      setCourier((profile as CourierProfile) || null);
+    } else {
+      setCourier(null);
+    }
+
+    setLoading(false);
   }
 
   useEffect(() => {
-    fetchOrder();
+    loadOrder();
   }, [orderId]);
 
-  const status = normalizeStatus(order?.status);
-  const paymentStatus = normalizeStatus(order?.payment_status);
-  const otpToShow = getOtp(order);
+  const courierName =
+    courier?.full_name ||
+    [courier?.first_name, courier?.last_name].filter(Boolean).join(" ") ||
+    "Livreur";
 
-  const isPaid =
-    paymentStatus === "paid" ||
-    paymentStatus === "paye" ||
-    ["pending", "accepted", "out_for_delivery", "delivered", "livre", "livree"].includes(status);
-
-  const canPay = !!order && !isPaid && status === "draft";
-
-  async function goToStripe(id: string) {
-    if (!order) return;
-
-    if (isPaid) {
-      alert("Cette commande est déjà payée.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const res = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId: id }),
-      });
-
-      const text = await res.text();
-      const data = text ? JSON.parse(text) : {};
-
-      if (!res.ok) {
-        alert(data?.error || "Erreur paiement");
-        return;
-      }
-
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        alert("URL Stripe manquante");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Erreur réseau");
-    } finally {
-      setLoading(false);
-    }
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-gray-50 px-4 py-6">
+        <div className="mx-auto max-w-xl rounded-2xl bg-white p-5">
+          Chargement de la commande...
+        </div>
+      </main>
+    );
   }
 
-  async function submitReview() {
-    if (!orderId) return;
-
-    const { error } = await supabase.from("reviews").insert({
-      order_id: orderId,
-      rating,
-      comment,
-    });
-
-    if (error) {
-      setReviewMsg("Erreur avis : " + error.message);
-      return;
-    }
-
-    setReviewMsg("Merci pour votre avis !");
-    setComment("");
+  if (!order) {
+    return (
+      <main className="min-h-screen bg-gray-50 px-4 py-6">
+        <div className="mx-auto max-w-xl rounded-2xl bg-white p-5">
+          <p className="font-semibold">Commande introuvable.</p>
+          {msg ? <p className="mt-2 text-sm text-red-600">{msg}</p> : null}
+          <button
+            onClick={() => router.push("/client/orders")}
+            className="mt-4 rounded-xl bg-black px-4 py-2 text-white"
+          >
+            Retour aux commandes
+          </button>
+        </div>
+      </main>
+    );
   }
+
+  const status = cleanStatus(order.status);
 
   return (
-    <div style={{ padding: 24, maxWidth: 760, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 16 }}>
-        Détail commande
-      </h1>
-
-      <p>
-        <strong>ID :</strong> {orderId}
-      </p>
-
-      {loadingOrder && <p>Chargement de la commande...</p>}
-
-      {error && (
-        <div
-          style={{
-            marginTop: 16,
-            padding: 16,
-            borderRadius: 12,
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            color: "#b91c1c",
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      {order && (
-        <>
-          <div
-            style={{
-              marginTop: 20,
-              padding: 16,
-              borderRadius: 12,
-              border: "1px solid #e5e7eb",
-              background: "#fff",
-            }}
+    <main className="min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-xl px-4 py-6">
+        <div className="mb-5">
+          <button
+            onClick={() => router.push("/client/orders")}
+            className="mb-4 rounded-xl border px-4 py-2 text-sm"
           >
-            <div style={{ marginBottom: 8 }}>
-              <strong>Statut :</strong> {getStatusLabel(order.status)}
-            </div>
+            ← Retour
+          </button>
 
-            <div style={{ marginBottom: 8 }}>
-              <strong>Paiement :</strong> {isPaid ? "Confirmé" : "Non payé"}
-            </div>
+          <h1 className="text-3xl font-bold">Détail commande</h1>
+          <p className="mt-2 break-all text-sm text-gray-500">ID : {order.id}</p>
+        </div>
 
-            <div style={{ marginBottom: 8 }}>
-              <strong>Départ :</strong> {order.pickup_address ?? "-"}
-            </div>
+        {msg ? (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {msg}
+          </div>
+        ) : null}
 
-            <div style={{ marginBottom: 8 }}>
-              <strong>Arrivée :</strong> {order.dropoff_address ?? "-"}
-            </div>
+        <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="space-y-3 text-base">
+            <p>
+              <strong>Statut :</strong> {statusLabel(order.status)}
+            </p>
 
-            <div style={{ marginBottom: 8 }}>
-              <strong>Distance :</strong> {order.distance_km ?? "-"} km
-            </div>
+            <p>
+              <strong>Paiement :</strong>{" "}
+              {order.payment_status === "PAID" ? "Confirmé" : order.payment_status || "-"}
+            </p>
 
-            <div style={{ marginBottom: 8 }}>
+            <p>
+              <strong>Départ :</strong>{" "}
+              {formatAddress(order.pickup_address, order.pickup_city)}
+            </p>
+
+            <p>
+              <strong>Arrivée :</strong>{" "}
+              {formatAddress(order.dropoff_address, order.dropoff_city)}
+            </p>
+
+            <p>
+              <strong>Distance :</strong>{" "}
+              {order.distance_km ? `${order.distance_km} km` : "- km"}
+            </p>
+
+            <p>
               <strong>Sacs :</strong> {order.bag_count ?? "-"}
-            </div>
+            </p>
 
-            <div style={{ marginBottom: 8 }}>
-              <strong>Poids :</strong> {order.weight_kg ?? "-"} kg
-            </div>
+            <p>
+              <strong>Type colis :</strong> {order.parcel_type || "-"}
+            </p>
 
-            <div style={{ marginBottom: 8 }}>
-              <strong>Prix :</strong> {formatEurosFromCents(order.price_cents)}
-            </div>
+            <p>
+              <strong>Taille colis :</strong> {order.parcel_size || "-"}
+            </p>
 
-            <div style={{ marginBottom: 8 }}>
+            <p>
+              <strong>Véhicule requis :</strong> {order.required_vehicle || "-"}
+            </p>
+
+            <p>
+              <strong>Zone :</strong>{" "}
+              {[order.service_zone, order.zone_level].filter(Boolean).join(" · ") || "-"}
+            </p>
+
+            <p>
+              <strong>Prix :</strong> {formatEuro(order.price_cents)}
+            </p>
+
+            <p>
               <strong>Frais plateforme :</strong>{" "}
-              {formatEurosFromCents(order.platform_fee_cents)}
+              {formatEuro(order.platform_fee_cents)}
+            </p>
+          </div>
+
+          {order.parcel_note ? (
+            <div className="mt-5 rounded-2xl bg-gray-50 p-4">
+              <p className="font-semibold">Note colis</p>
+              <p className="mt-1 text-sm text-gray-700">{order.parcel_note}</p>
+            </div>
+          ) : null}
+
+          {order.parcel_photo_url ? (
+            <div className="mt-5">
+              <p className="mb-2 font-semibold">Photo du colis</p>
+              <img
+                src={order.parcel_photo_url}
+                alt="Photo du colis"
+                className="max-h-72 w-full rounded-2xl object-cover"
+              />
+            </div>
+          ) : null}
+
+          <div className="mt-5 rounded-2xl bg-gray-50 p-4">
+            <p className="font-semibold">Code OTP de livraison :</p>
+            <p className="mt-3 text-4xl font-bold tracking-[0.25em]">
+              {order.otp_code || "------"}
+            </p>
+            <p className="mt-3 text-sm text-gray-600">
+              Donne ce code uniquement au livreur quand tu reçois bien la commande.
+            </p>
+          </div>
+        </section>
+
+        <section className="mt-5 rounded-3xl border border-gray-200 bg-white p-5">
+          <h2 className="text-xl font-bold">Contacts</h2>
+
+          <div className="mt-4 space-y-4">
+            <div>
+              <p className="font-semibold">Expéditeur</p>
+              <p>{order.sender_name || "-"}</p>
+              {order.sender_phone ? (
+                <a
+                  href={`tel:${order.sender_phone}`}
+                  className="text-blue-600 underline"
+                >
+                  Appeler : {order.sender_phone}
+                </a>
+              ) : (
+                <p className="text-gray-500">Téléphone non renseigné</p>
+              )}
             </div>
 
-            {isPaid && (
-              <div
-                style={{
-                  marginTop: 16,
-                  padding: 16,
-                  borderRadius: 12,
-                  background: "#f9fafb",
-                  border: "1px solid #e5e7eb",
-                }}
-              >
-                <strong>Code OTP de livraison :</strong>
-
-                <div
-                  style={{
-                    marginTop: 8,
-                    fontSize: 24,
-                    fontWeight: 700,
-                    letterSpacing: 2,
-                  }}
+            <div>
+              <p className="font-semibold">Receveur</p>
+              <p>{order.receiver_name || "-"}</p>
+              {order.receiver_phone ? (
+                <a
+                  href={`tel:${order.receiver_phone}`}
+                  className="text-blue-600 underline"
                 >
-                  {otpToShow || "Non généré"}
-                </div>
+                  Appeler : {order.receiver_phone}
+                </a>
+              ) : (
+                <p className="text-gray-500">Téléphone non renseigné</p>
+              )}
+              {order.recipient_email ? (
+                <p className="text-sm text-gray-600">{order.recipient_email}</p>
+              ) : null}
+            </div>
+          </div>
+        </section>
 
-                <div style={{ marginTop: 8, fontSize: 14, color: "#6b7280" }}>
-                  Donne ce code uniquement au livreur quand tu reçois bien la commande.
-                </div>
-              </div>
-            )}
+        {order.courier_id ? (
+          <section className="mt-5 rounded-3xl border border-gray-200 bg-white p-5">
+            <h2 className="text-xl font-bold">Livreur</h2>
 
-            {getStatusLabel(order.status) === "Livrée" && (
-              <div
-                style={{
-                  marginTop: 20,
-                  padding: 16,
-                  borderRadius: 12,
-                  border: "1px solid #e5e7eb",
-                }}
-              >
-                <strong>Laisser un avis</strong>
-
-                <div style={{ marginTop: 12 }}>
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <button
-                      key={n}
-                      onClick={() => setRating(n)}
-                      style={{
-                        fontSize: 24,
-                        border: "none",
-                        background: "transparent",
-                        cursor: "pointer",
-                        color: n <= rating ? "#f59e0b" : "#d1d5db",
-                      }}
-                    >
-                      ★
-                    </button>
-                  ))}
-                </div>
-
-                <textarea
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder="Votre commentaire..."
-                  style={{
-                    width: "100%",
-                    marginTop: 12,
-                    padding: 10,
-                    borderRadius: 8,
-                  }}
+            <div className="mt-4 flex items-center gap-4">
+              {courier?.avatar_url ? (
+                <img
+                  src={courier.avatar_url}
+                  alt="Photo livreur"
+                  className="h-14 w-14 rounded-full object-cover"
                 />
-
-                <button
-                  onClick={submitReview}
-                  style={{
-                    marginTop: 12,
-                    padding: "10px 14px",
-                    borderRadius: 10,
-                    background: "#2563eb",
-                    color: "white",
-                    border: "none",
-                    cursor: "pointer",
-                  }}
-                >
-                  Envoyer l'avis
-                </button>
-
-                {reviewMsg && <p>{reviewMsg}</p>}
-              </div>
-            )}
-          </div>
-
-          <div style={{ marginTop: 20 }}>
-            {canPay ? (
-              <button
-                onClick={() => goToStripe(orderId)}
-                disabled={loading}
-                style={{
-                  padding: "12px 16px",
-                  borderRadius: 10,
-                  background: "#2563eb",
-                  color: "white",
-                  border: "none",
-                  cursor: "pointer",
-                }}
-              >
-                {loading ? "Redirection..." : "Payer et valider"}
-              </button>
-            ) : (
-              <div
-                style={{
-                  padding: 16,
-                  borderRadius: 12,
-                  background: "#ecfdf5",
-                  border: "1px solid #bbf7d0",
-                  color: "#166534",
-                }}
-              >
-                ✅ Paiement confirmé.
-
-                <div style={{ marginTop: 12 }}>
-                  <button
-                    onClick={() => (window.location.href = "/client")}
-                    style={{
-                      padding: "10px 14px",
-                      borderRadius: 10,
-                      background: "#2563eb",
-                      color: "white",
-                      border: "none",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Retour à l'accueil
-                  </button>
+              ) : (
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
+                  🚚
                 </div>
-              </div>
-            )}
-          </div>
+              )}
 
-          <div style={{ marginTop: 20 }}>
-            <button
-              onClick={fetchOrder}
-              style={{
-                padding: "10px 14px",
-                borderRadius: 10,
-                border: "1px solid #d1d5db",
-                background: "white",
-                cursor: "pointer",
-              }}
-            >
-              Rafraîchir
-            </button>
-          </div>
-        </>
-      )}
-    </div>
+              <div>
+                <p className="font-semibold">{courierName}</p>
+                <p className="text-sm text-gray-600">
+                  {[courier?.vehicle_type, courier?.vehicle_label]
+                    .filter(Boolean)
+                    .join(" · ") || "Véhicule non renseigné"}
+                </p>
+
+                {courier?.phone ? (
+                  <a
+                    href={`tel:${courier.phone}`}
+                    className="text-sm text-blue-600 underline"
+                  >
+                    Appeler le livreur : {courier.phone}
+                  </a>
+                ) : null}
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {status === "DELIVERED" ? (
+          <section className="mt-5 rounded-3xl border border-green-200 bg-green-50 p-5">
+            <p className="text-lg font-semibold text-green-700">
+              ✅ Commande livrée.
+            </p>
+          </section>
+        ) : null}
+      </div>
+    </main>
   );
 }

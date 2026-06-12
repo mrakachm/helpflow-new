@@ -1,109 +1,112 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-
-type OrderStatus =
-  | "DRAFT"
-  | "PENDING"
-  | "ACCEPTED"
-  | "OUT_FOR_DELIVERY"
-  | "DELIVERED"
-  | string;
+import MissionRoutePreview from "@/components/MissionRoutePreview";
 
 type Order = {
   id: string;
-  pickup_address: string | null;
-  dropoff_address: string | null;
-  pickup_city?: string | null;
-  dropoff_city?: string | null;
-  price_cents: number | null;
-  price?: number | null;
-  payment_status?: string | null;
-  status: OrderStatus | null;
-  courier_id: string | null;
-  delivery_otp?: string | null;
-  maps_url?: string | null;
-  distance_km?: number | null;
-  bag_count?: number | null;
-  weight_kg?: number | null;
-  category?: string | null;
   created_at?: string | null;
-  updated_at?: string | null;
+  sender_name?: string | null;
+  sender_phone?: string | null;
+  receiver_name?: string | null;
+  receiver_phone?: string | null;
+  pickup_address?: string | null;
+  pickup_city?: string | null;
+  dropoff_address?: string | null;
+  dropoff_city?: string | null;
+  recipient_email?: string | null;
+  parcel_type?: string | null;
+  parcel_note?: string | null;
+  parcel_size?: string | null;
+  required_vehicle?: string | null;
+  service_zone?: string | null;
+  zone_level?: string | null;
+  parcel_photo_url?: string | null;
+  bag_count?: number | null;
+  distance_km?: number | null;
+  price_cents?: number | null;
+  courier_earnings_cents?: number | null;
+  platform_fee_cents?: number | null;
+  status?: string | null;
+  payment_status?: string | null;
+  courier_id?: string | null;
 };
 
-function euros(cents: number | null | undefined, price?: number | null) {
-  if (cents != null) return (cents / 100).toFixed(2).replace(".", ",") + " €";
-  if (price != null) return Number(price).toFixed(2).replace(".", ",") + " €";
-  return "-";
+type CourierProfile = {
+  id?: string;
+  user_id?: string;
+  full_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  avatar_url?: string | null;
+  vehicle_type?: string | null;
+  vehicle_label?: string | null;
+  city?: string | null;
+  service_area?: string | null;
+  rating_average?: number | null;
+};
+
+function formatEuro(cents?: number | null) {
+  return `${((cents ?? 0) / 100).toFixed(2)} €`;
 }
 
-function normalize(value: string | null | undefined) {
-  return String(value || "").trim().toUpperCase();
+function cleanStatus(status?: string | null) {
+  return String(status || "").trim().toUpperCase();
 }
 
-function isPaid(order: Order) {
-  return normalize(order.payment_status) === "PAID";
-}
-
-function isPendingPaid(order: Order) {
-  return normalize(order.status) === "PENDING" && isPaid(order) && !order.courier_id;
-}
-
-function Stars({ value = 5 }: { value?: number }) {
+function profileName(profile: CourierProfile | null) {
+  if (!profile) return "Livreur";
   return (
-    <div className="flex gap-1 text-amber-400 text-lg">
-      {[1, 2, 3, 4, 5].map((star) => (
-        <span key={star}>{star <= value ? "★" : "☆"}</span>
-      ))}
-    </div>
+    profile.full_name ||
+    [profile.first_name, profile.last_name].filter(Boolean).join(" ") ||
+    "Livreur"
   );
-}
-
-function getMapUrl(order: Order) {
-  if (order.maps_url) return order.maps_url;
-
-  const from = [order.pickup_address, order.pickup_city].filter(Boolean).join(", ");
-  const to = [order.dropoff_address, order.dropoff_city].filter(Boolean).join(", ");
-
-  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(
-    from
-  )}&destination=${encodeURIComponent(to)}&travelmode=driving`;
 }
 
 export default function MissionsPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const router = useRouter();
 
   const [userId, setUserId] = useState<string | null>(null);
+  const [courierProfile, setCourierProfile] = useState<CourierProfile | null>(null);
   const [available, setAvailable] = useState<Order[]>([]);
   const [myMissions, setMyMissions] = useState<Order[]>([]);
-  const [otpInputs, setOtpInputs] = useState<Record<string, string>>({});
-
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [otpLoadingId, setOtpLoadingId] = useState<string | null>(null);
-  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [otpByOrder, setOtpByOrder] = useState<Record<string, string>>({});
 
-  async function requireAuth() {
-    const { data, error } = await supabase.auth.getUser();
+  async function loadCourierProfile(uid: string) {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("user_id", uid)
+      .maybeSingle();
 
-    if (error || !data.user) {
-      router.push("/login?next=/livreur/missions");
-      return null;
+    if (!error && data) {
+      setCourierProfile(data as CourierProfile);
+      return;
     }
 
-    setUserId(data.user.id);
-    return data.user.id;
+    const { data: dataById } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", uid)
+      .maybeSingle();
+
+    setCourierProfile((dataById as CourierProfile) || null);
   }
 
-  async function loadOrders(uid: string, silent = false) {
-    silent ? setRefreshing(true) : setLoading(true);
-    setError(null);
+  async function loadOrders(uid?: string | null, silent = false) {
+    if (!silent) setLoading(true);
+    else setRefreshing(true);
+
+    setMsg(null);
 
     try {
+      const currentUserId = uid || userId;
+
       const { data: availableData, error: availableError } = await supabase
         .from("orders")
         .select("*")
@@ -114,458 +117,497 @@ export default function MissionsPage() {
 
       if (availableError) throw availableError;
 
-      const { data: myData, error: myError } = await supabase
-        .from("orders")
-        .select("*")
-        .eq("courier_id", uid)
-        .in("status", ["ACCEPTED", "OUT_FOR_DELIVERY"])
-        .order("created_at", { ascending: false });
+      let myData: Order[] = [];
 
-      if (myError) throw myError;
+      if (currentUserId) {
+        const { data, error } = await supabase
+          .from("orders")
+          .select("*")
+          .eq("courier_id", currentUserId)
+          .in("status", ["ACCEPTED", "OUT_FOR_DELIVERY"])
+          .order("created_at", { ascending: false });
 
-      setAvailable(((availableData as Order[]) || []).filter(isPendingPaid));
-      setMyMissions(
-        ((myData as Order[]) || []).filter((order) =>
-          ["ACCEPTED", "OUT_FOR_DELIVERY"].includes(normalize(order.status))
+        if (error) throw error;
+        myData = (data as Order[]) || [];
+      }
+
+      setAvailable(
+        ((availableData as Order[]) || []).filter(
+          (o) =>
+            cleanStatus(o.status) === "PENDING" &&
+            cleanStatus(o.payment_status) === "PAID"
         )
       );
-    } catch (err) {
-      console.error(err);
-      setError("Impossible de charger les missions pour le moment.");
+
+      setMyMissions(myData);
+    } catch (error: any) {
+      console.error(error);
+      setMsg(error?.message || "Impossible de charger les missions.");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }
 
-  async function refreshOrders() {
-    if (!userId) return;
-    await loadOrders(userId, true);
-  }
+  useEffect(() => {
+    async function init() {
+      const { data } = await supabase.auth.getUser();
+      const uid = data.user?.id ?? null;
+      setUserId(uid);
 
-  async function takeMission(orderId: string) {
-    if (!userId) return;
-
-    setError(null);
-    setActionLoadingId(orderId);
-
-    try {
-      const now = new Date().toISOString();
-
-      const { error } = await supabase
-        .from("orders")
-        .update({
-          status: "ACCEPTED",
-          courier_id: userId,
-          accepted_at: now,
-          updated_at: now,
-        })
-        .eq("id", orderId)
-        .eq("status", "PENDING")
-        .eq("payment_status", "PAID")
-        .is("courier_id", null);
-
-      if (error) throw error;
-
-      await loadOrders(userId, true);
-    } catch (err) {
-      console.error(err);
-      setError("Cette mission n'est plus disponible ou une erreur est arrivée.");
-    } finally {
-      setActionLoadingId(null);
+      if (uid) await loadCourierProfile(uid);
+      await loadOrders(uid);
     }
-  }
 
-  async function startDelivery(order: Order) {
-    if (!userId) return;
+    init();
+  }, [supabase]);
 
-    setActionLoadingId(order.id);
-    setError(null);
-
-    try {
-      const now = new Date().toISOString();
-
-      const { error } = await supabase
-        .from("orders")
-        .update({
-          status: "OUT_FOR_DELIVERY",
-          started_at: now,
-          updated_at: now,
-        })
-        .eq("id", order.id)
-        .eq("courier_id", userId)
-        .eq("status", "ACCEPTED");
-
-      if (error) throw error;
-
-      window.open(getMapUrl(order), "_blank");
-      await loadOrders(userId, true);
-    } catch (err) {
-      console.error(err);
-      setError("Impossible de démarrer cette livraison.");
-    } finally {
-      setActionLoadingId(null);
-    }
-  }
-
-  function updateOtpInput(orderId: string, value: string) {
-    setOtpInputs((prev) => ({
-      ...prev,
-      [orderId]: value.replace(/\D/g, "").slice(0, 6),
-    }));
-  }
-
-  async function validateOtpAndDeliver(orderId: string) {
-    if (!userId) return;
-
-    const otp = (otpInputs[orderId] || "").trim();
-
-    if (!otp) {
-      setError("Entre le code OTP donné par le client.");
+  async function acceptMission(orderId: string) {
+    if (!userId) {
+      setMsg("Tu dois être connecté comme livreur.");
       return;
     }
 
-    setOtpLoadingId(orderId);
-    setError(null);
+    const { error } = await supabase
+      .from("orders")
+      .update({
+        courier_id: userId,
+        status: "ACCEPTED",
+        accepted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", orderId)
+      .eq("status", "PENDING")
+      .is("courier_id", null);
 
-    try {
-      const res = await fetch("/api/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, otp }),
-      });
-
-      const result = await res.json();
-
-      if (!res.ok) {
-        setError(result?.error || "Code OTP incorrect.");
-        return;
-      }
-
-      setOtpInputs((prev) => ({ ...prev, [orderId]: "" }));
-      await loadOrders(userId, true);
-    } catch (err) {
-      console.error(err);
-      setError("Erreur pendant la validation OTP.");
-    } finally {
-      setOtpLoadingId(null);
+    if (error) {
+      setMsg(error.message);
+      return;
     }
+
+    setMsg("✅ Mission acceptée.");
+    await loadOrders(userId, true);
+  }
+
+  async function startDelivery(orderId: string) {
+    const { error } = await supabase
+      .from("orders")
+      .update({
+        status: "OUT_FOR_DELIVERY",
+        started_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", orderId)
+      .eq("courier_id", userId);
+
+    if (error) {
+      setMsg(error.message);
+      return;
+    }
+
+    setMsg("✅ Livraison démarrée.");
+    await loadOrders(userId, true);
+  }
+
+  async function validateDelivery(order: Order) {
+    const enteredOtp = otpByOrder[order.id]?.trim();
+
+    if (!enteredOtp) {
+      setMsg("Entre le code OTP.");
+      return;
+    }
+
+    const res = await fetch("/api/verify-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId: order.id, otp: enteredOtp }),
+    });
+
+    const result = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      setMsg(result?.error || "Code OTP incorrect.");
+      return;
+    }
+
+    setMsg("✅ Commande livrée.");
+    setOtpByOrder((prev) => ({ ...prev, [order.id]: "" }));
+    await loadOrders(userId, true);
   }
 
   async function cancelMission(orderId: string) {
-    if (!userId) return;
+    const { error } = await supabase
+      .from("orders")
+      .update({
+        status: "PENDING",
+        courier_id: null,
+        accepted_at: null,
+        started_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", orderId)
+      .eq("courier_id", userId);
 
-    setActionLoadingId(orderId);
-    setError(null);
-
-    try {
-      const now = new Date().toISOString();
-
-      const { error } = await supabase
-        .from("orders")
-        .update({
-          status: "PENDING",
-          courier_id: null,
-          accepted_at: null,
-          started_at: null,
-          updated_at: now,
-        })
-        .eq("id", orderId)
-        .eq("courier_id", userId)
-        .in("status", ["ACCEPTED", "OUT_FOR_DELIVERY"]);
-
-      if (error) throw error;
-
-      await loadOrders(userId, true);
-    } catch (err) {
-      console.error(err);
-      setError("Impossible d'annuler cette mission.");
-    } finally {
-      setActionLoadingId(null);
+    if (error) {
+      setMsg(error.message);
+      return;
     }
+
+    setMsg("Mission annulée.");
+    await loadOrders(userId, true);
   }
 
-  useEffect(() => {
-    (async () => {
-      const uid = await requireAuth();
-      if (uid) await loadOrders(uid);
-    })();
-  }, []);
+  function openGps(order: Order) {
+    const from = `${order.pickup_address || ""} ${order.pickup_city || ""}`;
+    const to = `${order.dropoff_address || ""} ${order.dropoff_city || ""}`;
 
-  return (
-    <main className="min-h-screen bg-white px-4 py-6 text-slate-900">
-      <div className="mx-auto max-w-3xl space-y-6">
-        <header className="rounded-3xl bg-blue-600 p-5 text-white shadow-xl">
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(
+      from
+    )}&destination=${encodeURIComponent(to)}&travelmode=driving`;
+
+    window.open(url, "_blank");
+  }
+
+  function callPhone(phone?: string | null) {
+    if (!phone) return;
+    window.location.href = `tel:${phone}`;
+  }
+
+  function OrderCard({ order, type }: { order: Order; type: "available" | "mine" }) {
+    const status = cleanStatus(order.status);
+
+    return (
+      <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
+        {order.parcel_photo_url ? (
+          <img
+            src={order.parcel_photo_url}
+            alt="Photo du colis"
+            className="h-48 w-full object-cover"
+          />
+        ) : null}
+
+        <div className="space-y-4 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-blue-100">HelpFlow Livreur</p>
-              <h1 className="mt-1 text-3xl font-bold">Missions disponibles</h1>
-              <p className="mt-2 text-blue-100">
+              <p className="text-sm text-gray-500">Mission recommandée</p>
+              <div className="text-yellow-400">★★★★★</div>
+            </div>
+
+            <div className="text-right">
+              <div className="rounded-full bg-blue-50 px-3 py-2 font-bold text-blue-700">
+                {formatEuro(order.price_cents)}
+              </div>
+              <p className="mt-1 text-sm font-semibold text-green-600">
+                Gain : {formatEuro(order.courier_earnings_cents)}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-3">
+            <div className="rounded-2xl bg-gray-50 p-3">
+              <p className="text-xs font-semibold uppercase text-gray-500">Retrait</p>
+              <p className="font-semibold">
+                {order.pickup_address || "-"} {order.pickup_city || ""}
+              </p>
+              <p className="text-sm text-gray-600">
+                Expéditeur : {order.sender_name || "-"}
+              </p>
+
+              {order.sender_phone ? (
+                <button
+                  type="button"
+                  onClick={() => callPhone(order.sender_phone)}
+                  className="mt-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium"
+                >
+                  Appeler expéditeur
+                </button>
+              ) : null}
+            </div>
+
+            <div className="rounded-2xl bg-gray-50 p-3">
+              <p className="text-xs font-semibold uppercase text-gray-500">Livraison</p>
+              <p className="font-semibold">
+                {order.dropoff_address || "-"} {order.dropoff_city || ""}
+              </p>
+              <p className="text-sm text-gray-600">
+                Receveur : {order.receiver_name || "-"}
+              </p>
+
+              {order.receiver_phone ? (
+                <button
+                  type="button"
+                  onClick={() => callPhone(order.receiver_phone)}
+                  className="mt-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium"
+                >
+                  Appeler receveur
+                </button>
+              ) : null}
+
+              {order.recipient_email ? (
+                <p className="mt-2 text-xs text-gray-500">
+                  Email OTP : {order.recipient_email}
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div className="rounded-xl bg-gray-50 p-3">
+              <p className="text-gray-500">Distance</p>
+              <p className="font-semibold">{order.distance_km ?? "-"} km</p>
+            </div>
+
+            <div className="rounded-xl bg-gray-50 p-3">
+              <p className="text-gray-500">Sacs</p>
+              <p className="font-semibold">{order.bag_count ?? "-"}</p>
+            </div>
+
+            <div className="rounded-xl bg-gray-50 p-3">
+              <p className="text-gray-500">Type colis</p>
+              <p className="font-semibold">{order.parcel_type || "-"}</p>
+            </div>
+
+            <div className="rounded-xl bg-gray-50 p-3">
+              <p className="text-gray-500">Taille colis</p>
+              <p className="font-semibold">{order.parcel_size || "-"}</p>
+            </div>
+
+            <div className="rounded-xl bg-gray-50 p-3">
+              <p className="text-gray-500">Véhicule requis</p>
+              <p className="font-semibold">{order.required_vehicle || "Non précisé"}</p>
+            </div>
+
+            <div className="rounded-xl bg-gray-50 p-3">
+              <p className="text-gray-500">Frais plateforme</p>
+              <p className="font-semibold">{formatEuro(order.platform_fee_cents)}</p>
+            </div>
+          </div>
+
+          {order.parcel_note ? (
+            <div className="rounded-2xl bg-yellow-50 p-3 text-sm text-yellow-900">
+              {order.parcel_note}
+            </div>
+          ) : null}
+
+          {order.service_zone || order.zone_level ? (
+            <div className="rounded-2xl bg-blue-50 p-3 text-sm text-blue-900">
+              Zone : {order.service_zone || "-"} / {order.zone_level || "-"}
+            </div>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={() => openGps(order)}
+            className="w-full rounded-2xl border border-blue-200 px-4 py-3 font-semibold text-blue-700"
+          >
+            Ouvrir le GPS
+          </button>
+
+          {type === "available" && (
+            <button
+              type="button"
+              onClick={() => acceptMission(order.id)}
+              className="w-full rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white"
+            >
+<MissionRoutePreview
+  pickupAddress={order.pickup_address}
+  pickupCity={order.pickup_city}
+  dropoffAddress={order.dropoff_address}
+  dropoffCity={order.dropoff_city}
+/>
+
+              Accepter cette mission
+            </button>
+          )}
+
+          {type === "mine" && status === "ACCEPTED" && (
+            <button
+              type="button"
+              onClick={() => startDelivery(order.id)}
+              className="w-full rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white"
+            >
+              Démarrer la livraison
+            </button>
+          )}
+
+          {type === "mine" && status === "OUT_FOR_DELIVERY" && (
+            <div className="space-y-3">
+              <input
+                value={otpByOrder[order.id] || ""}
+                onChange={(e) =>
+                  setOtpByOrder((prev) => ({
+                    ...prev,
+                    [order.id]: e.target.value.replace(/\D/g, "").slice(0, 6),
+                  }))
+                }
+                placeholder="Code OTP de livraison"
+                className="w-full rounded-2xl border border-gray-200 px-4 py-3"
+              />
+
+              <button
+                type="button"
+                onClick={() => validateDelivery(order)}
+                className="w-full rounded-2xl bg-green-600 px-4 py-3 font-semibold text-white"
+              >
+                Valider la livraison
+              </button>
+            </div>
+          )}
+
+          {type === "mine" && (
+            <button
+              type="button"
+              onClick={() => cancelMission(order.id)}
+              className="w-full rounded-2xl px-4 py-3 font-medium text-red-600"
+            >
+              Annuler la mission
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-gray-50 p-4">
+        <div className="mx-auto max-w-3xl rounded-3xl bg-white p-6 shadow-sm">
+          Chargement des missions...
+        </div>
+      </main>
+    );
+  }
+
+  const rating = courierProfile?.rating_average || 5;
+  const vehicle =
+    [courierProfile?.vehicle_type, courierProfile?.vehicle_label]
+      .filter(Boolean)
+      .join(" · ") || "Véhicule non renseigné";
+
+  return (
+    <main className="min-h-screen bg-gray-50 p-4">
+      <div className="mx-auto max-w-3xl space-y-6">
+        <section className="rounded-3xl bg-blue-600 p-6 text-white shadow-lg">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-blue-100">HelpFlow Livreur</p>
+              <h1 className="mt-2 text-4xl font-bold">Missions disponibles</h1>
+              <p className="mt-3 text-blue-100">
                 Choisissez une mission claire, payée et prête à être prise.
               </p>
             </div>
 
             <button
               type="button"
-              onClick={refreshOrders}
-              disabled={refreshing || loading}
-              className="rounded-2xl bg-white px-4 py-3 text-sm font-bold text-blue-700 disabled:opacity-60"
+              onClick={() => loadOrders(userId, true)}
+              disabled={refreshing}
+              className="rounded-2xl bg-white px-4 py-3 font-semibold text-blue-700"
             >
-              {refreshing ? "Actualisation..." : "Rafraîchir"}
+              {refreshing ? "..." : "Rafraîchir"}
             </button>
           </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-3">
+          <div className="mt-6 grid grid-cols-2 gap-3">
             <div className="rounded-2xl bg-white/15 p-4">
-              <p className="text-3xl font-bold">{available.length}</p>
-              <p className="text-sm text-blue-100">missions disponibles</p>
+              <p className="text-4xl font-bold">{available.length}</p>
+              <p className="text-blue-100">missions disponibles</p>
             </div>
 
             <div className="rounded-2xl bg-white/15 p-4">
-              <p className="text-3xl font-bold">{myMissions.length}</p>
-              <p className="text-sm text-blue-100">missions en cours</p>
+              <p className="text-4xl font-bold">{myMissions.length}</p>
+              <p className="text-blue-100">missions en cours</p>
             </div>
           </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            <div className="rounded-2xl bg-white p-4 text-slate-900">
-              <p className="text-sm font-semibold text-slate-500">Livreur</p>
-              <Stars value={5} />
-              <p className="text-xs text-slate-500">Note visible bientôt</p>
-            </div>
+          <div className="mt-4 rounded-2xl bg-white p-4 text-gray-900">
+            <div className="flex items-center gap-4">
+              {courierProfile?.avatar_url ? (
+                <img
+                  src={courierProfile.avatar_url}
+                  alt="Photo du livreur"
+                  className="h-16 w-16 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-2xl">
+                  🚚
+                </div>
+              )}
 
-            <div className="rounded-2xl bg-white p-4 text-slate-900">
-              <p className="text-sm font-semibold text-slate-500">Application</p>
-              <Stars value={5} />
-              <p className="text-xs text-slate-500">HelpFlow</p>
-            </div>
-          </div>
-        </header>
-
-        {error && (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
-            {error}
-          </div>
-        )}
-
-        {loading && <p className="text-slate-500">Chargement des missions...</p>}
-
-        {!loading && (
-          <>
-            <section className="space-y-4">
-              <div>
-                <h2 className="text-xl font-bold">Missions recommandées</h2>
-                <p className="text-sm text-slate-500">
-                  Les étoiles indiquent les missions simples à prendre.
+              <div className="flex-1">
+                <p className="font-semibold">{profileName(courierProfile)}</p>
+                <p className="text-sm text-gray-600">{vehicle}</p>
+                <p className="text-sm text-gray-600">
+                  Zone : {courierProfile?.service_area || "Non renseignée"}
                 </p>
-              </div>
 
-              {available.length === 0 && (
-                <div className="rounded-3xl border border-slate-100 bg-slate-50 p-6 text-center">
-                  <p className="text-lg font-bold">Aucune mission disponible</p>
-                  <p className="mt-2 text-slate-500">
-                    Revenez dans quelques minutes ou rafraîchissez la page.
-                  </p>
-                </div>
-              )}
-
-              {available.map((order, index) => (
-                <article
-                  key={order.id}
-                  className="overflow-hidden rounded-3xl border border-blue-100 bg-blue-600 text-white shadow-xl"
-                >
-                  <div className="h-36 bg-gradient-to-br from-blue-200 via-green-100 to-blue-100 p-4 text-slate-800">
-                    <p className="text-sm font-semibold">Carte GPS</p>
-                    <p className="mt-2 text-xs">Retrait → Livraison</p>
-                    <button
-                      type="button"
-                      onClick={() => window.open(getMapUrl(order), "_blank")}
-                      className="mt-6 rounded-full bg-white px-4 py-2 text-sm font-bold text-blue-700 shadow"
-                    >
-                      Ouvrir l'itinéraire
-                    </button>
-                  </div>
-
-                  <div className="p-5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-blue-100">
-                          Mission recommandée
-                        </p>
-                        <Stars value={index < 2 ? 5 : 4} />
-                      </div>
-
-                      <div className="rounded-2xl bg-white px-4 py-2 font-bold text-blue-700">
-                        {euros(order.price_cents, order.price)}
-                      </div>
-                    </div>
-
-                    <div className="mt-5 grid gap-3">
-                      <div className="rounded-2xl bg-white/15 p-4">
-                        <p className="text-xs uppercase tracking-wide text-blue-100">
-                          Retrait
-                        </p>
-                        <p className="mt-1 font-semibold">
-                          {order.pickup_address || "Adresse de retrait inconnue"}
-                        </p>
-                      </div>
-
-                      <div className="rounded-2xl bg-white/15 p-4">
-                        <p className="text-xs uppercase tracking-wide text-blue-100">
-                          Livraison
-                        </p>
-                        <p className="mt-1 font-semibold">
-                          {order.dropoff_address || "Adresse de livraison inconnue"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-5 flex flex-wrap gap-2 text-xs">
-                      {order.distance_km != null && (
-                        <span className="rounded-full bg-white/15 px-3 py-1">
-                          {order.distance_km} km
-                        </span>
-                      )}
-
-                      {order.bag_count != null && (
-                        <span className="rounded-full bg-white/15 px-3 py-1">
-                          {order.bag_count} sac(s)
-                        </span>
-                      )}
-
-                      {order.weight_kg != null && (
-                        <span className="rounded-full bg-white/15 px-3 py-1">
-                          {order.weight_kg} kg
-                        </span>
-                      )}
-
-                      {order.category && (
-                        <span className="rounded-full bg-white/15 px-3 py-1">
-                          {order.category}
-                        </span>
-                      )}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => takeMission(order.id)}
-                      disabled={actionLoadingId === order.id}
-                      className="mt-5 w-full rounded-2xl bg-white px-4 py-4 font-bold text-blue-700 disabled:opacity-50"
-                    >
-                      {actionLoadingId === order.id
-                        ? "Prise de mission..."
-                        : "Accepter cette mission"}
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </section>
-
-            <section className="space-y-4">
-              <h2 className="text-xl font-bold">Mes missions en cours</h2>
-
-              {myMissions.length === 0 && (
-                <div className="rounded-3xl border border-slate-100 bg-slate-50 p-6 text-center">
-                  <p className="font-bold">Aucune mission en cours</p>
-                  <p className="mt-2 text-slate-500">
-                    Acceptez une mission pour la retrouver ici.
-                  </p>
-                </div>
-              )}
-
-              {myMissions.map((order) => (
-                <article
-                  key={order.id}
-                  className="rounded-3xl border border-slate-100 bg-slate-50 p-5 shadow-sm"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-slate-500">Mission en cours</p>
-                      <Stars value={5} />
-                    </div>
-                    <p className="font-bold text-blue-700">
-                      {euros(order.price_cents, order.price)}
-                    </p>
-                  </div>
-
-                  <div className="mt-4 grid gap-3 text-sm text-slate-700">
-                    <p>
-                      <strong>Retrait :</strong> {order.pickup_address || "-"}
-                    </p>
-                    <p>
-                      <strong>Livraison :</strong> {order.dropoff_address || "-"}
-                    </p>
-                    <p>
-                      <strong>Statut :</strong> {normalize(order.status)}
-                    </p>
-                  </div>
-
+                {courierProfile?.phone ? (
                   <button
                     type="button"
-                    onClick={() => window.open(getMapUrl(order), "_blank")}
-                    className="mt-4 w-full rounded-2xl border border-blue-200 bg-white px-4 py-3 font-bold text-blue-700"
+                    onClick={() => callPhone(courierProfile.phone)}
+                    className="mt-2 text-sm font-semibold text-blue-600 underline"
                   >
-                    Ouvrir le GPS
+                    Mon téléphone : {courierProfile.phone}
                   </button>
+                ) : (
+                  <p className="mt-2 text-sm text-red-500">
+                    Téléphone livreur non renseigné
+                  </p>
+                )}
+              </div>
 
-                  {normalize(order.status) === "ACCEPTED" && (
-                    <div className="mt-4 grid gap-3">
-                      <button
-                        type="button"
-                        onClick={() => startDelivery(order)}
-                        disabled={actionLoadingId === order.id}
-                        className="rounded-2xl bg-blue-600 px-4 py-3 font-bold text-white disabled:opacity-60"
-                      >
-                        Démarrer la livraison
-                      </button>
+              <div className="text-right">
+                <div className="text-yellow-400">★★★★★</div>
+                <p className="text-sm text-gray-500">Note {rating}/5</p>
+              </div>
+            </div>
+          </div>
+        </section>
 
-                      <button
-                        type="button"
-                        onClick={() => cancelMission(order.id)}
-                        disabled={actionLoadingId === order.id}
-                        className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 disabled:opacity-60"
-                      >
-                        Annuler la mission
-                      </button>
-                    </div>
-                  )}
-
-                  {normalize(order.status) === "OUT_FOR_DELIVERY" && (
-                    <div className="mt-5 space-y-3">
-                      <input
-                        type="text"
-                        placeholder="Code OTP client"
-                        value={otpInputs[order.id] || ""}
-                        onChange={(e) => updateOtpInput(order.id, e.target.value)}
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none"
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() => validateOtpAndDeliver(order.id)}
-                        disabled={otpLoadingId === order.id}
-                        className="w-full rounded-2xl bg-green-500 px-4 py-3 font-bold text-white disabled:opacity-60"
-                      >
-                        {otpLoadingId === order.id
-                          ? "Validation..."
-                          : "Valider la livraison"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => cancelMission(order.id)}
-                        disabled={actionLoadingId === order.id}
-                        className="w-full text-sm text-red-600 disabled:opacity-60"
-                      >
-                        Annuler la mission
-                      </button>
-                    </div>
-                  )}
-                </article>
-              ))}
-            </section>
-          </>
+        {msg && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
+            {msg}
+          </div>
         )}
+
+        <section className="space-y-4">
+          <div>
+            <h2 className="text-2xl font-bold">Missions recommandées</h2>
+            <p className="text-gray-500">
+              Les étoiles indiquent les missions simples à prendre.
+            </p>
+          </div>
+
+          {available.length === 0 ? (
+            <div className="rounded-3xl bg-white p-6 text-center text-gray-600">
+              <p className="font-semibold">Aucune mission disponible</p>
+              <p className="text-sm">
+                Revenez dans quelques minutes ou rafraîchissez la page.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {available.map((order) => (
+                <OrderCard key={order.id} order={order} type="available" />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold">Mes missions en cours</h2>
+
+          {myMissions.length === 0 ? (
+            <div className="rounded-3xl bg-white p-6 text-center text-gray-600">
+              Aucune mission en cours
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {myMissions.map((order) => (
+                <OrderCard key={order.id} order={order} type="mine" />
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </main>
   );
