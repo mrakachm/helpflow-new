@@ -543,14 +543,23 @@ export default function MissionsPage() {
                   Zone : {courierProfile?.service_area || "Non renseignée"}
                 </p>
 
-                {courierProfile?.phone ? (
-                  <button
-                    type="button"
-                    onClick={() => callPhone(courierProfile.phone)}
-                    className="mt-2 text-sm font-semibold text-blue-600 underline"
-                  >
-                    Mon téléphone : {courierProfile.phone}
-                  </button>
+ {courierProfile?.phone ? (
+  <>
+    <button
+      type="button"
+      onClick={() => callPhone(courierProfile.phone)}
+      className="mt-2 text-sm font-semibold text-blue-600 underline"
+    >
+      Mon téléphone : {courierProfile.phone}
+    </button>
+
+    <a
+      href="/profile/edit"
+      className="mt-3 inline-block rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
+    >
+      Modifier mon profil
+    </a>
+  </>
                 ) : (
                   <p className="mt-2 text-sm text-red-500">
                     Téléphone livreur non renseigné
