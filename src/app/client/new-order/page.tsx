@@ -325,7 +325,7 @@ async function onSubmit(e: React.FormEvent) {
 
   setLoading(true);
 
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
   const payload: any = {
     // Expéditeur

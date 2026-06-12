@@ -172,7 +172,7 @@ export default function OrdersPage() {
 
                 <div className="text-right">
                   <p className="font-semibold">{price} €</p>
-                  <p className="text-xs text-gray-600">Frais plateforme : {fee} €</p>
+                  
                 </div>
               </div>
 

@@ -243,10 +243,6 @@ export default function ClientOrdersPage() {
                   {formatEURFromCents(selected.price_cents)}
                 </div>
 
-                <div>
-                  <strong>Frais plateforme :</strong>{" "}
-                  {formatEURFromCents(selected.platform_fee_cents)}
-                </div>
 
                 {selected.delivery_otp && !selected.delivered_at && (
                   <div className="mt-4 p-3 rounded border bg-gray-50">

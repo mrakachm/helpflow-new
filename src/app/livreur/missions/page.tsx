@@ -6,7 +6,6 @@ import MissionRoutePreview from "@/components/MissionRoutePreview";
 
 type Order = {
   id: string;
-  created_at?: string | null;
   sender_name?: string | null;
   sender_phone?: string | null;
   receiver_name?: string | null;
@@ -25,9 +24,7 @@ type Order = {
   parcel_photo_url?: string | null;
   bag_count?: number | null;
   distance_km?: number | null;
-  price_cents?: number | null;
   courier_earnings_cents?: number | null;
-  platform_fee_cents?: number | null;
   status?: string | null;
   payment_status?: string | null;
   courier_id?: string | null;
@@ -141,7 +138,6 @@ export default function MissionsPage() {
 
       setMyMissions(myData);
     } catch (error: any) {
-      console.error(error);
       setMsg(error?.message || "Impossible de charger les missions.");
     } finally {
       setLoading(false);
@@ -153,6 +149,7 @@ export default function MissionsPage() {
     async function init() {
       const { data } = await supabase.auth.getUser();
       const uid = data.user?.id ?? null;
+
       setUserId(uid);
 
       if (uid) await loadCourierProfile(uid);
@@ -212,8 +209,8 @@ export default function MissionsPage() {
   async function validateDelivery(order: Order) {
     const enteredOtp = otpByOrder[order.id]?.trim();
 
-    if (!enteredOtp) {
-      setMsg("Entre le code OTP.");
+    if (!enteredOtp || enteredOtp.length !== 4) {
+      setMsg("Entre le code OTP à 4 chiffres.");
       return;
     }
 
@@ -293,13 +290,8 @@ export default function MissionsPage() {
               <div className="text-yellow-400">★★★★★</div>
             </div>
 
-            <div className="text-right">
-              <div className="rounded-full bg-blue-50 px-3 py-2 font-bold text-blue-700">
-                {formatEuro(order.price_cents)}
-              </div>
-              <p className="mt-1 text-sm font-semibold text-green-600">
-                Gain : {formatEuro(order.courier_earnings_cents)}
-              </p>
+            <div className="rounded-full bg-green-50 px-3 py-2 font-bold text-green-700">
+              Gain : {formatEuro(order.courier_earnings_cents)}
             </div>
           </div>
 
@@ -325,7 +317,9 @@ export default function MissionsPage() {
             </div>
 
             <div className="rounded-2xl bg-gray-50 p-3">
-              <p className="text-xs font-semibold uppercase text-gray-500">Livraison</p>
+              <p className="text-xs font-semibold uppercase text-gray-500">
+                Livraison
+              </p>
               <p className="font-semibold">
                 {order.dropoff_address || "-"} {order.dropoff_city || ""}
               </p>
@@ -374,12 +368,9 @@ export default function MissionsPage() {
 
             <div className="rounded-xl bg-gray-50 p-3">
               <p className="text-gray-500">Véhicule requis</p>
-              <p className="font-semibold">{order.required_vehicle || "Non précisé"}</p>
-            </div>
-
-            <div className="rounded-xl bg-gray-50 p-3">
-              <p className="text-gray-500">Frais plateforme</p>
-              <p className="font-semibold">{formatEuro(order.platform_fee_cents)}</p>
+              <p className="font-semibold">
+                {order.required_vehicle || "Non précisé"}
+              </p>
             </div>
           </div>
 
@@ -395,6 +386,13 @@ export default function MissionsPage() {
             </div>
           ) : null}
 
+          <MissionRoutePreview
+            pickupAddress={order.pickup_address}
+            pickupCity={order.pickup_city}
+            dropoffAddress={order.dropoff_address}
+            dropoffCity={order.dropoff_city}
+          />
+
           <button
             type="button"
             onClick={() => openGps(order)}
@@ -409,13 +407,6 @@ export default function MissionsPage() {
               onClick={() => acceptMission(order.id)}
               className="w-full rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white"
             >
-<MissionRoutePreview
-  pickupAddress={order.pickup_address}
-  pickupCity={order.pickup_city}
-  dropoffAddress={order.dropoff_address}
-  dropoffCity={order.dropoff_city}
-/>
-
               Accepter cette mission
             </button>
           )}
@@ -433,15 +424,19 @@ export default function MissionsPage() {
           {type === "mine" && status === "OUT_FOR_DELIVERY" && (
             <div className="space-y-3">
               <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={4}
                 value={otpByOrder[order.id] || ""}
                 onChange={(e) =>
                   setOtpByOrder((prev) => ({
                     ...prev,
-                    [order.id]: e.target.value.replace(/\D/g, "").slice(0, 6),
+                    [order.id]: e.target.value.replace(/\D/g, "").slice(0, 4),
                   }))
                 }
-                placeholder="Code OTP de livraison"
-                className="w-full rounded-2xl border border-gray-200 px-4 py-3"
+                placeholder="Code OTP à 4 chiffres"
+                className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-center text-xl font-bold tracking-widest"
               />
 
               <button
@@ -490,8 +485,12 @@ export default function MissionsPage() {
         <section className="rounded-3xl bg-blue-600 p-6 text-white shadow-lg">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-sm font-medium text-blue-100">HelpFlow Livreur</p>
-              <h1 className="mt-2 text-4xl font-bold">Missions disponibles</h1>
+              <p className="text-sm font-medium text-blue-100">
+                HelpFlow Livreur
+              </p>
+              <h1 className="mt-2 text-4xl font-bold">
+                Missions disponibles
+              </h1>
               <p className="mt-3 text-blue-100">
                 Choisissez une mission claire, payée et prête à être prise.
               </p>
@@ -529,7 +528,7 @@ export default function MissionsPage() {
                 />
               ) : (
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-2xl">
-                  🚚
+                  👤
                 </div>
               )}
 

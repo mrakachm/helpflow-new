@@ -227,10 +227,6 @@ export default function ClientOrderDetailPage() {
               <strong>Prix :</strong> {formatEuro(order.price_cents)}
             </p>
 
-            <p>
-              <strong>Frais plateforme :</strong>{" "}
-              {formatEuro(order.platform_fee_cents)}
-            </p>
           </div>
 
           {order.parcel_note ? (
