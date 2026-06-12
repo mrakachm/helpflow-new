@@ -393,14 +393,6 @@ export default function MissionsPage() {
             dropoffCity={order.dropoff_city}
           />
 
-          <button
-            type="button"
-            onClick={() => openGps(order)}
-            className="w-full rounded-2xl border border-blue-200 px-4 py-3 font-semibold text-blue-700"
-          >
-            Ouvrir le GPS
-          </button>
-
           {type === "available" && (
             <button
               type="button"
@@ -423,21 +415,33 @@ export default function MissionsPage() {
 
           {type === "mine" && status === "OUT_FOR_DELIVERY" && (
             <div className="space-y-3">
-              <input
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={4}
-                value={otpByOrder[order.id] || ""}
-                onChange={(e) =>
-                  setOtpByOrder((prev) => ({
-                    ...prev,
-                    [order.id]: e.target.value.replace(/\D/g, "").slice(0, 4),
-                  }))
-                }
-                placeholder="Code OTP à 4 chiffres"
-                className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-center text-xl font-bold tracking-widest"
-              />
+      <input
+  id={`otp-${order.id}`}
+  type="text"
+  inputMode="numeric"
+  autoComplete="one-time-code"
+  maxLength={4}
+  value={otpByOrder[order.id] || ""}
+  onChange={(e) => {
+    const scrollY = window.scrollY;
+    const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+
+    setOtpByOrder((prev) => ({
+      ...prev,
+      [order.id]: value,
+    }));
+
+    requestAnimationFrame(() => {
+      window.scrollTo(0, scrollY);
+      const input = document.getElementById(
+        `otp-${order.id}`
+      ) as HTMLInputElement | null;
+      input?.focus();
+    });
+  }}
+  placeholder="Code OTP à 4 chiffres"
+  className="w-full rounded-2xl border px-4 py-3"
+/>
 
               <button
                 type="button"
