@@ -42,38 +42,34 @@ export default function Header() {
         </Link>
 
         <div className="flex items-center gap-2">
+          <Link
+            href="/client"
+            className="hidden sm:inline-flex rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
+          >
+            Espace client
+          </Link>
+
+          <Link
+            href="/livreur/missions"
+            className="hidden sm:inline-flex rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white"
+          >
+            Espace livreur
+          </Link>
+
           {connected ? (
-            <>
-              <Link
-                href="/client"
-                className="hidden sm:inline-flex rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
-              >
-                Espace client
-              </Link>
-
-              <button
-                onClick={logout}
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800"
-              >
-                Déconnexion
-              </button>
-            </>
+            <button
+              onClick={logout}
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800"
+            >
+              Déconnexion
+            </button>
           ) : (
-            <>
-              <Link
-                href="/login?next=/client/new-order"
-                className="hidden sm:inline-flex rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
-              >
-                Créer une livraison
-              </Link>
-
-              <Link
-                href="/login"
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800"
-              >
-                Connexion
-              </Link>
-            </>
+            <Link
+              href="/login"
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800"
+            >
+              Connexion
+            </Link>
           )}
         </div>
       </div>
