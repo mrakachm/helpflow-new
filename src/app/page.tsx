@@ -9,8 +9,8 @@ export default function Home() {
     <main className="min-h-screen bg-slate-50">
       <Header />
       <Hero />
-<SpaceChoice />
       <WhyHelpFlow />
+      <SpaceChoice />
       <Footer />
     </main>
   );

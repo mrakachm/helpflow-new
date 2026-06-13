@@ -42,15 +42,15 @@ export default function SpaceChoice() {
 
       <div className="mt-6 grid gap-5 md:grid-cols-2">
         <Card
-          href="/client/new-order"
-          title="Espace client"
-          desc="Créer une mission, voir le prix et gagner du temps en quelques clics."
-        />
+  href="/client/new-order"
+  title="Espace client"
+  desc="Publier un besoin, trouver une solution locale et gagner du temps en quelques clics."
+/>
 
         <Card
           href="/livreur/missions"
           title="Espace livreur"
-          desc="Voir les missions disponibles, accepter une livraison et gagner de l’argent."
+          desc="Choisir des missions locales selon vos disponibilités et obtenir un revenu complémentaire."
         />
       </div>
     </section>
