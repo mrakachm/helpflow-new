@@ -2,32 +2,46 @@ import Link from "next/link";
 
 export default function Hero() {
   return (
-    <section className="mx-auto w-full max-w-5xl px-6 pt-10">
-      <div className="relative overflow-hidden rounded-3xl border border-blue-100 bg-gradient-to-b from-blue-50 to-white p-8 shadow-sm">
-        <div className="pointer-events-none absolute -top-20 left-1/2 h-[380px] w-[380px] -translate-x-1/2 rounded-full bg-blue-200/50 blur-3xl" />
+    <section className="mx-auto w-full max-w-6xl px-6 pt-10">
+      <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-blue-700 via-blue-600 to-blue-500 p-8 text-white shadow-xl sm:p-12">
+        <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-white/20 blur-3xl" />
+        <div className="absolute -bottom-24 -left-24 h-72 w-72 rounded-full bg-blue-200/20 blur-3xl" />
 
-        <h1 className="relative text-4xl sm:text-5xl font-bold tracking-tight text-slate-900">
-          La solution simple et fiable pour vos livraisons locales.
-        </h1>
+        <div className="relative max-w-3xl">
+          <p className="mb-4 inline-flex rounded-full bg-white/15 px-4 py-2 text-sm font-semibold text-blue-50">
+            Livraison locale • Courses • Objets oubliés • Documents
+          </p>
 
-        <p className="relative mt-4 max-w-2xl text-base sm:text-lg leading-7 text-slate-600">
-          Gagnez du temps, publiez une mission en quelques clics, et trouvez un livreur
-          rapidement — en toute clarté.
-        </p>
+          <h1 className="text-4xl font-black leading-tight tracking-tight sm:text-6xl">
+            Gagnez du temps avec une solution locale simple et rapide.
+          </h1>
 
-        <div className="relative mt-8 flex flex-col sm:flex-row gap-3">
-          <Link
-            href="/client/new-order"
-            className="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-6 py-3 font-semibold text-white shadow hover:bg-blue-700"
-          >
-            Créer une livraison
-          </Link>
-          <Link
-            href="/livreur/missions"
-            className="inline-flex items-center justify-center rounded-2xl border border-blue-200 bg-white px-6 py-3 font-semibold text-blue-700 hover:bg-blue-50"
-          >
-            Devenir livreur
-          </Link>
+          <p className="mt-5 max-w-2xl text-lg leading-8 text-blue-50">
+            HelpFlow vous aide à trouver rapidement un livreur local pour
+            récupérer un objet oublié, transporter un document urgent, livrer un
+            colis ou retirer un achat en magasin.
+          </p>
+
+          <p className="mt-3 max-w-2xl text-base leading-7 text-blue-100">
+            Publiez votre besoin en quelques clics, suivez votre mission et
+            gagnez en tranquillité, même si vous n'êtes pas véhiculé.
+          </p>
+
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <Link
+              href="/client/new-order"
+              className="inline-flex items-center justify-center rounded-2xl bg-white px-6 py-3 font-bold text-blue-700 shadow hover:bg-blue-50"
+            >
+              Créer une livraison
+            </Link>
+
+            <Link
+              href="/livreur/missions"
+              className="inline-flex items-center justify-center rounded-2xl border border-white/40 bg-white/10 px-6 py-3 font-bold text-white hover:bg-white/20"
+            >
+              Devenir livreur
+            </Link>
+          </div>
         </div>
       </div>
     </section>

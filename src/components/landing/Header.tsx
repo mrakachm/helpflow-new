@@ -21,8 +21,8 @@ export default function Header() {
   }
 
   return (
-    <header className="mx-auto w-full max-w-5xl px-6 pt-8">
-      <div className="flex items-center justify-between rounded-2xl bg-white/80 backdrop-blur border border-slate-200 px-4 py-3 shadow-sm">
+    <header className="mx-auto w-full max-w-6xl px-6 pt-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 shadow-sm backdrop-blur">
         <Link href="/" className="flex items-center gap-3">
           <div className="h-10 w-10 overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
             <Image
@@ -36,22 +36,22 @@ export default function Header() {
           </div>
 
           <div>
-            <p className="font-semibold text-slate-900">HelpFlow</p>
-            <p className="text-xs text-slate-500">Simple • Rapide • Efficace</p>
+            <p className="font-bold text-slate-900">HelpFlow</p>
+            <p className="text-xs text-slate-500">Simple • Rapide • Fiable</p>
           </div>
         </Link>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link
             href="/client"
-            className="hidden sm:inline-flex rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
+            className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
           >
             Espace client
           </Link>
 
           <Link
             href="/livreur/missions"
-            className="hidden sm:inline-flex rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white"
+            className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white"
           >
             Espace livreur
           </Link>
