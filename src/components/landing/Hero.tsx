@@ -11,7 +11,7 @@ export default function Hero() {
         </h1>
 
         <p className="relative mt-4 max-w-2xl text-base sm:text-lg leading-7 text-slate-600">
-          Gagnez du temps, publiez une mission en quelques minutes, et trouvez un livreur
+          Gagnez du temps, publiez une mission en quelques clics, et trouvez un livreur
           rapidement — en toute clarté.
         </p>
 
