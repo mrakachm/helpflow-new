@@ -143,7 +143,6 @@ export default function ProfileEditPage() {
       intervention_radius: form.intervention_radius ?? 0,
       long_distance: form.long_distance ?? false,
       role: "courier",
-      updated_at: new Date().toISOString(),
     };
 
     const { error } = await supabase
