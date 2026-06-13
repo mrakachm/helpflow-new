@@ -1,38 +1,82 @@
-function Item({ title, desc }: { title: string; desc: string }) {
+"use client";
+
+import Image from "next/image";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+
+export default function Header() {
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const [connected, setConnected] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setConnected(!!data.user);
+    });
+  }, [supabase]);
+
+  async function logout() {
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  }
+
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-      <p className="font-semibold text-slate-900">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-600">{desc}</p>
-    </div>
-  );
-}
+    <header className="mx-auto w-full max-w-5xl px-6 pt-8">
+      <div className="flex items-center justify-between rounded-2xl bg-white/80 backdrop-blur border border-slate-200 px-4 py-3 shadow-sm">
+        <Link href="/" className="flex items-center gap-3">
+          <div className="h-10 w-10 overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
+            <Image
+              src="/logo-helpflow.png"
+              alt="HelpFlow"
+              width={40}
+              height={40}
+              className="h-full w-full object-contain p-1"
+              priority
+            />
+          </div>
 
-export default function WhyHelpFlow() {
-  return (
-    <section className="mx-auto w-full max-w-5xl px-6 pt-10">
-      <h2 className="text-2xl font-bold text-slate-900">Pourquoi HelpFlow ?</h2>
+          <div>
+            <p className="font-semibold text-slate-900">HelpFlow</p>
+            <p className="text-xs text-slate-500">Simple • Rapide • Efficace</p>
+          </div>
+        </Link>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        <Item
-          title="Simple"
-          desc="Un parcours clair : créer → publier → livraison."
-        />
-        <Item
-          title="Rapide"
-          desc="Une mission publiée en quelques minutes."
-        />
-        <Item
-          title="Fiable"
-          desc="Un cadre propre, des infos visibles, et un suivi de mission."
-        />
+        <div className="flex items-center gap-2">
+          {connected ? (
+            <>
+              <Link
+                href="/client"
+                className="hidden sm:inline-flex rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
+              >
+                Espace client
+              </Link>
+
+              <button
+                onClick={logout}
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800"
+              >
+                Déconnexion
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/login?next=/client/new-order"
+                className="hidden sm:inline-flex rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
+              >
+                Créer une livraison
+              </Link>
+
+              <Link
+                href="/login"
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800"
+              >
+                Connexion
+              </Link>
+            </>
+          )}
+        </div>
       </div>
-
-      <div className="mt-6 rounded-3xl border border-blue-100 bg-blue-50 p-6">
-        <p className="font-semibold text-slate-900">
-          La solidarité ne reste pas à la maison.
-        </p>
-        <p className="mt-1 text-slate-700">Elle marche avec toi.</p>
-      </div>
-    </section>
+    </header>
   );
 }
