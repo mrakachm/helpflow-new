@@ -2,40 +2,48 @@ import Link from "next/link";
 
 export default function Footer() {
   return (
-    <footer className="mx-auto w-full max-w-6xl px-6 pb-10">
-      <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+    <footer className="mx-auto w-full max-w-6xl px-6 pb-10 pt-6">
+      <div className="rounded-[2rem] bg-slate-950 p-8 text-white shadow-lg">
         <div className="grid gap-8 md:grid-cols-3">
           <div>
-            <h2 className="text-xl font-black text-slate-900">HelpFlow</h2>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
-              Plateforme locale pour gagner du temps, réduire le stress et
-              trouver un livreur disponible rapidement.
+            <h2 className="text-2xl font-black">HelpFlow</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-300">
+              Plateforme locale moderne pour simplifier les imprévus du
+              quotidien, gagner du temps et trouver une solution de proximité.
             </p>
           </div>
 
           <div>
-            <h3 className="font-bold text-slate-900">Accès rapide</h3>
-            <div className="mt-3 space-y-2 text-sm text-slate-600">
-              <Link href="/" className="block">Accueil</Link>
-              <Link href="/client/new-order" className="block">Créer une livraison</Link>
-              <Link href="/livreur/missions" className="block">Espace livreur</Link>
-              <Link href="/login" className="block">Connexion</Link>
+            <h3 className="font-bold text-white">Accès rapide</h3>
+            <div className="mt-4 space-y-3 text-sm text-slate-300">
+              <Link href="/" className="block hover:text-white">
+                Accueil
+              </Link>
+              <Link href="/client/new-order" className="block hover:text-white">
+                Créer une livraison
+              </Link>
+              <Link href="/livreur/missions" className="block hover:text-white">
+                Espace livreur
+              </Link>
+              <Link href="/cgu" className="block hover:text-white">
+                CGU
+              </Link>
             </div>
           </div>
 
           <div>
-            <h3 className="font-bold text-slate-900">Informations</h3>
-            <div className="mt-3 space-y-2 text-sm text-slate-600">
-              <Link href="/cgu" className="block">CGU</Link>
-              <Link href="/mentions-legales" className="block">Mentions légales</Link>
-              <Link href="/confidentialite" className="block">Confidentialité</Link>
-              <Link href="/contact" className="block">Contact</Link>
-            </div>
+            <h3 className="font-bold text-white">HelpFlow</h3>
+            <p className="mt-4 text-sm leading-6 text-slate-300">
+              Objets oubliés, documents, achats locaux, commerçants, artisans,
+              repas, cadeaux ou besoins urgents : HelpFlow rapproche les
+              personnes grâce à une solution simple, flexible, efficace et
+              locale.
+            </p>
           </div>
         </div>
 
-        <div className="mt-8 border-t border-slate-200 pt-5 text-center text-xs text-slate-500">
-          © {new Date().getFullYear()} HelpFlow — Simple. Rapide. Fiable.
+        <div className="mt-8 border-t border-white/10 pt-6 text-center text-sm text-slate-400">
+          © {new Date().getFullYear()} HelpFlow — Plateforme de livraison locale
         </div>
       </div>
     </footer>

@@ -12,7 +12,7 @@ function Card({ href, title, desc }: CardProps) {
       <div className="rounded-3xl border border-blue-100 bg-white p-6 shadow-sm transition hover:shadow-lg">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 shadow-md" />
+            <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 shadow-md" />
 
             <div>
               <h3 className="text-xl font-bold text-slate-900">{title}</h3>
@@ -42,10 +42,10 @@ export default function SpaceChoice() {
 
       <div className="mt-6 grid gap-5 md:grid-cols-2">
         <Card
-  href="/client/new-order"
-  title="Espace client"
-  desc="Publier un besoin, trouver une solution locale et gagner du temps en quelques clics."
-/>
+          href="/client/new-order"
+          title="Espace client"
+          desc="Publier un besoin, trouver une solution locale et gagner du temps en quelques clics."
+        />
 
         <Card
           href="/livreur/missions"
