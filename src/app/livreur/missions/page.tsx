@@ -478,10 +478,13 @@ export default function MissionsPage() {
   }
 
   const rating = courierProfile?.rating_average || 5;
-  const vehicle =
-    [courierProfile?.vehicle_type, courierProfile?.vehicle_label]
-      .filter(Boolean)
-      .join(" · ") || "Véhicule non renseigné";
+ const vehicle =
+  [
+    courierProfile?.vehicle_type?.split("|").filter(Boolean).join(" · "),
+    courierProfile?.vehicle_label,
+  ]
+    .filter(Boolean)
+    .join(" · ") || "Véhicule non renseigné";
 
   return (
     <main className="min-h-screen bg-gray-50 p-4">
@@ -540,7 +543,7 @@ export default function MissionsPage() {
                 <p className="font-semibold">{profileName(courierProfile)}</p>
                 <p className="text-sm text-gray-600">{vehicle}</p>
                 <p className="text-sm text-gray-600">
-                  Zone : {courierProfile?.service_area || "Non renseignée"}
+                  Zone : courierProfile?.city || "Non renseignée"
                 </p>
 
  {courierProfile?.phone ? (
