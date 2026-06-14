@@ -210,7 +210,7 @@ export default function ProfileEditPage() {
       intervention_radius: form.intervention_radius ?? 0,
       long_distance: form.long_distance ?? false,
       identity_document_path: form.identity_document_path || null,
-      verification_status: form.identity_document_path ? "pending" : "pending",
+     verification_status: form.verification_status || "pending",
       role: "livreur",
     };
 

@@ -543,8 +543,8 @@ export default function MissionsPage() {
                 <p className="font-semibold">{profileName(courierProfile)}</p>
                 <p className="text-sm text-gray-600">{vehicle}</p>
                 <p className="text-sm text-gray-600">
-                  Zone : courierProfile?.city || "Non renseignée"
-                </p>
+  Zone : {courierProfile?.city || "Non renseignée"}
+</p>
 
  {courierProfile?.phone ? (
   <>
@@ -553,7 +553,7 @@ export default function MissionsPage() {
       onClick={() => callPhone(courierProfile.phone)}
       className="mt-2 text-sm font-semibold text-blue-600 underline"
     >
-      Mon téléphone : {courierProfile.phone}
+     Tel : {courierProfile.phone}
     </button>
 
     <a
