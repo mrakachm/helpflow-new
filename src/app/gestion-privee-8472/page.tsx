@@ -10,33 +10,62 @@ const supabase = createClient(
 
 export default function GestionPriveePage() {
   const [livreurs, setLivreurs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
   async function loadLivreurs() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("profiles")
       .select("*")
       .eq("role", "livreur")
       .order("created_at", { ascending: false });
 
+    if (error) {
+      alert("Erreur chargement : " + error.message);
+      console.error(error);
+      return;
+    }
+
     setLivreurs(data || []);
   }
 
   async function approveLivreur(id: string) {
-    await supabase
+    setLoading(true);
+
+    const { error } = await supabase
       .from("profiles")
       .update({ verification_status: "approved" })
       .eq("id", id);
 
-    loadLivreurs();
+    setLoading(false);
+
+    if (error) {
+      alert("Erreur validation : " + error.message);
+      console.error(error);
+      return;
+    }
+
+    alert("Livreur validé");
+    await loadLivreurs();
   }
 
   async function rejectLivreur(id: string) {
-    await supabase
+    setLoading(true);
+
+    const { error } = await supabase
       .from("profiles")
       .update({ verification_status: "rejected" })
       .eq("id", id);
 
-    loadLivreurs();
+    setLoading(false);
+
+    if (error) {
+      alert("Erreur refus : " + error.message);
+      console.error(error);
+      return;
+    }
+
+    alert("Livreur refusé");
+    await loadLivreurs();
   }
 
   useEffect(() => {
@@ -49,40 +78,35 @@ export default function GestionPriveePage() {
         Gestion privée HelpFlow
       </h1>
 
+      {livreurs.length === 0 && (
+        <p>Aucun livreur trouvé.</p>
+      )}
+
       {livreurs.map((livreur) => (
         <div
           key={livreur.id}
           className="bg-white p-4 rounded-xl shadow mb-4"
         >
-          <p>
-            <strong>Nom :</strong> {livreur.full_name}
-          </p>
-
-          <p>
-            <strong>Téléphone :</strong> {livreur.phone}
-          </p>
-
-          <p>
-            <strong>Statut :</strong>{" "}
-            {livreur.verification_status}
-          </p>
-
-          <p>
-            <strong>Document :</strong>{" "}
-            {livreur.identity_document_path}
-          </p>
+          <p><strong>Nom :</strong> {livreur.full_name || "Non renseigné"}</p>
+          <p><strong>Téléphone :</strong> {livreur.phone || "Non renseigné"}</p>
+          <p><strong>Statut :</strong> {livreur.verification_status}</p>
+          <p><strong>Document :</strong> {livreur.identity_document_path || "Aucun document"}</p>
 
           <div className="mt-4 flex gap-2">
             <button
+              type="button"
+              disabled={loading}
               onClick={() => approveLivreur(livreur.id)}
-              className="bg-green-600 text-white px-4 py-2 rounded"
+              className="bg-green-600 text-white px-4 py-2 rounded disabled:opacity-50"
             >
               Valider
             </button>
 
             <button
+              type="button"
+              disabled={loading}
               onClick={() => rejectLivreur(livreur.id)}
-              className="bg-red-600 text-white px-4 py-2 rounded"
+              className="bg-red-600 text-white px-4 py-2 rounded disabled:opacity-50"
             >
               Refuser
             </button>
@@ -92,3 +116,4 @@ export default function GestionPriveePage() {
     </main>
   );
 }
+
