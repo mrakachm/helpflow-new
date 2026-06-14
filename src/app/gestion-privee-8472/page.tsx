@@ -10,7 +10,7 @@ const supabase = createClient(
 
 export default function GestionPriveePage() {
   const [livreurs, setLivreurs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
 
   async function loadLivreurs() {
     const { data, error } = await supabase
@@ -21,50 +21,34 @@ export default function GestionPriveePage() {
 
     if (error) {
       alert("Erreur chargement : " + error.message);
-      console.error(error);
       return;
     }
 
     setLivreurs(data || []);
   }
 
-  async function approveLivreur(id: string) {
-    setLoading(true);
+  async function updateStatus(id: string, status: "approved" | "rejected") {
+    setLoadingId(id);
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("profiles")
-      .update({ verification_status: "approved" })
-      .eq("id", id);
+      .update({ verification_status: status })
+      .eq("id", id)
+      .select("id, verification_status");
 
-    setLoading(false);
+    setLoadingId(null);
 
     if (error) {
-      alert("Erreur validation : " + error.message);
-      console.error(error);
+      alert("Erreur Supabase : " + error.message);
       return;
     }
 
-    alert("Livreur validé");
-    await loadLivreurs();
-  }
-
-  async function rejectLivreur(id: string) {
-    setLoading(true);
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({ verification_status: "rejected" })
-      .eq("id", id);
-
-    setLoading(false);
-
-    if (error) {
-      alert("Erreur refus : " + error.message);
-      console.error(error);
+    if (!data || data.length === 0) {
+      alert("Aucune ligne modifiée. Problème RLS Supabase.");
       return;
     }
 
-    alert("Livreur refusé");
+    alert(status === "approved" ? "Livreur validé" : "Livreur refusé");
     await loadLivreurs();
   }
 
@@ -74,19 +58,12 @@ export default function GestionPriveePage() {
 
   return (
     <main className="min-h-screen bg-gray-50 p-6">
-      <h1 className="text-3xl font-bold mb-6">
-        Gestion privée HelpFlow
-      </h1>
+      <h1 className="text-3xl font-bold mb-6">Gestion privée HelpFlow</h1>
 
-      {livreurs.length === 0 && (
-        <p>Aucun livreur trouvé.</p>
-      )}
+      {livreurs.length === 0 && <p>Aucun livreur trouvé.</p>}
 
       {livreurs.map((livreur) => (
-        <div
-          key={livreur.id}
-          className="bg-white p-4 rounded-xl shadow mb-4"
-        >
+        <div key={livreur.id} className="bg-white p-4 rounded-xl shadow mb-4">
           <p><strong>Nom :</strong> {livreur.full_name || "Non renseigné"}</p>
           <p><strong>Téléphone :</strong> {livreur.phone || "Non renseigné"}</p>
           <p><strong>Statut :</strong> {livreur.verification_status}</p>
@@ -95,8 +72,8 @@ export default function GestionPriveePage() {
           <div className="mt-4 flex gap-2">
             <button
               type="button"
-              disabled={loading}
-              onClick={() => approveLivreur(livreur.id)}
+              disabled={loadingId === livreur.id}
+              onClick={() => updateStatus(livreur.id, "approved")}
               className="bg-green-600 text-white px-4 py-2 rounded disabled:opacity-50"
             >
               Valider
@@ -104,8 +81,8 @@ export default function GestionPriveePage() {
 
             <button
               type="button"
-              disabled={loading}
-              onClick={() => rejectLivreur(livreur.id)}
+              disabled={loadingId === livreur.id}
+              onClick={() => updateStatus(livreur.id, "rejected")}
               className="bg-red-600 text-white px-4 py-2 rounded disabled:opacity-50"
             >
               Refuser
@@ -116,4 +93,3 @@ export default function GestionPriveePage() {
     </main>
   );
 }
-
