@@ -17,6 +17,16 @@ type Profile = {
   verification_status?: string | null;
 };
 
+const TRANSPORT_OPTIONS = [
+  "À pied",
+  "Vélo",
+  "Trottinette",
+  "Moto",
+  "Voiture",
+  "Camionnette",
+  "Camion",
+];
+
 export default function ProfileEditPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -47,12 +57,29 @@ export default function ProfileEditPage() {
     setForm((prev) => ({ ...prev, [name]: value }));
   }
 
+  function selectedTransports() {
+    return (form.vehicle_type || "").split("|").filter(Boolean);
+  }
+
+  function toggleTransport(option: string) {
+    const selected = new Set(selectedTransports());
+
+    if (selected.has(option)) {
+      selected.delete(option);
+    } else {
+      selected.add(option);
+    }
+
+    updateField("vehicle_type", Array.from(selected).join("|"));
+  }
+
   useEffect(() => {
     async function loadProfile() {
       setLoading(true);
       setMsg(null);
 
-      const { data: userData, error: userError } = await supabase.auth.getUser();
+      const { data: userData, error: userError } =
+        await supabase.auth.getUser();
 
       if (userError) {
         setMsg(userError.message);
@@ -183,10 +210,8 @@ export default function ProfileEditPage() {
       intervention_radius: form.intervention_radius ?? 0,
       long_distance: form.long_distance ?? false,
       identity_document_path: form.identity_document_path || null,
-      verification_status: form.identity_document_path
-        ? form.verification_status || "pending"
-        : "pending",
-      role: "courier",
+      verification_status: form.identity_document_path ? "pending" : "pending",
+      role: "livreur",
     };
 
     const { error } = await supabase
@@ -227,7 +252,7 @@ export default function ProfileEditPage() {
         <section className="rounded-3xl bg-blue-600 p-6 text-white">
           <h1 className="text-3xl font-bold">Modifier mon profil livreur</h1>
           <p className="mt-2 text-blue-100">
-            Ces informations seront visibles sur tes missions.
+            Complète ton profil pour recevoir des missions adaptées.
           </p>
         </section>
 
@@ -283,6 +308,10 @@ export default function ProfileEditPage() {
               >
                 {uploading ? "Chargement..." : "Ajouter / changer ma photo"}
               </button>
+
+              <p className="mt-2 text-xs text-gray-500">
+                Photo facultative pour le lancement.
+              </p>
             </div>
           </div>
 
@@ -306,9 +335,8 @@ export default function ProfileEditPage() {
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-gray-700">
-              Pour renforcer la confiance, chaque livreur doit fournir un
-              document officiel : carte d'identité, passeport, titre de séjour
-              ou document équivalent.
+              Document officiel accepté : carte d'identité, passeport, titre de
+              séjour ou document équivalent.
             </p>
 
             <input
@@ -359,26 +387,38 @@ export default function ProfileEditPage() {
             </div>
           </section>
 
-          <select
-            value={form.vehicle_type || ""}
-            onChange={(e) => updateField("vehicle_type", e.target.value)}
-            className="w-full rounded-xl border px-4 py-3"
-          >
-            <option value="">Choisir un moyen de transport</option>
-            <option value="À pied">À pied</option>
-            <option value="Vélo">Vélo</option>
-            <option value="Trottinette">Trottinette</option>
-            <option value="Moto">Moto</option>
-            <option value="Voiture">Voiture</option>
-            <option value="Camionnette">Camionnette</option>
-            <option value="Camion">Camion</option>
-          </select>
+          <section className="rounded-3xl border bg-white p-4">
+            <h2 className="font-bold text-gray-900">
+              Moyens de transport disponibles
+            </h2>
+
+            <p className="mt-2 text-sm text-gray-600">
+              Tu peux sélectionner plusieurs moyens de transport.
+            </p>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {TRANSPORT_OPTIONS.map((option) => (
+                <label
+                  key={option}
+                  className="flex items-center gap-3 rounded-2xl border bg-gray-50 p-4"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedTransports().includes(option)}
+                    onChange={() => toggleTransport(option)}
+                    className="h-5 w-5"
+                  />
+                  <span className="font-semibold text-gray-800">{option}</span>
+                </label>
+              ))}
+            </div>
+          </section>
 
           <input
             value={form.vehicle_details || ""}
             onChange={(e) => updateField("vehicle_details", e.target.value)}
             className="w-full rounded-xl border px-4 py-3"
-            placeholder="Détail véhicule : Opel Vivaro, Kangoo, vélo cargo..."
+            placeholder="Détail véhicule : 3008, Kangoo, vélo cargo..."
           />
 
           <input
@@ -396,8 +436,8 @@ export default function ProfileEditPage() {
             <input
               type="range"
               min="0"
-              max="500"
-              step="10"
+              max="40"
+              step="5"
               value={form.intervention_radius ?? 0}
               onChange={(e) =>
                 updateField("intervention_radius", Number(e.target.value))
@@ -418,7 +458,7 @@ export default function ProfileEditPage() {
               className="h-5 w-5"
             />
             <span className="font-semibold text-gray-800">
-              J'accepte les missions longue distance
+              J'accepte les missions longue distance au départ de ma zone
             </span>
           </label>
 
