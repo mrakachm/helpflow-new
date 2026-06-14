@@ -78,7 +78,7 @@ export default function MissionsPage() {
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
-      .eq("user_id", uid)
+      .eq("id", uid)
       .maybeSingle();
 
     if (!error && data) {
