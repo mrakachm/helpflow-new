@@ -48,7 +48,7 @@ export default function WhyHelpFlow() {
           </h2>
 
           <p className="mt-4 text-lg leading-8 text-slate-600">
-            HelpFlow met en relation les clients avec des livreurs de proximité
+            HelpFlow met en relation ses utilisateurs avec des livreurs de proximité
             pour récupérer un achat local, une commande Marketplace, un colis,
             un document ou un objet important.
           </p>
