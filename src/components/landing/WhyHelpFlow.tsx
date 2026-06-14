@@ -43,7 +43,7 @@ export default function WhyHelpFlow() {
           </p>
 
           <h2 className="mt-3 text-3xl font-black text-slate-900 sm:text-4xl">
-            Une plateforme locale moderne pour les achats, les récupérations,
+            Une plateforme locale pour les achats, les récupérations,
             les colis et les services de proximité.
           </h2>
 
