@@ -17,6 +17,7 @@ export default function GestionPriveePage() {
       .from("profiles")
       .select("*")
       .eq("role", "livreur")
+      .order("verification_status", { ascending: false })
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -64,36 +65,34 @@ export default function GestionPriveePage() {
 
       {livreurs.map((livreur) => (
         <div key={livreur.id} className="bg-white p-4 rounded-xl shadow mb-4">
-          <p>
-            <strong>Nom :</strong> {livreur.full_name || "Non renseigné"}
-          </p>
+          <p><strong>Nom :</strong> {livreur.full_name || "Non renseigné"}</p>
+          <p><strong>Téléphone :</strong> {livreur.phone || "Non renseigné"}</p>
+          <p><strong>Statut :</strong> {livreur.verification_status}</p>
 
-          <p>
-            <strong>Téléphone :</strong> {livreur.phone || "Non renseigné"}
-          </p>
-
-          <p>
-            <strong>Statut :</strong> {livreur.verification_status}
-          </p>
-
-          <div className="mt-2">
+          <div className="mt-3">
             <strong>Document :</strong>
 
             {livreur.identity_document_path ? (
               <div className="mt-2">
-                <img
-                  src={livreur.identity_document_path}
-                  alt="Document du livreur"
-                  className="w-64 max-h-80 object-contain border rounded"
-                />
+                <a
+                  href={livreur.identity_document_path}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <img
+                    src={livreur.identity_document_path}
+                    alt="Document du livreur"
+                    className="w-72 max-h-96 object-contain rounded border bg-gray-100"
+                  />
+                </a>
 
                 <a
                   href={livreur.identity_document_path}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block mt-2 text-blue-600 underline"
+                  className="mt-2 block text-blue-600 underline"
                 >
-                  Ouvrir le document
+                  Ouvrir en grand
                 </a>
               </div>
             ) : (
@@ -106,7 +105,7 @@ export default function GestionPriveePage() {
               type="button"
               disabled={loadingId === livreur.id}
               onClick={() => updateStatus(livreur.id, "approved")}
-              className="bg-green-600 text-white px-4 py-2 rounded disabled:opacity-50"
+              className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-50"
             >
               Valider
             </button>
@@ -115,7 +114,7 @@ export default function GestionPriveePage() {
               type="button"
               disabled={loadingId === livreur.id}
               onClick={() => updateStatus(livreur.id, "rejected")}
-              className="bg-red-600 text-white px-4 py-2 rounded disabled:opacity-50"
+              className="rounded bg-red-600 px-4 py-2 text-white disabled:opacity-50"
             >
               Refuser
             </button>
