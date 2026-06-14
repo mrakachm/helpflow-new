@@ -40,7 +40,8 @@ export default function Hero() {
               href="/signup"
               className="inline-flex items-center justify-center rounded-2xl bg-white px-6 py-3 font-bold text-indigo-700 shadow-lg transition hover:bg-slate-100"
             >
-              Créer une livraison
+              Créer une commande
+            
             </Link>
 
             <Link
