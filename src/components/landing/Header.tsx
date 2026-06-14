@@ -22,7 +22,7 @@ export default function Header() {
 
   return (
     <header className="mx-auto w-full max-w-6xl px-6 pt-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 shadow-sm backdrop-blur">
+      <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 shadow-sm">
         <Link href="/" className="flex items-center gap-3">
           <div className="h-10 w-10 overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
             <Image
@@ -41,21 +41,7 @@ export default function Header() {
           </div>
         </Link>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/client"
-            className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
-          >
-            Espace client
-          </Link>
-
-          <Link
-            href="/livreur/missions"
-            className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white"
-          >
-            Espace livreur
-          </Link>
-
+        <div className="flex items-center gap-2">
           {connected ? (
             <button
               onClick={logout}

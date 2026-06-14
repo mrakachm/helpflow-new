@@ -37,14 +37,14 @@ export default function Hero() {
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
-              href="/client/new-order"
+              href="/signup"
               className="inline-flex items-center justify-center rounded-2xl bg-white px-6 py-3 font-bold text-indigo-700 shadow-lg transition hover:bg-slate-100"
             >
               Créer une livraison
             </Link>
 
             <Link
-              href="/livreur/missions"
+              href="/livreur/signup"
               className="inline-flex items-center justify-center rounded-2xl border border-white/40 bg-white/10 px-6 py-3 font-bold text-white transition hover:bg-white/20"
             >
               Devenir livreur

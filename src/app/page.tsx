@@ -1,6 +1,5 @@
 import Header from "../components/landing/Header";
 import Hero from "../components/landing/Hero";
-import SpaceChoice from "../components/landing/SpaceChoice";
 import WhyHelpFlow from "../components/landing/WhyHelpFlow";
 import Footer from "../components/landing/Footer";
 
@@ -10,7 +9,6 @@ export default function Home() {
       <Header />
       <Hero />
       <WhyHelpFlow />
-      <SpaceChoice />
       <Footer />
     </main>
   );
