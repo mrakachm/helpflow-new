@@ -553,7 +553,7 @@ export default function MissionsPage() {
       onClick={() => callPhone(courierProfile.phone)}
       className="mt-2 text-sm font-semibold text-blue-600 underline"
     >
-     Tel : {courierProfile.phone}
+     {courierProfile.phone}
     </button>
 
     <a
