@@ -44,7 +44,7 @@ export default function GestionPriveePage() {
     }
 
     if (!data || data.length === 0) {
-      alert("Aucune ligne modifiée. Vérifie les permissions Supabase.");
+      alert("Aucune ligne modifiée. Vérifie Supabase.");
       return;
     }
 
