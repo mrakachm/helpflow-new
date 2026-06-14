@@ -158,38 +158,41 @@ export default function ProfileEditPage() {
     setMsg("Photo ajoutée. Clique sur Enregistrer mon profil.");
   }
 
-  async function uploadIdentityDocument(file: File) {
-    if (!userId) {
-      setMsg("Utilisateur non connecté.");
-      return;
-    }
-
-    setUploadingDocument(true);
-    setMsg(null);
-
-    const ext = file.name.split(".").pop() || "jpg";
-    const path = `${userId}/identity-${Date.now()}.${ext}`;
-
-    const { error } = await supabase.storage
-      .from("courier-documents")
-      .upload(path, file, { upsert: true });
-
-    if (error) {
-      setMsg(error.message);
-      setUploadingDocument(false);
-      return;
-    }
-
-    setForm((prev) => ({
-      ...prev,
-      identity_document_path: path,
-      verification_status: "pending",
-    }));
-
-    setUploadingDocument(false);
-    setMsg("Document d'identité ajouté. Clique sur Enregistrer mon profil.");
+async function uploadIdentityDocument(file: File) {
+  if (!userId) {
+    setMsg("Utilisateur non connecté.");
+    return;
   }
 
+  setUploadingDocument(true);
+  setMsg(null);
+
+  const ext = file.name.split(".").pop() || "jpg";
+  const path = `${userId}/identity-${Date.now()}.${ext}`;
+
+  const { error } = await supabase.storage
+    .from("courier-documents")
+    .upload(path, file, { upsert: true });
+
+  if (error) {
+    setMsg(error.message);
+    setUploadingDocument(false);
+    return;
+  }
+
+  const { data } = supabase.storage
+    .from("courier-documents")
+    .getPublicUrl(path);
+
+  setForm((prev) => ({
+    ...prev,
+    identity_document_path: data.publicUrl,
+    verification_status: "pending",
+  }));
+
+  setUploadingDocument(false);
+  setMsg("Document d'identité ajouté. Clique sur Enregistrer mon profil.");
+}
   async function saveProfile() {
     if (!userId) {
       setMsg("Utilisateur non connecté.");
