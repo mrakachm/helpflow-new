@@ -9,13 +9,17 @@ export default function Footer() {
             <h2 className="text-2xl font-black">HelpFlow</h2>
 
             <p className="mt-3 text-sm leading-6 text-slate-300">
-              Plateforme locale moderne pour simplifier les imprévus du
-              quotidien, gagner du temps et trouver une solution de proximité.
+              Plateforme locale de mise en relation entre clients et livreurs
+              pour les achats locaux, les commandes Marketplace, les colis,
+              les documents, les services de proximité et la simplification
+              des imprévus du quotidien.
             </p>
           </div>
 
           <div>
-            <h3 className="font-bold text-white">Informations légales</h3>
+            <h3 className="font-bold text-white">
+              Informations légales
+            </h3>
 
             <div className="mt-4 space-y-3 text-sm text-slate-300">
               <Link href="/cgu" className="block hover:text-white">
@@ -36,25 +40,31 @@ export default function Footer() {
                 Politique de confidentialité
               </Link>
 
-              <Link href="/contact" className="block hover:text-white">
+              <Link
+                href="/contact"
+                className="block hover:text-white"
+              >
                 Contact
               </Link>
             </div>
           </div>
 
           <div>
-            <h3 className="font-bold text-white">HelpFlow</h3>
+            <h3 className="font-bold text-white">
+              Nos services
+            </h3>
 
             <p className="mt-4 text-sm leading-6 text-slate-300">
-              Service de mise en relation entre clients et livreurs pour les
-              livraisons locales, documents, achats, objets oubliés et besoins
-              urgents.
+              Récupération d'achats locaux, commandes Marketplace,
+              transport de colis, documents, objets oubliés,
+              services de proximité et aide aux imprévus du quotidien
+              grâce à un réseau de livreurs disponibles autour de vous.
             </p>
           </div>
         </div>
 
         <div className="mt-8 border-t border-white/10 pt-6 text-center text-sm text-slate-400">
-          © {new Date().getFullYear()} HelpFlow — Tous droits réservés
+          © {new Date().getFullYear()} HelpFlow — Achats locaux • Marketplace • Colis • Documents • Services de proximité • Imprévus du quotidien
         </div>
       </div>
     </footer>

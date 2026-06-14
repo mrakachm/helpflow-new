@@ -3,36 +3,36 @@ import Link from "next/link";
 export default function Hero() {
   return (
     <section className="mx-auto w-full max-w-6xl px-6 pt-10">
-      <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-blue-400 via-indigo-400 to-violet-500 p-8 text-white shadow-xl sm:p-12">
+      <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-600 p-8 text-white shadow-xl sm:p-12">
         <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-white/20 blur-3xl" />
         <div className="absolute -bottom-24 -left-24 h-72 w-72 rounded-full bg-blue-200/20 blur-3xl" />
 
         <div className="relative max-w-4xl">
           <p className="mb-4 inline-flex rounded-full bg-white/15 px-4 py-2 text-sm font-semibold text-white">
-            Moderne • Simple • Flexible • Efficace • Local
+            Achats locaux • Marketplace • Colis • Documents • Proximité
           </p>
 
           <h1 className="text-4xl font-black leading-tight tracking-tight sm:text-6xl">
-            HelpFlow simplifie les imprévus du quotidien.
+            HelpFlow facilite les achats locaux, les récupérations et les
+            livraisons de proximité.
           </h1>
 
           <p className="mt-5 max-w-3xl text-lg leading-8 text-white/95">
-            Gagnez du temps, réduisez le stress et trouvez rapidement une
-            solution locale pour récupérer un objet oublié, transporter un
-            document, retirer un achat ou aider un proche.
+            Trouvez rapidement une personne disponible près de chez vous pour
+            récupérer un achat, une commande Marketplace, un colis, un document
+            ou un objet important.
           </p>
 
           <p className="mt-4 max-w-3xl text-base leading-7 text-white/90">
-            Objets précieux pour bébés et enfants, documents, clés, lunettes,
-            achats en magasin, commandes chez un artisan, vêtements chez le
-            tailleur, colis, courses ou achats sur les réseaux sociaux :
-            HelpFlow vous met en relation avec une personne disponible près de
-            chez vous.
+            Achats chez un commerçant, commande chez un artisan, retrait en
+            magasin, Facebook Marketplace, Leboncoin, Vinted, colis, documents,
+            objets oubliés ou besoin ponctuel : HelpFlow simplifie vos
+            déplacements du quotidien.
           </p>
 
           <p className="mt-4 max-w-3xl text-base leading-7 text-white/90">
-            Une solution locale qui peut parfois résoudre un problème en moins
-            d'une heure, même tard le soir ou tôt le matin.
+            Une solution locale moderne pour récupérer, transporter ou remettre
+            ce dont vous avez besoin grâce à des livreurs proches de vous.
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -41,7 +41,6 @@ export default function Hero() {
               className="inline-flex items-center justify-center rounded-2xl bg-white px-6 py-3 font-bold text-indigo-700 shadow-lg transition hover:bg-slate-100"
             >
               Créer une commande
-            
             </Link>
 
             <Link
