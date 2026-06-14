@@ -13,17 +13,21 @@ type Profile = {
   city?: string | null;
   intervention_radius?: number | null;
   long_distance?: boolean | null;
+  identity_document_path?: string | null;
+  verification_status?: string | null;
 };
 
 export default function ProfileEditPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const documentInputRef = useRef<HTMLInputElement | null>(null);
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   const [form, setForm] = useState<Profile>({
@@ -35,6 +39,8 @@ export default function ProfileEditPage() {
     city: "",
     intervention_radius: 0,
     long_distance: false,
+    identity_document_path: "",
+    verification_status: "pending",
   });
 
   function updateField(name: keyof Profile, value: string | number | boolean) {
@@ -85,6 +91,8 @@ export default function ProfileEditPage() {
           city: data.city || "",
           intervention_radius: data.intervention_radius ?? 0,
           long_distance: data.long_distance ?? false,
+          identity_document_path: data.identity_document_path || "",
+          verification_status: data.verification_status || "pending",
         });
       }
 
@@ -123,6 +131,38 @@ export default function ProfileEditPage() {
     setMsg("Photo ajoutée. Clique sur Enregistrer mon profil.");
   }
 
+  async function uploadIdentityDocument(file: File) {
+    if (!userId) {
+      setMsg("Utilisateur non connecté.");
+      return;
+    }
+
+    setUploadingDocument(true);
+    setMsg(null);
+
+    const ext = file.name.split(".").pop() || "jpg";
+    const path = `${userId}/identity-${Date.now()}.${ext}`;
+
+    const { error } = await supabase.storage
+      .from("courier-documents")
+      .upload(path, file, { upsert: true });
+
+    if (error) {
+      setMsg(error.message);
+      setUploadingDocument(false);
+      return;
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      identity_document_path: path,
+      verification_status: "pending",
+    }));
+
+    setUploadingDocument(false);
+    setMsg("Document d'identité ajouté. Clique sur Enregistrer mon profil.");
+  }
+
   async function saveProfile() {
     if (!userId) {
       setMsg("Utilisateur non connecté.");
@@ -142,6 +182,10 @@ export default function ProfileEditPage() {
       city: form.city || null,
       intervention_radius: form.intervention_radius ?? 0,
       long_distance: form.long_distance ?? false,
+      identity_document_path: form.identity_document_path || null,
+      verification_status: form.identity_document_path
+        ? form.verification_status || "pending"
+        : "pending",
       role: "courier",
     };
 
@@ -256,6 +300,65 @@ export default function ProfileEditPage() {
             placeholder="Téléphone"
           />
 
+          <section className="rounded-3xl border border-blue-100 bg-blue-50 p-4">
+            <h2 className="font-bold text-gray-900">
+              Vérification d'identité
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-gray-700">
+              Pour renforcer la confiance, chaque livreur doit fournir un
+              document officiel : carte d'identité, passeport, titre de séjour
+              ou document équivalent.
+            </p>
+
+            <input
+              ref={documentInputRef}
+              type="file"
+              accept="image/*,.pdf"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) uploadIdentityDocument(file);
+              }}
+            />
+
+            <button
+              type="button"
+              onClick={() => documentInputRef.current?.click()}
+              disabled={uploadingDocument}
+              className="mt-4 w-full rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white"
+            >
+              {uploadingDocument
+                ? "Téléchargement..."
+                : form.identity_document_path
+                ? "Remplacer le document d'identité"
+                : "Télécharger un document d'identité"}
+            </button>
+
+            <div className="mt-3 rounded-2xl bg-white p-3 text-sm">
+              {form.identity_document_path ? (
+                <p className="font-semibold text-green-700">
+                  Document ajouté — vérification en attente.
+                </p>
+              ) : (
+                <p className="font-semibold text-orange-700">
+                  Aucun document ajouté.
+                </p>
+              )}
+
+              <p className="mt-1 text-gray-600">
+                Statut :{" "}
+                <span className="font-semibold">
+                  {form.verification_status === "approved"
+                    ? "Compte vérifié"
+                    : form.verification_status === "rejected"
+                    ? "Vérification refusée"
+                    : "Vérification en attente"}
+                </span>
+              </p>
+            </div>
+          </section>
+
           <select
             value={form.vehicle_type || ""}
             onChange={(e) => updateField("vehicle_type", e.target.value)}
@@ -293,8 +396,8 @@ export default function ProfileEditPage() {
             <input
               type="range"
               min="0"
-              max="20"
-              step="5"
+              max="500"
+              step="10"
               value={form.intervention_radius ?? 0}
               onChange={(e) =>
                 updateField("intervention_radius", Number(e.target.value))
@@ -322,7 +425,7 @@ export default function ProfileEditPage() {
           <button
             type="button"
             onClick={saveProfile}
-            disabled={saving || uploading}
+            disabled={saving || uploading || uploadingDocument}
             className="w-full rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white"
           >
             {saving ? "Enregistrement..." : "Enregistrer mon profil"}
