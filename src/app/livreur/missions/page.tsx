@@ -262,17 +262,6 @@ export default function MissionsPage() {
     await loadOrders(userId, true);
   }
 
-  function openGps(order: Order) {
-    const from = `${order.pickup_address || ""} ${order.pickup_city || ""}`;
-    const to = `${order.dropoff_address || ""} ${order.dropoff_city || ""}`;
-
-    const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(
-      from
-    )}&destination=${encodeURIComponent(to)}&travelmode=driving`;
-
-    window.open(url, "_blank");
-  }
-
   function callPhone(phone?: string | null) {
     if (!phone) return;
     window.location.href = `tel:${phone}`;
@@ -321,19 +310,15 @@ export default function MissionsPage() {
                 Expéditeur : {order.sender_name || "-"}
               </p>
 
-              {type === "mine" && (
-                <>
-                  {order.sender_phone ? (
-                    <button
-                      type="button"
-                      onClick={() => callPhone(order.sender_phone)}
-                      className="mt-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium"
-                    >
-                      Appeler expéditeur
-                    </button>
-                  ) : null}
-                </>
-              )}
+              {type === "mine" && order.sender_phone ? (
+                <button
+                  type="button"
+                  onClick={() => callPhone(order.sender_phone)}
+                  className="mt-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium"
+                >
+                  Appeler expéditeur
+                </button>
+              ) : null}
             </div>
 
             <div className="rounded-2xl bg-gray-50 p-3">
@@ -347,25 +332,21 @@ export default function MissionsPage() {
                 Receveur : {order.receiver_name || "-"}
               </p>
 
-              {type === "mine" && (
-                <>
-                  {order.receiver_phone ? (
-                    <button
-                      type="button"
-                      onClick={() => callPhone(order.receiver_phone)}
-                      className="mt-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium"
-                    >
-                      Appeler receveur
-                    </button>
-                  ) : null}
+              {type === "mine" && order.receiver_phone ? (
+                <button
+                  type="button"
+                  onClick={() => callPhone(order.receiver_phone)}
+                  className="mt-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium"
+                >
+                  Appeler receveur
+                </button>
+              ) : null}
 
-                  {order.recipient_email ? (
-                    <p className="mt-2 text-xs text-gray-500">
-                      Email OTP : {order.recipient_email}
-                    </p>
-                  ) : null}
-                </>
-              )}
+              {type === "mine" && order.recipient_email ? (
+                <p className="mt-2 text-xs text-gray-500">
+                  Email OTP : {order.recipient_email}
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -441,30 +422,21 @@ export default function MissionsPage() {
             <div className="space-y-3">
               <input
                 id={`otp-${order.id}`}
-                type="text"
+                type="tel"
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 maxLength={4}
                 value={otpByOrder[order.id] || ""}
                 onChange={(e) => {
-                  const scrollY = window.scrollY;
                   const value = e.target.value.replace(/\D/g, "").slice(0, 4);
 
                   setOtpByOrder((prev) => ({
                     ...prev,
                     [order.id]: value,
                   }));
-
-                  requestAnimationFrame(() => {
-                    window.scrollTo(0, scrollY);
-                    const input = document.getElementById(
-                      `otp-${order.id}`
-                    ) as HTMLInputElement | null;
-                    input?.focus();
-                  });
                 }}
                 placeholder="Code OTP à 4 chiffres"
-                className="w-full rounded-2xl border px-4 py-3"
+                className="w-full rounded-2xl border px-4 py-3 text-lg tracking-widest"
               />
 
               <button
