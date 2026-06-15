@@ -7,6 +7,7 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 type Profile = {
   full_name?: string | null;
   phone?: string | null;
+  iban?: string | null;
   avatar_url?: string | null;
   vehicle_type?: string | null;
   vehicle_details?: string | null;
@@ -43,6 +44,7 @@ export default function ProfileEditPage() {
   const [form, setForm] = useState<Profile>({
     full_name: "",
     phone: "",
+    iban: "",
     avatar_url: "",
     vehicle_type: "",
     vehicle_details: "",
@@ -90,7 +92,7 @@ export default function ProfileEditPage() {
       const uid = userData.user?.id;
 
       if (!uid) {
-        router.push("/login");
+        router.push("/login?next=/profile/edit");
         return;
       }
 
@@ -112,6 +114,7 @@ export default function ProfileEditPage() {
         setForm({
           full_name: data.full_name || "",
           phone: data.phone || "",
+          iban: data.iban || "",
           avatar_url: data.avatar_url || "",
           vehicle_type: data.vehicle_type || "",
           vehicle_details: data.vehicle_details || "",
@@ -158,41 +161,42 @@ export default function ProfileEditPage() {
     setMsg("Photo ajoutée. Clique sur Enregistrer mon profil.");
   }
 
-async function uploadIdentityDocument(file: File) {
-  if (!userId) {
-    setMsg("Utilisateur non connecté.");
-    return;
-  }
+  async function uploadIdentityDocument(file: File) {
+    if (!userId) {
+      setMsg("Utilisateur non connecté.");
+      return;
+    }
 
-  setUploadingDocument(true);
-  setMsg(null);
+    setUploadingDocument(true);
+    setMsg(null);
 
-  const ext = file.name.split(".").pop() || "jpg";
-  const path = `${userId}/identity-${Date.now()}.${ext}`;
+    const ext = file.name.split(".").pop() || "jpg";
+    const path = `${userId}/identity-${Date.now()}.${ext}`;
 
-  const { error } = await supabase.storage
-    .from("courier-documents")
-    .upload(path, file, { upsert: true });
+    const { error } = await supabase.storage
+      .from("courier-documents")
+      .upload(path, file, { upsert: true });
 
-  if (error) {
-    setMsg(error.message);
+    if (error) {
+      setMsg(error.message);
+      setUploadingDocument(false);
+      return;
+    }
+
+    const { data } = supabase.storage
+      .from("courier-documents")
+      .getPublicUrl(path);
+
+    setForm((prev) => ({
+      ...prev,
+      identity_document_path: data.publicUrl,
+      verification_status: "pending",
+    }));
+
     setUploadingDocument(false);
-    return;
+    setMsg("Document d'identité ajouté. Clique sur Enregistrer mon profil.");
   }
 
-  const { data } = supabase.storage
-    .from("courier-documents")
-    .getPublicUrl(path);
-
-  setForm((prev) => ({
-    ...prev,
-    identity_document_path: data.publicUrl,
-    verification_status: "pending",
-  }));
-
-  setUploadingDocument(false);
-  setMsg("Document d'identité ajouté. Clique sur Enregistrer mon profil.");
-}
   async function saveProfile() {
     if (!userId) {
       setMsg("Utilisateur non connecté.");
@@ -206,6 +210,7 @@ async function uploadIdentityDocument(file: File) {
       id: userId,
       full_name: form.full_name || null,
       phone: form.phone || null,
+      iban: form.iban || null,
       avatar_url: form.avatar_url || null,
       vehicle_type: form.vehicle_type || null,
       vehicle_details: form.vehicle_details || null,
@@ -213,7 +218,7 @@ async function uploadIdentityDocument(file: File) {
       intervention_radius: form.intervention_radius ?? 0,
       long_distance: form.long_distance ?? false,
       identity_document_path: form.identity_document_path || null,
-     verification_status: form.verification_status || "pending",
+      verification_status: form.verification_status || "pending",
       role: "livreur",
     };
 
@@ -330,6 +335,15 @@ async function uploadIdentityDocument(file: File) {
             onChange={(e) => updateField("phone", e.target.value)}
             className="w-full rounded-xl border px-4 py-3"
             placeholder="Téléphone"
+          />
+
+          <input
+            value={form.iban || ""}
+            onChange={(e) =>
+              updateField("iban", e.target.value.toUpperCase().replace(/\s/g, ""))
+            }
+            className="w-full rounded-xl border px-4 py-3"
+            placeholder="IBAN"
           />
 
           <section className="rounded-3xl border border-blue-100 bg-blue-50 p-4">
