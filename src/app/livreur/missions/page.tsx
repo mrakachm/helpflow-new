@@ -305,15 +305,19 @@ export default function MissionsPage() {
                 Expéditeur : {order.sender_name || "-"}
               </p>
 
-              {order.sender_phone ? (
-                <button
-                  type="button"
-                  onClick={() => callPhone(order.sender_phone)}
-                  className="mt-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium"
-                >
-                  Appeler expéditeur
-                </button>
-              ) : null}
+              {type === "mine" && (
+  <>
+    {order.sender_phone ? (
+      <button
+        type="button"
+        onClick={() => callPhone(order.sender_phone)}
+        className="mt-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium"
+      >
+        Appeler expéditeur
+      </button>
+    ) : null}
+  </>
+)}
             </div>
 
             <div className="rounded-2xl bg-gray-50 p-3">
@@ -323,25 +327,32 @@ export default function MissionsPage() {
               <p className="font-semibold">
                 {order.dropoff_address || "-"} {order.dropoff_city || ""}
               </p>
-              <p className="text-sm text-gray-600">
-                Receveur : {order.receiver_name || "-"}
-              </p>
+            <p className="text-sm text-gray-600">
+  Receveur : {order.receiver_name || "-"}
+</p>
 
-              {order.receiver_phone ? (
-                <button
-                  type="button"
-                  onClick={() => callPhone(order.receiver_phone)}
-                  className="mt-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium"
-                >
-                  Appeler receveur
-                </button>
-              ) : null}
+{type === "mine" && (
+  <>
+    {order.receiver_phone ? (
+      <button
+        type="button"
+        onClick={() => callPhone(order.receiver_phone)}
+        className="mt-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium"
+      >
+        Appeler receveur
+      </button>
+    ) : null}
 
-              {order.recipient_email ? (
-                <p className="mt-2 text-xs text-gray-500">
-                  Email OTP : {order.recipient_email}
-                </p>
-              ) : null}
+    {order.recipient_email ? (
+      <p className="mt-2 text-xs text-gray-500">
+        Email OTP : {order.recipient_email}
+      </p>
+    ) : null}
+  </>
+)}
+</div>
+
+<div className="grid grid-cols-2 gap-2 text-sm">
             </div>
           </div>
 
