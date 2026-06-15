@@ -15,6 +15,17 @@ function LoginPageInner() {
     return raw && raw.startsWith("/") ? raw : null;
   }, [searchParams]);
 
+  const roleTarget = useMemo(() => {
+    const raw = searchParams.get("role");
+    return raw === "client" || raw === "livreur" ? raw : null;
+  }, [searchParams]);
+
+  const signupHref = useMemo(() => {
+    if (roleTarget === "livreur") return "/livreur/signup";
+    if (nextUrl) return `/signup?next=${encodeURIComponent(nextUrl)}`;
+    return "/signup";
+  }, [nextUrl, roleTarget]);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -29,6 +40,16 @@ function LoginPageInner() {
   async function redirectByRole(userId: string) {
     if (nextUrl) {
       router.replace(nextUrl);
+      return;
+    }
+
+    if (roleTarget === "client") {
+      router.replace("/client");
+      return;
+    }
+
+    if (roleTarget === "livreur") {
+      router.replace("/livreur/missions");
       return;
     }
 
@@ -66,7 +87,7 @@ function LoginPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [supabase, nextUrl]);
+  }, [supabase, nextUrl, roleTarget]);
 
   async function onLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -206,7 +227,7 @@ function LoginPageInner() {
             {resetLoading ? "Envoi..." : "Mot de passe oublié ?"}
           </button>
 
-          <Link href="/signup" className="font-semibold text-emerald-400">
+          <Link href={signupHref} className="font-semibold text-emerald-400">
             Créer un compte utilisateur
           </Link>
         </div>
