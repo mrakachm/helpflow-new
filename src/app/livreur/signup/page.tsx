@@ -243,6 +243,13 @@ export default function LivreurSignupPage() {
           </button>
         </form>
 
+<button
+  type="button"
+  className="mt-4 w-full rounded-xl bg-blue-600 py-3 text-white font-semibold"
+>
+  Ajouter mon compte bancaire
+</button>
+
         <div className="mt-6 text-center text-slate-400">
           Déjà inscrit ?{" "}
           <Link href="/login" className="text-emerald-400 font-semibold">
