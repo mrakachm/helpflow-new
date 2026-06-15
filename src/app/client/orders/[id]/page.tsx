@@ -227,6 +227,16 @@ export default function ClientOrderDetailPage() {
               <strong>Prix :</strong> {formatEuro(order.price_cents)}
             </p>
 
+            <p>
+  <strong>Commission HelpFlow :</strong>{" "}
+  {formatEuro(order.platform_fee_cents)}
+</p>
+
+<p>
+  <strong>Gain livreur :</strong>{" "}
+  {formatEuro(order.courier_earnings_cents)}
+</p>
+
           </div>
 
           {order.parcel_note ? (
