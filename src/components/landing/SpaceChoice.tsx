@@ -48,12 +48,12 @@ export default function SpaceChoice() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card
           href="/login?next=/client/new-order"
-          title="Espace client"
+          title="Espace utilisateur"
           desc="Publier une demande pour récupérer un achat local, une commande Marketplace, un colis, un document ou un objet oublié."
         />
 
         <Card
-          href="/livreur/missions"
+          href="/login?next=/livreur/missions"
           title="Espace livreur"
           desc="Accepter des missions locales, récupérer des achats, colis ou documents et gagner un revenu complémentaire selon vos disponibilités."
         />

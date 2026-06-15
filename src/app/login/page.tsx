@@ -12,44 +12,24 @@ function LoginPageInner() {
 
   const nextUrl = useMemo(() => {
     const raw = searchParams.get("next");
-    return raw && raw.startsWith("/") ? raw : null;
+    if (!raw) return null;
+    if (!raw.startsWith("/")) return null;
+    if (raw.startsWith("//")) return null;
+    return raw;
   }, [searchParams]);
-
-  const roleTarget = useMemo(() => {
-    const raw = searchParams.get("role");
-    return raw === "client" || raw === "livreur" ? raw : null;
-  }, [searchParams]);
-
-  const signupHref = useMemo(() => {
-    if (roleTarget === "livreur") return "/livreur/signup";
-    if (nextUrl) return `/signup?next=${encodeURIComponent(nextUrl)}`;
-    return "/signup";
-  }, [nextUrl, roleTarget]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
   const [showPassword, setShowPassword] = useState(false);
   const [checking, setChecking] = useState(true);
   const [loading, setLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
-
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  async function redirectByRole(userId: string) {
+  async function redirectAfterLogin(userId: string) {
     if (nextUrl) {
       router.replace(nextUrl);
-      return;
-    }
-
-    if (roleTarget === "client") {
-      router.replace("/client");
-      return;
-    }
-
-    if (roleTarget === "livreur") {
-      router.replace("/livreur/missions");
       return;
     }
 
@@ -57,13 +37,14 @@ function LoginPageInner() {
       .from("profiles")
       .select("role")
       .eq("id", userId)
-      .single();
+      .maybeSingle();
 
     if (profile?.role === "livreur") {
       router.replace("/livreur/missions");
-    } else {
-      router.replace("/client");
+      return;
     }
+
+    router.replace("/client");
   }
 
   useEffect(() => {
@@ -75,7 +56,7 @@ function LoginPageInner() {
       if (cancelled) return;
 
       if (data.user) {
-        await redirectByRole(data.user.id);
+        await redirectAfterLogin(data.user.id);
         return;
       }
 
@@ -87,7 +68,7 @@ function LoginPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [supabase, nextUrl, roleTarget]);
+  }, [supabase, nextUrl]);
 
   async function onLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -110,7 +91,7 @@ function LoginPageInner() {
 
       if (!data.user) throw new Error("Utilisateur introuvable.");
 
-      await redirectByRole(data.user.id);
+      await redirectAfterLogin(data.user.id);
     } catch (err: any) {
       setError(err?.message || "Erreur de connexion");
     } finally {
@@ -144,24 +125,20 @@ function LoginPageInner() {
     }
   }
 
-  if (checking) {
-    return <div className="p-4">Chargement...</div>;
-  }
+  if (checking) return <div className="p-4">Chargement...</div>;
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-8 flex items-center justify-center">
       <div className="w-full max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
-        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500 text-2xl font-bold text-white">
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500">
           <img
             src="/logo-helpflow.png"
             alt="HelpFlow"
-            className="mx-auto h-16 w-16 rounded-2xl object-contain"
+            className="h-16 w-16 rounded-2xl object-contain"
           />
         </div>
 
-        <h1 className="text-center text-3xl font-bold text-white">
-          Connexion
-        </h1>
+        <h1 className="text-center text-3xl font-bold text-white">Connexion</h1>
 
         <p className="mt-2 text-center text-slate-300">
           Connectez-vous à votre espace HelpFlow.
@@ -227,7 +204,7 @@ function LoginPageInner() {
             {resetLoading ? "Envoi..." : "Mot de passe oublié ?"}
           </button>
 
-          <Link href={signupHref} className="font-semibold text-emerald-400">
+          <Link href="/signup" className="font-semibold text-emerald-400">
             Créer un compte utilisateur
           </Link>
         </div>
