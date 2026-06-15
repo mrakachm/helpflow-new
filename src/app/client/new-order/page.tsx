@@ -131,14 +131,12 @@ export default function NewOrderPage() {
       !receiverAddress.trim() ||
       !receiverCity.trim()
     ) {
-      setMsg("Merci de remplir adresse + ville pour l’expéditeur et le receveur.");
       return;
     }
 
     const googleMaps = (window as any).google;
 
     if (!googleMaps?.maps?.DistanceMatrixService) {
-      setMsg("Google Maps n’est pas encore chargé. Réessaie dans 2 secondes.");
       return;
     }
 
@@ -162,7 +160,6 @@ export default function NewOrderPage() {
 
           if (status !== "OK") {
             setDistanceKm(null);
-            setMsg("Erreur Google Maps pendant le calcul de distance.");
             return;
           }
 
@@ -170,7 +167,6 @@ export default function NewOrderPage() {
 
           if (!element || element.status !== "OK") {
             setDistanceKm(null);
-            setMsg("Adresse introuvable. Vérifie la rue, la ville et le code postal.");
             return;
           }
 
@@ -178,15 +174,28 @@ export default function NewOrderPage() {
           const roundedKm = Math.max(1, Math.ceil(km));
 
           setDistanceKm(roundedKm);
-          setMsg(`✅ Distance calculée : ${roundedKm} km`);
         }
       );
-    } catch (e: any) {
+    } catch {
       setGeoLoading(false);
       setDistanceKm(null);
-      setMsg(e?.message || "Erreur pendant le calcul de distance.");
     }
   }
+
+  useEffect(() => {
+    if (
+      senderAddress.trim() &&
+      senderCity.trim() &&
+      receiverAddress.trim() &&
+      receiverCity.trim()
+    ) {
+      const timer = setTimeout(() => {
+        computeDistance();
+      }, 800);
+
+      return () => clearTimeout(timer);
+    }
+  }, [senderAddress, senderCity, receiverAddress, receiverCity]);
 
   async function useMyLocationAsSender() {
     setMsg(null);
@@ -509,14 +518,6 @@ export default function NewOrderPage() {
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-base font-semibold">Colis & Livraison</h2>
 
-              <button
-                type="button"
-                onClick={computeDistance}
-                disabled={geoLoading}
-                className="rounded-xl bg-black px-3 py-2 text-sm font-medium text-white"
-              >
-                {geoLoading ? "Calcul..." : "Calculer distance"}
-              </button>
             </div>
 
             <input
