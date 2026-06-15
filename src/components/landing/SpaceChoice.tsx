@@ -47,7 +47,7 @@ export default function SpaceChoice() {
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card
-          href="/client/new-order"
+          href="/login?next=/client/new-order"
           title="Espace client"
           desc="Publier une demande pour récupérer un achat local, une commande Marketplace, un colis, un document ou un objet oublié."
         />
