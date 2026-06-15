@@ -7,21 +7,30 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 export default function ProfilePage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [loading, setLoading] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user);
-    });
+    async function loadSession() {
+      const { data } = await supabase.auth.getSession();
+      setUser(data.session?.user ?? null);
+      setSessionChecked(true);
+    }
+
+    loadSession();
   }, [supabase]);
 
   async function addBankAccount() {
-    if (!user) {
-      alert("Veuillez vous connecter.");
+    setLoading(true);
+
+    const { data } = await supabase.auth.getSession();
+    const currentUser = data.session?.user;
+
+    if (!currentUser) {
+      setLoading(false);
+      window.location.href = "/login?next=/profile";
       return;
     }
-
-    setLoading(true);
 
     const res = await fetch("/api/stripe-connect/onboard", {
       method: "POST",
@@ -29,19 +38,18 @@ export default function ProfilePage() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        userId: user.id,
-        email: user.email,
+        userId: currentUser.id,
+        email: currentUser.email,
       }),
     });
 
-    const data = await res.json();
-
+    const result = await res.json();
     setLoading(false);
 
-    if (data.url) {
-      window.location.href = data.url;
+    if (result.url) {
+      window.location.href = result.url;
     } else {
-      alert(data.error || "Impossible d'ajouter le compte bancaire.");
+      alert(result.error || "Impossible d'ajouter le compte bancaire.");
     }
   }
 
@@ -69,7 +77,7 @@ export default function ProfilePage() {
           <button
             type="button"
             onClick={addBankAccount}
-            disabled={loading}
+            disabled={loading || !sessionChecked}
             className="mt-4 w-full rounded-2xl bg-blue-600 px-4 py-4 font-bold text-white disabled:opacity-60"
           >
             {loading ? "Ouverture..." : "Ajouter mon compte bancaire"}
