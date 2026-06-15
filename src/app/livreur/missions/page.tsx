@@ -73,7 +73,6 @@ export default function MissionsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [otpByOrder, setOtpByOrder] = useState<Record<string, string>>({});
 
   async function loadCourierProfile(uid: string) {
     const { data, error } = await supabase
@@ -87,13 +86,7 @@ export default function MissionsPage() {
       return;
     }
 
-    const { data: dataById } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", uid)
-      .maybeSingle();
-
-    setCourierProfile((dataById as CourierProfile) || null);
+    setCourierProfile(null);
   }
 
   async function loadOrders(uid?: string | null, silent = false) {
@@ -215,7 +208,11 @@ export default function MissionsPage() {
   }
 
   async function validateDelivery(order: Order) {
-    const enteredOtp = otpByOrder[order.id]?.trim();
+    const input = document.getElementById(
+      `otp-${order.id}`
+    ) as HTMLInputElement | null;
+
+    const enteredOtp = input?.value.trim();
 
     if (!enteredOtp || enteredOtp.length !== 4) {
       setMsg("Entre le code OTP à 4 chiffres.");
@@ -236,7 +233,9 @@ export default function MissionsPage() {
     }
 
     setMsg("✅ Commande livrée.");
-    setOtpByOrder((prev) => ({ ...prev, [order.id]: "" }));
+
+    if (input) input.value = "";
+
     await loadOrders(userId, true);
   }
 
@@ -303,9 +302,11 @@ export default function MissionsPage() {
               <p className="text-xs font-semibold uppercase text-gray-500">
                 Retrait
               </p>
+
               <p className="font-semibold">
                 {order.pickup_address || "-"} {order.pickup_city || ""}
               </p>
+
               <p className="text-sm text-gray-600">
                 Expéditeur : {order.sender_name || "-"}
               </p>
@@ -325,9 +326,11 @@ export default function MissionsPage() {
               <p className="text-xs font-semibold uppercase text-gray-500">
                 Livraison
               </p>
+
               <p className="font-semibold">
                 {order.dropoff_address || "-"} {order.dropoff_city || ""}
               </p>
+
               <p className="text-sm text-gray-600">
                 Receveur : {order.receiver_name || "-"}
               </p>
@@ -426,14 +429,9 @@ export default function MissionsPage() {
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 maxLength={4}
-                value={otpByOrder[order.id] || ""}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/\D/g, "").slice(0, 4);
-
-                  setOtpByOrder((prev) => ({
-                    ...prev,
-                    [order.id]: value,
-                  }));
+                onInput={(e) => {
+                  const input = e.currentTarget;
+                  input.value = input.value.replace(/\D/g, "").slice(0, 4);
                 }}
                 placeholder="Code OTP à 4 chiffres"
                 className="w-full rounded-2xl border px-4 py-3 text-lg tracking-widest"
@@ -474,6 +472,7 @@ export default function MissionsPage() {
   }
 
   const rating = courierProfile?.rating_average || 5;
+
   const vehicle =
     [
       courierProfile?.vehicle_type?.split("|").filter(Boolean).join(" · "),
@@ -491,9 +490,11 @@ export default function MissionsPage() {
               <p className="text-sm font-medium text-blue-100">
                 HelpFlow Livreur
               </p>
+
               <h1 className="mt-2 text-4xl font-bold">
                 Missions disponibles
               </h1>
+
               <p className="mt-3 text-blue-100">
                 Choisissez une mission claire, payée et prête à être prise.
               </p>
@@ -538,6 +539,7 @@ export default function MissionsPage() {
               <div className="flex-1">
                 <p className="font-semibold">{profileName(courierProfile)}</p>
                 <p className="text-sm text-gray-600">{vehicle}</p>
+
                 <p className="text-sm text-gray-600">
                   Zone : {courierProfile?.city || "Non renseignée"}
                 </p>
