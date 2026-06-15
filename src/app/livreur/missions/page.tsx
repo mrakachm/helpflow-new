@@ -66,7 +66,8 @@ export default function MissionsPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const [userId, setUserId] = useState<string | null>(null);
-  const [courierProfile, setCourierProfile] = useState<CourierProfile | null>(null);
+  const [courierProfile, setCourierProfile] =
+    useState<CourierProfile | null>(null);
   const [available, setAvailable] = useState<Order[]>([]);
   const [myMissions, setMyMissions] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -184,6 +185,13 @@ export default function MissionsPage() {
 
     setMsg("✅ Mission acceptée.");
     await loadOrders(userId, true);
+
+    setTimeout(() => {
+      document.getElementById("mes-missions")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 300);
   }
 
   async function startDelivery(orderId: string) {
@@ -270,7 +278,13 @@ export default function MissionsPage() {
     window.location.href = `tel:${phone}`;
   }
 
-  function OrderCard({ order, type }: { order: Order; type: "available" | "mine" }) {
+  function OrderCard({
+    order,
+    type,
+  }: {
+    order: Order;
+    type: "available" | "mine";
+  }) {
     const status = cleanStatus(order.status);
 
     return (
@@ -297,7 +311,9 @@ export default function MissionsPage() {
 
           <div className="grid gap-3">
             <div className="rounded-2xl bg-gray-50 p-3">
-              <p className="text-xs font-semibold uppercase text-gray-500">Retrait</p>
+              <p className="text-xs font-semibold uppercase text-gray-500">
+                Retrait
+              </p>
               <p className="font-semibold">
                 {order.pickup_address || "-"} {order.pickup_city || ""}
               </p>
@@ -306,18 +322,18 @@ export default function MissionsPage() {
               </p>
 
               {type === "mine" && (
-  <>
-    {order.sender_phone ? (
-      <button
-        type="button"
-        onClick={() => callPhone(order.sender_phone)}
-        className="mt-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium"
-      >
-        Appeler expéditeur
-      </button>
-    ) : null}
-  </>
-)}
+                <>
+                  {order.sender_phone ? (
+                    <button
+                      type="button"
+                      onClick={() => callPhone(order.sender_phone)}
+                      className="mt-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium"
+                    >
+                      Appeler expéditeur
+                    </button>
+                  ) : null}
+                </>
+              )}
             </div>
 
             <div className="rounded-2xl bg-gray-50 p-3">
@@ -327,32 +343,29 @@ export default function MissionsPage() {
               <p className="font-semibold">
                 {order.dropoff_address || "-"} {order.dropoff_city || ""}
               </p>
-            <p className="text-sm text-gray-600">
-  Receveur : {order.receiver_name || "-"}
-</p>
+              <p className="text-sm text-gray-600">
+                Receveur : {order.receiver_name || "-"}
+              </p>
 
-{type === "mine" && (
-  <>
-    {order.receiver_phone ? (
-      <button
-        type="button"
-        onClick={() => callPhone(order.receiver_phone)}
-        className="mt-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium"
-      >
-        Appeler receveur
-      </button>
-    ) : null}
+              {type === "mine" && (
+                <>
+                  {order.receiver_phone ? (
+                    <button
+                      type="button"
+                      onClick={() => callPhone(order.receiver_phone)}
+                      className="mt-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium"
+                    >
+                      Appeler receveur
+                    </button>
+                  ) : null}
 
-    {order.recipient_email ? (
-      <p className="mt-2 text-xs text-gray-500">
-        Email OTP : {order.recipient_email}
-      </p>
-    ) : null}
-  </>
-)}
-</div>
-
-<div className="grid grid-cols-2 gap-2 text-sm">
+                  {order.recipient_email ? (
+                    <p className="mt-2 text-xs text-gray-500">
+                      Email OTP : {order.recipient_email}
+                    </p>
+                  ) : null}
+                </>
+              )}
             </div>
           </div>
 
@@ -426,33 +439,33 @@ export default function MissionsPage() {
 
           {type === "mine" && status === "OUT_FOR_DELIVERY" && (
             <div className="space-y-3">
-      <input
-  id={`otp-${order.id}`}
-  type="text"
-  inputMode="numeric"
-  autoComplete="one-time-code"
-  maxLength={4}
-  value={otpByOrder[order.id] || ""}
-  onChange={(e) => {
-    const scrollY = window.scrollY;
-    const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+              <input
+                id={`otp-${order.id}`}
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={4}
+                value={otpByOrder[order.id] || ""}
+                onChange={(e) => {
+                  const scrollY = window.scrollY;
+                  const value = e.target.value.replace(/\D/g, "").slice(0, 4);
 
-    setOtpByOrder((prev) => ({
-      ...prev,
-      [order.id]: value,
-    }));
+                  setOtpByOrder((prev) => ({
+                    ...prev,
+                    [order.id]: value,
+                  }));
 
-    requestAnimationFrame(() => {
-      window.scrollTo(0, scrollY);
-      const input = document.getElementById(
-        `otp-${order.id}`
-      ) as HTMLInputElement | null;
-      input?.focus();
-    });
-  }}
-  placeholder="Code OTP à 4 chiffres"
-  className="w-full rounded-2xl border px-4 py-3"
-/>
+                  requestAnimationFrame(() => {
+                    window.scrollTo(0, scrollY);
+                    const input = document.getElementById(
+                      `otp-${order.id}`
+                    ) as HTMLInputElement | null;
+                    input?.focus();
+                  });
+                }}
+                placeholder="Code OTP à 4 chiffres"
+                className="w-full rounded-2xl border px-4 py-3"
+              />
 
               <button
                 type="button"
@@ -489,13 +502,13 @@ export default function MissionsPage() {
   }
 
   const rating = courierProfile?.rating_average || 5;
- const vehicle =
-  [
-    courierProfile?.vehicle_type?.split("|").filter(Boolean).join(" · "),
-    courierProfile?.vehicle_label,
-  ]
-    .filter(Boolean)
-    .join(" · ") || "Véhicule non renseigné";
+  const vehicle =
+    [
+      courierProfile?.vehicle_type?.split("|").filter(Boolean).join(" · "),
+      courierProfile?.vehicle_label,
+    ]
+      .filter(Boolean)
+      .join(" · ") || "Véhicule non renseigné";
 
   return (
     <main className="min-h-screen bg-gray-50 p-4">
@@ -554,26 +567,26 @@ export default function MissionsPage() {
                 <p className="font-semibold">{profileName(courierProfile)}</p>
                 <p className="text-sm text-gray-600">{vehicle}</p>
                 <p className="text-sm text-gray-600">
-  Zone : {courierProfile?.city || "Non renseignée"}
-</p>
+                  Zone : {courierProfile?.city || "Non renseignée"}
+                </p>
 
- {courierProfile?.phone ? (
-  <>
-    <button
-      type="button"
-      onClick={() => callPhone(courierProfile.phone)}
-      className="mt-2 text-sm font-semibold text-blue-600 underline"
-    >
-     {courierProfile.phone}
-    </button>
+                {courierProfile?.phone ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => callPhone(courierProfile.phone)}
+                      className="mt-2 text-sm font-semibold text-blue-600 underline"
+                    >
+                      {courierProfile.phone}
+                    </button>
 
-    <a
-      href="/profile/edit"
-      className="mt-3 inline-block rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
-    >
-      Modifier mon profil
-    </a>
-  </>
+                    <a
+                      href="/profile/edit"
+                      className="mt-3 inline-block rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
+                    >
+                      Modifier mon profil
+                    </a>
+                  </>
                 ) : (
                   <p className="mt-2 text-sm text-red-500">
                     Téléphone livreur non renseigné
@@ -619,7 +632,7 @@ export default function MissionsPage() {
           )}
         </section>
 
-        <section className="space-y-4">
+        <section id="mes-missions" className="space-y-4 scroll-mt-6">
           <h2 className="text-2xl font-bold">Mes missions en cours</h2>
 
           {myMissions.length === 0 ? (
