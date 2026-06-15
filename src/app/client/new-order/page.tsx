@@ -140,8 +140,8 @@ export default function NewOrderPage() {
       return;
     }
 
-    const from = `${senderAddress}, ${senderCity}, France`;
-    const to = `${receiverAddress}, ${receiverCity}, France`;
+   const from = `${senderAddress.trim()}, ${senderCity.trim()}, France`;
+    const to = `${receiverAddress.trim()}, ${receiverCity.trim()}, France`;
 
     setGeoLoading(true);
 
@@ -275,6 +275,7 @@ export default function NewOrderPage() {
     if (!receiverName.trim()) return "Nom receveur manquant.";
     if (!receiverPhone.trim()) return "Téléphone receveur manquant.";
     if (!receiverAddress.trim() || !receiverCity.trim()) return "Adresse receveur incomplète.";
+    if (distanceKm === null) return "Distance non calculée. Vérifie les adresses.";
     return null;
   }
 
