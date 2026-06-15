@@ -11,20 +11,39 @@ function LoginPageInner() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const nextUrl = useMemo(() => {
-    const raw = searchParams.get("next") || "/client";
-    return raw.startsWith("/") ? raw : "/client";
+    const raw = searchParams.get("next");
+    return raw && raw.startsWith("/") ? raw : null;
   }, [searchParams]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
 
+  const [showPassword, setShowPassword] = useState(false);
   const [checking, setChecking] = useState(true);
   const [loading, setLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+
+  async function redirectByRole(userId: string) {
+    if (nextUrl) {
+      router.replace(nextUrl);
+      return;
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .single();
+
+    if (profile?.role === "livreur") {
+      router.replace("/livreur/missions");
+    } else {
+      router.replace("/client");
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -35,7 +54,7 @@ function LoginPageInner() {
       if (cancelled) return;
 
       if (data.user) {
-        router.replace(nextUrl);
+        await redirectByRole(data.user.id);
         return;
       }
 
@@ -47,7 +66,7 @@ function LoginPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [supabase, router, nextUrl]);
+  }, [supabase, nextUrl]);
 
   async function onLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -56,7 +75,7 @@ function LoginPageInner() {
     setInfo(null);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -68,7 +87,9 @@ function LoginPageInner() {
         throw error;
       }
 
-      router.replace(nextUrl);
+      if (!data.user) throw new Error("Utilisateur introuvable.");
+
+      await redirectByRole(data.user.id);
     } catch (err: any) {
       setError(err?.message || "Erreur de connexion");
     } finally {
@@ -111,10 +132,10 @@ function LoginPageInner() {
       <div className="w-full max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
         <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500 text-2xl font-bold text-white">
           <img
-  src="/logo-helpflow.png"
-  alt="HelpFlow"
-  className="mx-auto h-16 w-16 rounded-2xl object-contain"
-/>
+            src="/logo-helpflow.png"
+            alt="HelpFlow"
+            className="mx-auto h-16 w-16 rounded-2xl object-contain"
+          />
         </div>
 
         <h1 className="text-center text-3xl font-bold text-white">
@@ -186,7 +207,7 @@ function LoginPageInner() {
           </button>
 
           <Link href="/signup" className="font-semibold text-emerald-400">
-            Créer un compte
+            Créer un compte utilisateur
           </Link>
         </div>
       </div>
