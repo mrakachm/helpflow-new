@@ -7,7 +7,6 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 type Profile = {
   full_name?: string | null;
   phone?: string | null;
-  iban?: string | null;
   avatar_url?: string | null;
   vehicle_type?: string | null;
   vehicle_details?: string | null;
@@ -44,7 +43,6 @@ export default function ProfileEditPage() {
   const [form, setForm] = useState<Profile>({
     full_name: "",
     phone: "",
-    iban: "",
     avatar_url: "",
     vehicle_type: "",
     vehicle_details: "",
@@ -114,7 +112,6 @@ export default function ProfileEditPage() {
         setForm({
           full_name: data.full_name || "",
           phone: data.phone || "",
-          iban: data.iban || "",
           avatar_url: data.avatar_url || "",
           vehicle_type: data.vehicle_type || "",
           vehicle_details: data.vehicle_details || "",
@@ -210,7 +207,6 @@ export default function ProfileEditPage() {
       id: userId,
       full_name: form.full_name || null,
       phone: form.phone || null,
-      iban: form.iban || null,
       avatar_url: form.avatar_url || null,
       vehicle_type: form.vehicle_type || null,
       vehicle_details: form.vehicle_details || null,
@@ -337,14 +333,12 @@ export default function ProfileEditPage() {
             placeholder="Téléphone"
           />
 
-          <input
-            value={form.iban || ""}
-            onChange={(e) =>
-              updateField("iban", e.target.value.toUpperCase().replace(/\s/g, ""))
-            }
-            className="w-full rounded-xl border px-4 py-3"
-            placeholder="IBAN"
-          />
+          <section className="rounded-3xl border border-blue-100 bg-blue-50 p-4">
+            <h2 className="font-bold text-gray-900">Compte bancaire</h2>
+            <p className="mt-2 text-sm leading-6 text-gray-700">
+              Le compte bancaire est ajouté via le bouton "Ajouter mon compte bancaire" dans la page profil.
+            </p>
+          </section>
 
           <section className="rounded-3xl border border-blue-100 bg-blue-50 p-4">
             <h2 className="font-bold text-gray-900">
