@@ -9,7 +9,7 @@ export default function ConfidentialitePage() {
 {`
 POLITIQUE DE CONFIDENTIALITÉ – HELPFLOW
 
-Dernière mise à jour : 06 Juin 2026
+Dernière mise à jour : Juin 2026
 
 1. Objet
 
