@@ -20,12 +20,7 @@ function cleanAddress(text: string) {
     .trim();
 }
 
-export default function AddressInput({
-  label,
-  placeholder,
-  value,
-  onChange,
-}: Props) {
+export default function AddressInput({ label, placeholder, value, onChange }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const acRef = useRef<any>(null);
 
@@ -35,14 +30,16 @@ export default function AddressInput({
     function initAutocomplete() {
       if (typeof window === "undefined") return;
 
-      if (!(window as any).google?.maps?.places) {
-        timer = setTimeout(initAutocomplete, 300);
+      const googleMaps = (window as any).google;
+
+      if (!googleMaps?.maps?.places?.Autocomplete) {
+        timer = setTimeout(initAutocomplete, 500);
         return;
       }
 
       if (!inputRef.current || acRef.current) return;
 
-      const ac = new window.google.maps.places.Autocomplete(inputRef.current, {
+      const ac = new googleMaps.maps.places.Autocomplete(inputRef.current, {
         types: ["address"],
         componentRestrictions: { country: "fr" },
         fields: ["address_components", "formatted_address", "geometry"],
@@ -92,7 +89,8 @@ export default function AddressInput({
       <input
         ref={inputRef}
         value={value}
-        onChange={(e) => onChange(cleanAddress(e.target.value), {})}
+        onChange={(e) => onChange(e.target.value, {})}
+        onBlur={(e) => onChange(cleanAddress(e.target.value), {})}
         placeholder={placeholder}
         autoComplete="off"
         className="w-full rounded border px-3 py-2"
