@@ -1,7 +1,12 @@
 "use client";
-/* global google */
 
 import { useEffect, useRef } from "react";
+
+declare global {
+  interface Window {
+    google : any;
+  }
+}
 
 type Props = {
   label: string;
@@ -14,9 +19,9 @@ type Props = {
 };
 
 function cleanAddress(text: string) {
-  return text
+  return String(text || "")
     .replace(/\b(RDC|DRC|rez-de-chaussée|rez de chaussée)\b/gi, "")
-    .replace(/,+/g, " ")
+    .replace(/[,.]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -28,10 +33,10 @@ export default function AddressInput({
   onChange,
 }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const acRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const acRef = useRef<any>(null);
 
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: ReturnType<typeof setTimeout>;
 
     function initAutocomplete() {
       if (typeof window === "undefined") return;
@@ -43,7 +48,7 @@ export default function AddressInput({
 
       if (!inputRef.current || acRef.current) return;
 
-      const ac = new google.maps.places.Autocomplete(inputRef.current, {
+      const ac = new window.google.maps.places.Autocomplete(inputRef.current, {
         types: ["address"],
         componentRestrictions: { country: "fr" },
         fields: ["address_components", "formatted_address", "geometry"],
@@ -53,10 +58,10 @@ export default function AddressInput({
 
       ac.addListener("place_changed", () => {
         const place = ac.getPlace();
-        const comps = place.address_components ?? [];
+        const comps = place.address_components || [];
 
         const get = (type: string) =>
-          comps.find((c) => c.types.includes(type))?.long_name || "";
+          comps.find((c: any) => c.types.includes(type))?.long_name || "";
 
         const streetNumber = get("street_number");
         const route = get("route");
@@ -64,18 +69,18 @@ export default function AddressInput({
         const city =
           get("locality") ||
           get("postal_town") ||
-          get("administrative_area_level_2");
+          get("administrative_area_level_2") ||
+          "";
 
-        const postalCode = get("postal_code");
+        const postalCode = get("postal_code") || "";
 
-        const cleanFullAddress = cleanAddress(
+        const address =
           [streetNumber, route].filter(Boolean).join(" ") ||
-            place.formatted_address ||
-            inputRef.current?.value ||
-            ""
-        );
+          place.formatted_address ||
+          inputRef.current?.value ||
+          "";
 
-        onChange(cleanFullAddress, { city, postalCode });
+        onChange(cleanAddress(address), { city, postalCode });
       });
     }
 
