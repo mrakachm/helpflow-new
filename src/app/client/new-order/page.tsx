@@ -122,6 +122,8 @@ export default function NewOrderPage() {
     };
   }, [pricing.priceCents, clientProposedPrice]);
 
+ 
+
   async function computeDistance() {
     setMsg(null);
 
@@ -155,7 +157,11 @@ export default function NewOrderPage() {
           travelMode: googleMaps.maps.TravelMode.DRIVING,
           unitSystem: googleMaps.maps.UnitSystem.METRIC,
         },
+
         (response: any, status: string) => {
+          console.log("Distance Matrix status:", status);
+console.log("Distance Matrix response:", response);
+
           setGeoLoading(false);
 
           if (status !== "OK") {
