@@ -2,12 +2,6 @@
 
 import { useEffect, useRef } from "react";
 
-declare global {
-  interface Window {
-    google : any;
-  }
-}
-
 type Props = {
   label: string;
   placeholder?: string;
@@ -41,7 +35,7 @@ export default function AddressInput({
     function initAutocomplete() {
       if (typeof window === "undefined") return;
 
-      if (!window.google?.maps?.places) {
+      if (!(window as any).google?.maps?.places) {
         timer = setTimeout(initAutocomplete, 300);
         return;
       }
