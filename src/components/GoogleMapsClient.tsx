@@ -1,19 +1,17 @@
 "use client";
 
-import { useEffect } from "react";
+import Script from "next/script";
 
 export default function GoogleMapsClient() {
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+  const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-    if (document.getElementById("google-maps")) return;
+  if (!key) return null;
 
-    const script = document.createElement("script");
-    script.id = "google-maps";
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`;
-    script.async = true;
-    document.body.appendChild(script);
-  }, []);
-
-  return null;
+  return (
+    <Script
+      id="google-maps"
+      src={`https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places`}
+      strategy="afterInteractive"
+    />
+  );
 }
