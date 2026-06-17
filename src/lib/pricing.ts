@@ -1,23 +1,23 @@
 export function calculatePrice(distanceMeters: number) {
-  const basePrice = 4.99
+  const basePrice = 5
   const pricePerKm = 0.20
+  const minimumPrice = 5
 
   const distanceKm = distanceMeters / 1000
 
   if (distanceKm <= 1) {
     return {
       distanceKm: 1,
-      price: basePrice
+      price: minimumPrice
     }
   }
 
   const roundedKm = Math.ceil(distanceKm)
-
   const extraKm = roundedKm - 1
-  const finalPrice = basePrice + (extraKm * pricePerKm)
+  const finalPrice = basePrice + extraKm * pricePerKm
 
   return {
     distanceKm: roundedKm,
-    price: Number(finalPrice.toFixed(2))
+    price: Math.max(minimumPrice, Number(finalPrice.toFixed(2)))
   }
 }

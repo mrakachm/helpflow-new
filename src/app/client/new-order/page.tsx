@@ -10,6 +10,11 @@ function formatEuro(cents: number) {
   return (cents / 100).toFixed(2) + " €";
 }
 
+function containsPhoneNumber(text: string) {
+  const cleaned = text.replace(/[\s.\-_/()+]/g, "");
+  return /\d{8,}/.test(cleaned);
+}
+
 export default function NewOrderPage() {
   const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
@@ -38,8 +43,10 @@ export default function NewOrderPage() {
     "Autre",
   ];
 
-  const BASE_PRICE_CENTS = 100;
+  const BASE_PRICE_CENTS = 500;
   const PRICE_PER_KM_CENTS = 20;
+  const MIN_PRICE_CENTS = 500;
+  const MAX_PHOTO_SIZE = 5 * 1024 * 1024;
 
   function calculatePrice(distanceKm: number | null | undefined) {
     const d =
@@ -48,11 +55,15 @@ export default function NewOrderPage() {
         : 0;
 
     const billedKm = Math.max(1, Math.ceil(d));
-    return BASE_PRICE_CENTS + (billedKm - 1) * PRICE_PER_KM_CENTS;
+    const calculated = BASE_PRICE_CENTS + (billedKm - 1) * PRICE_PER_KM_CENTS;
+
+    return Math.max(MIN_PRICE_CENTS, calculated);
   }
 
   const [parcelType, setParcelType] = useState("");
   const [parcelNote, setParcelNote] = useState("");
+  const [parcelPhoto, setParcelPhoto] = useState<File | null>(null);
+  const [parcelPhotoPreview, setParcelPhotoPreview] = useState<string | null>(null);
 
   const [senderName, setSenderName] = useState("");
   const [senderPhone, setSenderPhone] = useState("");
@@ -107,8 +118,8 @@ export default function NewOrderPage() {
         : null;
 
     const finalPriceCents = proposedPriceCents
-      ? Math.max(standardPriceCents, proposedPriceCents)
-      : standardPriceCents;
+      ? Math.max(MIN_PRICE_CENTS, proposedPriceCents)
+      : Math.max(MIN_PRICE_CENTS, standardPriceCents);
 
     const platformFeeCents = Math.round(finalPriceCents * 0.2);
     const courierEarningsCents = Math.max(0, finalPriceCents - platformFeeCents);
@@ -121,8 +132,6 @@ export default function NewOrderPage() {
       courierEarningsCents,
     };
   }, [pricing.priceCents, clientProposedPrice]);
-
- 
 
   async function computeDistance() {
     setMsg(null);
@@ -142,7 +151,7 @@ export default function NewOrderPage() {
       return;
     }
 
-   const from = `${senderAddress.trim()}, ${senderCity.trim()}, France`;
+    const from = `${senderAddress.trim()}, ${senderCity.trim()}, France`;
     const to = `${receiverAddress.trim()}, ${receiverCity.trim()}, France`;
 
     setGeoLoading(true);
@@ -157,11 +166,7 @@ export default function NewOrderPage() {
           travelMode: googleMaps.maps.TravelMode.DRIVING,
           unitSystem: googleMaps.maps.UnitSystem.METRIC,
         },
-
         (response: any, status: string) => {
-          console.log("Distance Matrix status:", status);
-console.log("Distance Matrix response:", response);
-
           setGeoLoading(false);
 
           if (status !== "OK") {
@@ -226,7 +231,7 @@ console.log("Distance Matrix response:", response);
         try {
           const { latitude, longitude } = pos.coords;
 
-          setGpsInfo(`Position: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
+          setGpsInfo(`Position trouvée automatiquement.`);
 
           const geocoder = new googleMaps.maps.Geocoder();
 
@@ -292,6 +297,59 @@ console.log("Distance Matrix response:", response);
     return null;
   }
 
+  function handleParcelPhotoChange(file: File | null) {
+    setMsg(null);
+
+    if (!file) {
+      setParcelPhoto(null);
+      setParcelPhotoPreview(null);
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setMsg("La photo du colis doit être une image.");
+      setParcelPhoto(null);
+      setParcelPhotoPreview(null);
+      return;
+    }
+
+    if (file.size > MAX_PHOTO_SIZE) {
+      setMsg("La photo du colis ne doit pas dépasser 5 MB.");
+      setParcelPhoto(null);
+      setParcelPhotoPreview(null);
+      return;
+    }
+
+    setParcelPhoto(file);
+    setParcelPhotoPreview(URL.createObjectURL(file));
+  }
+
+  async function uploadParcelPhoto(): Promise<string | null> {
+    if (!parcelPhoto || !userId) return null;
+
+    const extension = parcelPhoto.name.split(".").pop()?.toLowerCase() || "jpg";
+    const safeExtension = extension.replace(/[^a-z0-9]/g, "") || "jpg";
+    const path = `${userId}/${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2)}.${safeExtension}`;
+
+    const { error } = await supabase.storage
+      .from("parcel-photos")
+      .upload(path, parcelPhoto, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: parcelPhoto.type,
+      });
+
+    if (error) {
+      throw new Error(error.message || "Erreur upload photo colis.");
+    }
+
+    const { data } = supabase.storage.from("parcel-photos").getPublicUrl(path);
+
+    return data.publicUrl || null;
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);
@@ -307,79 +365,95 @@ console.log("Distance Matrix response:", response);
       return;
     }
 
-    if (clientProposedPrice && Number(clientProposedPrice) < 1) {
-      setMsg("Le prix minimum est 1€");
+    if (containsPhoneNumber(parcelNote)) {
+      setMsg("Les numéros de téléphone sont interdits dans la description du colis.");
+      return;
+    }
+
+    if (clientProposedPrice && Number(clientProposedPrice) < 5) {
+      setMsg("Le prix minimum est 5 €.");
       return;
     }
 
     setLoading(true);
 
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    try {
+      const parcelPhotoUrl = await uploadParcelPhoto();
+      const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
-    const payload: any = {
-      sender_name: senderName,
-      sender_phone: senderPhone,
-      pickup_address: senderAddress,
-      pickup_city: senderCity,
+      const payload: any = {
+        sender_name: senderName,
+        sender_phone: senderPhone,
+        pickup_address: senderAddress,
+        pickup_city: senderCity,
 
-      receiver_name: receiverName,
-      receiver_phone: receiverPhone,
-      recipient_email: recipientEmail.trim(),
-      dropoff_address: receiverAddress,
-      dropoff_city: receiverCity,
+        receiver_name: receiverName,
+        receiver_phone: receiverPhone,
+        recipient_email: recipientEmail.trim(),
+        dropoff_address: receiverAddress,
+        dropoff_city: receiverCity,
 
-      bag_count: Number(bagCount || 0),
-      distance_km: distanceKm,
-      scheduled_at: scheduledAt || null,
-      parcel_type: parcelType || null,
-      parcel_note: parcelNote || null,
+        bag_count: Number(bagCount || 0),
+        distance_km: distanceKm,
+        scheduled_at: scheduledAt || null,
+        parcel_type: parcelType || null,
+        parcel_note: parcelNote || null,
+        parcel_photo_url: parcelPhotoUrl,
 
-      price_cents: pricingView.finalPriceCents,
-      client_proposed_price_cents: pricingView.proposedPriceCents,
-      platform_fee_cents: pricingView.platformFeeCents,
-      courier_earnings_cents: pricingView.courierEarningsCents,
-      pricing_mode: pricingView.proposedPriceCents ? "client_proposal" : "standard",
+        price_cents: pricingView.finalPriceCents,
+        client_proposed_price_cents: pricingView.proposedPriceCents,
+        platform_fee_cents: pricingView.platformFeeCents,
+        courier_earnings_cents: pricingView.courierEarningsCents,
+        pricing_mode: pricingView.proposedPriceCents ? "client_proposal" : "standard",
 
-      status: "PENDING",
-      payment_status: "PAID",
-      otp_code: otp,
-    };
+        courier_offer_price_cents: null,
+        courier_offer_status: null,
+        courier_offer_by: null,
 
-    const { data, error } = await supabase
-      .from("orders")
-      .insert(payload)
-      .select("id, otp_code, recipient_email")
-      .single();
+        status: "PENDING",
+        payment_status: "PAID",
+        otp_code: otp,
+      };
 
-    if (error) {
-      setMsg(error.message || JSON.stringify(error));
+      const { data, error } = await supabase
+        .from("orders")
+        .insert(payload)
+        .select("id, otp_code, recipient_email")
+        .single();
+
+      if (error) {
+        setMsg(error.message || JSON.stringify(error));
+        setLoading(false);
+        return;
+      }
+
+      const emailRes = await fetch("/api/send-otp-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: data.recipient_email || recipientEmail.trim(),
+          otp: data.otp_code || otp,
+          orderId: data.id,
+        }),
+      });
+
+      const emailData = await emailRes.json().catch(() => ({}));
+
+      if (!emailRes.ok) {
+        setMsg(
+          emailData?.error ||
+            emailData?.message ||
+            "Commande créée, mais email OTP non envoyé."
+        );
+        setLoading(false);
+        return;
+      }
+
+      router.push(`/client/orders/${data.id}`);
+    } catch (e: any) {
+      setMsg(e?.message || "Erreur pendant la création de la commande.");
       setLoading(false);
-      return;
     }
-
-    const emailRes = await fetch("/api/send-otp-email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        to: data.recipient_email || recipientEmail.trim(),
-        otp: data.otp_code || otp,
-        orderId: data.id,
-      }),
-    });
-
-    const emailData = await emailRes.json().catch(() => ({}));
-
-    if (!emailRes.ok) {
-      setMsg(
-        emailData?.error ||
-          emailData?.message ||
-          "Commande créée, mais email OTP non envoyé."
-      );
-      setLoading(false);
-      return;
-    }
-
-    router.push(`/client/orders/${data.id}`);
   }
 
   return (
@@ -396,7 +470,7 @@ console.log("Distance Matrix response:", response);
           <div>
             <h1 className="text-xl font-semibold">Créer une commande</h1>
             <p className="text-sm text-gray-600">
-              Remplis les infos, puis calcule la distance si besoin.
+              Remplis les infos pour créer ta livraison.
             </p>
           </div>
         </div>
@@ -468,7 +542,7 @@ console.log("Distance Matrix response:", response);
                 type="button"
                 onClick={useMyLocationAsSender}
                 disabled={gpsLoading}
-                className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white"
+                className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
               >
                 {gpsLoading ? "GPS..." : "Utiliser ma position"}
               </button>
@@ -522,10 +596,7 @@ console.log("Distance Matrix response:", response);
           </section>
 
           <section className="rounded-2xl border border-gray-200 bg-white p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-semibold">Colis & Livraison</h2>
-
-            </div>
+            <h2 className="mb-3 text-base font-semibold">Colis & Livraison</h2>
 
             <input
               type="number"
@@ -557,14 +628,49 @@ console.log("Distance Matrix response:", response);
               <textarea
                 value={parcelNote}
                 onChange={(e) => setParcelNote(e.target.value)}
-                placeholder="Fragile, ne pas pencher…"
+                placeholder="Fragile, ne pas pencher… Numéro de téléphone interdit ici."
                 className="w-full rounded-xl border border-gray-200 p-3"
               />
+
+              <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-3">
+                <p className="mb-2 text-sm font-medium">Photo du colis optionnelle</p>
+
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleParcelPhotoChange(e.target.files?.[0] || null)}
+                  className="w-full text-sm"
+                />
+
+                <p className="mt-2 text-xs text-gray-500">
+                  Image facultative. Taille maximum : 5 MB.
+                </p>
+
+                {parcelPhotoPreview ? (
+                  <div className="mt-3">
+                    <img
+                      src={parcelPhotoPreview}
+                      alt="Aperçu du colis"
+                      className="max-h-56 w-full rounded-2xl object-cover"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => handleParcelPhotoChange(null)}
+                      className="mt-2 rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                    >
+                      Retirer la photo
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </div>
 
-            <div className="mt-3 text-sm text-gray-600">
-              Distance : <span className="font-semibold">{distanceKm ?? "-"} km</span>
-            </div>
+            {geoLoading && (
+              <div className="mt-3 text-sm text-gray-500">
+                Calcul automatique en cours...
+              </div>
+            )}
 
             <div className="mt-3 text-sm text-gray-600">
               Prix :{" "}
@@ -584,18 +690,18 @@ console.log("Distance Matrix response:", response);
           <input
             type="number"
             inputMode="decimal"
-            min="0"
+            min="5"
             step="0.5"
             value={clientProposedPrice}
             onChange={(e) => setClientProposedPrice(e.target.value)}
-            placeholder="Prix proposé client, ex : 5"
+            placeholder="Prix proposé client, minimum 5 €"
             className="w-full rounded-xl border border-gray-200 px-3 py-2"
           />
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-black px-4 py-3 text-white"
+            className="w-full rounded-xl bg-black px-4 py-3 text-white disabled:opacity-60"
           >
             {loading ? "Création..." : "Créer la commande"}
           </button>

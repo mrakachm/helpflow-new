@@ -20,12 +20,53 @@ function cleanAddress(text: string) {
     .trim();
 }
 
-export default function AddressInput({ label, placeholder, value, onChange }: Props) {
+function extractAddress(place: any, inputValue: string) {
+  const comps = place?.address_components || [];
+
+  const get = (type: string) =>
+    comps.find((c: any) => c.types.includes(type))?.long_name || "";
+
+  const streetNumber = get("street_number");
+  const route = get("route");
+
+  const city =
+    get("locality") ||
+    get("postal_town") ||
+    get("administrative_area_level_2") ||
+    "";
+
+  const postalCode = get("postal_code") || "";
+
+  const address =
+    [streetNumber, route].filter(Boolean).join(" ") ||
+    place?.formatted_address ||
+    inputValue ||
+    "";
+
+  return {
+    address: cleanAddress(address),
+    city,
+    postalCode,
+  };
+}
+
+export default function AddressInput({
+  label,
+  placeholder,
+  value,
+  onChange,
+}: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const acRef = useRef<any>(null);
+  const onChangeRef = useRef(onChange);
 
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let listener: any = null;
 
     function initAutocomplete() {
       if (typeof window === "undefined") return;
@@ -47,31 +88,14 @@ export default function AddressInput({ label, placeholder, value, onChange }: Pr
 
       acRef.current = ac;
 
-      ac.addListener("place_changed", () => {
+      listener = ac.addListener("place_changed", () => {
         const place = ac.getPlace();
-        const comps = place.address_components || [];
+        const parsed = extractAddress(place, inputRef.current?.value || "");
 
-        const get = (type: string) =>
-          comps.find((c: any) => c.types.includes(type))?.long_name || "";
-
-        const streetNumber = get("street_number");
-        const route = get("route");
-
-        const city =
-          get("locality") ||
-          get("postal_town") ||
-          get("administrative_area_level_2") ||
-          "";
-
-        const postalCode = get("postal_code") || "";
-
-        const address =
-          [streetNumber, route].filter(Boolean).join(" ") ||
-          place.formatted_address ||
-          inputRef.current?.value ||
-          "";
-
-        onChange(cleanAddress(address), { city, postalCode });
+        onChangeRef.current(parsed.address, {
+          city: parsed.city,
+          postalCode: parsed.postalCode,
+        });
       });
     }
 
@@ -79,12 +103,16 @@ export default function AddressInput({ label, placeholder, value, onChange }: Pr
 
     return () => {
       if (timer) clearTimeout(timer);
+      if (listener?.remove) listener.remove();
+      acRef.current = null;
     };
-  }, [onChange]);
+  }, []);
 
   return (
     <div>
-      <label className="block text-sm font-medium mb-1">{label}</label>
+      {label ? (
+        <label className="mb-1 block text-sm font-medium">{label}</label>
+      ) : null}
 
       <input
         ref={inputRef}
@@ -93,7 +121,7 @@ export default function AddressInput({ label, placeholder, value, onChange }: Pr
         onBlur={(e) => onChange(cleanAddress(e.target.value), {})}
         placeholder={placeholder}
         autoComplete="off"
-        className="w-full rounded border px-3 py-2"
+        className="w-full rounded-xl border border-gray-200 px-3 py-2"
       />
     </div>
   );

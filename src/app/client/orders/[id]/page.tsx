@@ -32,6 +32,9 @@ type Order = {
   service_zone?: string | null;
   zone_level?: string | null;
   courier_id?: string | null;
+  courier_offer_price_cents?: number | null;
+  courier_offer_status?: string | null;
+  courier_offer_by?: string | null;
 };
 
 type CourierProfile = {
@@ -80,6 +83,7 @@ export default function ClientOrderDetailPage() {
   const [order, setOrder] = useState<Order | null>(null);
   const [courier, setCourier] = useState<CourierProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   async function loadOrder() {
@@ -119,7 +123,78 @@ export default function ClientOrderDetailPage() {
 
   useEffect(() => {
     loadOrder();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId]);
+
+  async function acceptCourierOffer() {
+    if (!order) return;
+
+    if (!order.courier_offer_price_cents || !order.courier_offer_by) {
+      setMsg("Offre livreur invalide.");
+      return;
+    }
+
+    const finalPriceCents = order.courier_offer_price_cents;
+    const platformFeeCents = Math.round(finalPriceCents * 0.2);
+    const courierEarningsCents = Math.max(0, finalPriceCents - platformFeeCents);
+
+    setActionLoading(true);
+    setMsg(null);
+
+    const { error } = await supabase
+      .from("orders")
+      .update({
+        price_cents: finalPriceCents,
+        platform_fee_cents: platformFeeCents,
+        courier_earnings_cents: courierEarningsCents,
+        courier_offer_status: "accepted",
+        courier_id: order.courier_offer_by,
+        status: "ACCEPTED",
+        accepted_at: new Date().toISOString(),
+        assigned_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", order.id)
+      .eq("courier_offer_status", "pending");
+
+    setActionLoading(false);
+
+    if (error) {
+      setMsg(error.message);
+      return;
+    }
+
+    setMsg("✅ Offre acceptée. La commande est attribuée au livreur.");
+    await loadOrder();
+  }
+
+  async function refuseCourierOffer() {
+    if (!order) return;
+
+    setActionLoading(true);
+    setMsg(null);
+
+    const { error } = await supabase
+      .from("orders")
+      .update({
+        courier_offer_status: "refused",
+        courier_offer_price_cents: null,
+        courier_offer_by: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", order.id)
+      .eq("courier_offer_status", "pending");
+
+    setActionLoading(false);
+
+    if (error) {
+      setMsg(error.message);
+      return;
+    }
+
+    setMsg("Offre refusée. La commande reste disponible au prix initial.");
+    await loadOrder();
+  }
 
   const courierName =
     courier?.full_name ||
@@ -154,6 +229,10 @@ export default function ClientOrderDetailPage() {
   }
 
   const status = cleanStatus(order.status);
+  const hasPendingCourierOffer =
+    order.courier_offer_status === "pending" &&
+    order.courier_offer_price_cents != null &&
+    order.courier_offer_by;
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -228,16 +307,59 @@ export default function ClientOrderDetailPage() {
             </p>
 
             <p>
-  <strong>Commission HelpFlow :</strong>{" "}
-  {formatEuro(order.platform_fee_cents)}
-</p>
+              <strong>Commission HelpFlow :</strong>{" "}
+              {formatEuro(order.platform_fee_cents)}
+            </p>
 
-<p>
-  <strong>Gain livreur :</strong>{" "}
-  {formatEuro(order.courier_earnings_cents)}
-</p>
-
+            <p>
+              <strong>Gain livreur :</strong>{" "}
+              {formatEuro(order.courier_earnings_cents)}
+            </p>
           </div>
+
+          {hasPendingCourierOffer ? (
+            <div className="mt-5 rounded-2xl border border-orange-200 bg-orange-50 p-4">
+              <p className="font-semibold text-orange-900">
+                Proposition d’un livreur
+              </p>
+
+              <p className="mt-2 text-sm text-orange-900">
+                Un livreur propose de faire cette livraison pour :
+              </p>
+
+              <p className="mt-3 text-2xl font-bold text-orange-900">
+                {formatEuro(order.courier_offer_price_cents)}
+              </p>
+
+              <p className="mt-2 text-sm text-orange-800">
+                Prix actuel : {formatEuro(order.price_cents)}
+              </p>
+
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={acceptCourierOffer}
+                  className="rounded-xl bg-green-600 px-3 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                >
+                  Accepter
+                </button>
+
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={refuseCourierOffer}
+                  className="rounded-xl border border-red-200 bg-white px-3 py-3 text-sm font-semibold text-red-600 disabled:opacity-60"
+                >
+                  Refuser
+                </button>
+              </div>
+
+              <p className="mt-3 text-xs text-orange-800">
+                Si tu refuses, la commande reste disponible au prix initial.
+              </p>
+            </div>
+          ) : null}
 
           {order.parcel_note ? (
             <div className="mt-5 rounded-2xl bg-gray-50 p-4">
