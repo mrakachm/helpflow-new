@@ -33,8 +33,6 @@ type Order = {
   status?: string | null;
   payment_status?: string | null;
   courier_id?: string | null;
-  courier_offer_price_cents?: number | null;
-  courier_offer_status?: string | null;
   otp_code?: string | null;
 };
 
@@ -93,7 +91,6 @@ export default function MissionsPage() {
   );
   const [available, setAvailable] = useState<Order[]>([]);
   const [myMissions, setMyMissions] = useState<Order[]>([]);
-  const [offerPrices, setOfferPrices] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -211,47 +208,6 @@ export default function MissionsPage() {
     }, 300);
   }
 
-  async function proposePrice(orderId: string) {
-    if (!userId) {
-      setMsg("Tu dois être connecté comme livreur.");
-      return;
-    }
-
-    const rawPrice = offerPrices[orderId];
-    const price = Number(rawPrice);
-
-    if (!rawPrice || Number.isNaN(price)) {
-      setMsg("Entre un prix proposé valide.");
-      return;
-    }
-
-    if (price < 5) {
-      setMsg("Le prix minimum est 5 €.");
-      return;
-    }
-
-    const proposedPriceCents = Math.round(price * 100);
-
-    const { error } = await supabase
-      .from("orders")
-      .update({
-        
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", orderId)
-      .eq("status", "PENDING")
-      .is("courier_id", null);
-
-    if (error) {
-      setMsg(error.message);
-      return;
-    }
-
-    setMsg("✅ Proposition envoyée au client.");
-    setOfferPrices((prev) => ({ ...prev, [orderId]: "" }));
-    await loadOrders(userId, true);
-  }
-
   async function startDelivery(orderId: string) {
     const { error } = await supabase
       .from("orders")
@@ -339,9 +295,6 @@ export default function MissionsPage() {
     type: "available" | "mine";
   }) {
     const status = cleanStatus(order.status);
-    const hasPendingOffer =
-      order.courier_offer_status === "pending" &&
-      order.courier_offer_price_cents;
 
     return (
       <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
@@ -364,15 +317,6 @@ export default function MissionsPage() {
               Gain : {formatEuro(order.courier_earnings_cents)}
             </div>
           </div>
-
-          {hasPendingOffer ? (
-            <div className="rounded-2xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-900">
-              Proposition envoyée :{" "}
-              <strong>{formatEuro(order.courier_offer_price_cents)}</strong>
-              <br />
-              En attente de réponse du client.
-            </div>
-          ) : null}
 
           <div className="grid gap-3">
             <div className="rounded-2xl bg-gray-50 p-3">
@@ -498,45 +442,13 @@ export default function MissionsPage() {
           />
 
           {type === "available" && (
-            <div className="space-y-3">
-              <button
-                type="button"
-                onClick={() => acceptMission(order.id)}
-                className="w-full rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white"
-              >
-                Accepter cette mission
-              </button>
-
-              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
-                <p className="mb-2 text-sm font-semibold">
-                  Proposer un autre prix
-                </p>
-
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  min="5"
-                  step="0.5"
-                  value={offerPrices[order.id] || ""}
-                  onChange={(e) =>
-                    setOfferPrices((prev) => ({
-                      ...prev,
-                      [order.id]: e.target.value,
-                    }))
-                  }
-                  placeholder="Exemple : 12"
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2"
-                />
-
-                <button
-                  type="button"
-                  onClick={() => proposePrice(order.id)}
-                  className="mt-2 w-full rounded-2xl bg-black px-4 py-3 font-semibold text-white"
-                >
-                  Envoyer la proposition
-                </button>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => acceptMission(order.id)}
+              className="w-full rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white"
+            >
+              Accepter cette mission
+            </button>
           )}
 
           {type === "mine" && status === "ACCEPTED" && (
