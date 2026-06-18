@@ -10,18 +10,24 @@ function formatEuro(cents: number) {
   return (cents / 100).toFixed(2) + " €";
 }
 
+function cleanSimpleAddress(text: string) {
+  return String(text || "")
+    .replace(/\b(RDC|DRC|rez-de-chaussée|rez de chaussée)\b/gi, "")
+    .replace(/\b(appartement|appt|app|étage|etage|bâtiment|batiment|bât|bat|porte|escalier|esc)\b.*$/gi, "")
+    .replace(/[,.]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function containsPhoneNumber(text: string) {
   const value = String(text || "");
-
   const normalized = value.replace(/[\s.\-_/()]/g, "");
 
-  const frenchMobile =
-    /(?:\+33|0033|33)?[67]\d{8}/.test(normalized) ||
-    /0[67]\d{8}/.test(normalized);
-
-  const longNumber = /\d{8,}/.test(normalized);
-
-  return frenchMobile || longNumber;
+  return (
+    /0[67]\d{8}/.test(normalized) ||
+    /(?:\+33|0033|33)[67]\d{8}/.test(normalized) ||
+    /\d{8,}/.test(normalized)
+  );
 }
 
 export default function NewOrderPage() {
@@ -70,20 +76,11 @@ export default function NewOrderPage() {
   const BAG_OPTIONS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10+"];
 
   const BASE_PRICE_CENTS = 500;
-  const PRICE_PER_KM_CENTS = 20;
   const MIN_PRICE_CENTS = 500;
   const MAX_PHOTO_SIZE = 5 * 1024 * 1024;
 
-  function calculatePrice(distanceKm: number | null | undefined) {
-    const d =
-      typeof distanceKm === "number" && !Number.isNaN(distanceKm)
-        ? distanceKm
-        : 0;
-
-    const billedKm = Math.max(1, Math.ceil(d));
-    const calculated = BASE_PRICE_CENTS + (billedKm - 1) * PRICE_PER_KM_CENTS;
-
-    return Math.max(MIN_PRICE_CENTS, calculated);
+  function calculatePrice() {
+    return BASE_PRICE_CENTS;
   }
 
   function elevatorValueToBoolean(value: string) {
@@ -100,9 +97,7 @@ export default function NewOrderPage() {
   const [parcelType, setParcelType] = useState("");
   const [parcelNote, setParcelNote] = useState("");
   const [parcelPhoto, setParcelPhoto] = useState<File | null>(null);
-  const [parcelPhotoPreview, setParcelPhotoPreview] = useState<string | null>(
-    null
-  );
+  const [parcelPhotoPreview, setParcelPhotoPreview] = useState<string | null>(null);
 
   const [senderName, setSenderName] = useState("");
   const [senderPhone, setSenderPhone] = useState("");
@@ -126,7 +121,6 @@ export default function NewOrderPage() {
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsInfo, setGpsInfo] = useState<string | null>(null);
 
-  const [geoLoading, setGeoLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -140,20 +134,8 @@ export default function NewOrderPage() {
     })();
   }, [supabase]);
 
-  const pricing = useMemo(() => {
-    const priceCents = calculatePrice(distanceKm);
-    const platformFeeCents = Math.round(priceCents * 0.2);
-    const courierEarningsCents = Math.max(0, priceCents - platformFeeCents);
-
-    return {
-      priceCents,
-      platformFeeCents,
-      courierEarningsCents,
-    };
-  }, [distanceKm]);
-
   const pricingView = useMemo(() => {
-    const standardPriceCents = pricing.priceCents;
+    const standardPriceCents = calculatePrice();
 
     const proposedPriceCents =
       clientProposedPrice && Number(clientProposedPrice) > 0
@@ -165,94 +147,15 @@ export default function NewOrderPage() {
       : Math.max(MIN_PRICE_CENTS, standardPriceCents);
 
     const platformFeeCents = Math.round(finalPriceCents * 0.2);
-    const courierEarningsCents = Math.max(
-      0,
-      finalPriceCents - platformFeeCents
-    );
+    const courierEarningsCents = Math.max(0, finalPriceCents - platformFeeCents);
 
     return {
-      standardPriceCents,
       proposedPriceCents,
       finalPriceCents,
       platformFeeCents,
       courierEarningsCents,
     };
-  }, [pricing.priceCents, clientProposedPrice]);
-
-  async function computeDistance() {
-    setMsg(null);
-
-    if (
-      !senderAddress.trim() ||
-      !senderCity.trim() ||
-      !receiverAddress.trim() ||
-      !receiverCity.trim()
-    ) {
-      return;
-    }
-
-    const googleMaps = (window as any).google;
-
-    if (!googleMaps?.maps?.DistanceMatrixService) {
-      return;
-    }
-
-    const from = `${senderAddress.trim()}, ${senderCity.trim()}, France`;
-    const to = `${receiverAddress.trim()}, ${receiverCity.trim()}, France`;
-
-    setGeoLoading(true);
-
-    try {
-      const service = new googleMaps.maps.DistanceMatrixService();
-
-      service.getDistanceMatrix(
-        {
-          origins: [from],
-          destinations: [to],
-          travelMode: googleMaps.maps.TravelMode.DRIVING,
-          unitSystem: googleMaps.maps.UnitSystem.METRIC,
-        },
-        (response: any, status: string) => {
-          setGeoLoading(false);
-
-          if (status !== "OK") {
-            setDistanceKm(null);
-            return;
-          }
-
-          const element = response?.rows?.[0]?.elements?.[0];
-
-          if (!element || element.status !== "OK") {
-            setDistanceKm(null);
-            return;
-          }
-
-          const km = element.distance.value / 1000;
-          const roundedKm = Math.max(1, Math.ceil(km));
-
-          setDistanceKm(roundedKm);
-        }
-      );
-    } catch {
-      setGeoLoading(false);
-      setDistanceKm(null);
-    }
-  }
-
-  useEffect(() => {
-    if (
-      senderAddress.trim() &&
-      senderCity.trim() &&
-      receiverAddress.trim() &&
-      receiverCity.trim()
-    ) {
-      const timer = setTimeout(() => {
-        computeDistance();
-      }, 800);
-
-      return () => clearTimeout(timer);
-    }
-  }, [senderAddress, senderCity, receiverAddress, receiverCity]);
+  }, [clientProposedPrice]);
 
   async function useMyLocationAsSender() {
     setMsg(null);
@@ -277,7 +180,7 @@ export default function NewOrderPage() {
         try {
           const { latitude, longitude } = pos.coords;
 
-          setGpsInfo(`Position trouvée automatiquement.`);
+          setGpsInfo("Position trouvée automatiquement.");
 
           const geocoder = new googleMaps.maps.Geocoder();
 
@@ -305,11 +208,9 @@ export default function NewOrderPage() {
                 get("postal_town") ||
                 get("administrative_area_level_2");
 
-              const addressLine = [streetNumber, route]
-                .filter(Boolean)
-                .join(" ");
+              const addressLine = [streetNumber, route].filter(Boolean).join(" ");
 
-              setSenderAddress(addressLine || place.formatted_address || "");
+              setSenderAddress(cleanSimpleAddress(addressLine || place.formatted_address || ""));
               setSenderCity(city || "");
             }
           );
@@ -330,27 +231,22 @@ export default function NewOrderPage() {
     if (!userId) return "Tu dois être connecté pour créer une commande.";
     if (!senderName.trim()) return "Nom expéditeur manquant.";
     if (!senderPhone.trim()) return "Téléphone expéditeur manquant.";
-    if (!senderAddress.trim() || !senderCity.trim())
-      return "Adresse expéditeur incomplète.";
+    if (!senderAddress.trim() || !senderCity.trim()) return "Adresse expéditeur incomplète.";
     if (!pickupFloor) return "Étage de retrait manquant.";
     if (!pickupHasElevator) return "Indique si le retrait possède un ascenseur.";
     if (!receiverName.trim()) return "Nom receveur manquant.";
     if (!receiverPhone.trim()) return "Téléphone receveur manquant.";
-    if (!receiverAddress.trim() || !receiverCity.trim())
-      return "Adresse receveur incomplète.";
+    if (!receiverAddress.trim() || !receiverCity.trim()) return "Adresse receveur incomplète.";
     if (!dropoffFloor) return "Étage de livraison manquant.";
-    if (!dropoffHasElevator)
-      return "Indique si la livraison possède un ascenseur.";
+    if (!dropoffHasElevator) return "Indique si la livraison possède un ascenseur.";
     if (!bagCount) return "Nombre de sacs / colis manquant.";
-    if (distanceKm === null) return "Distance non calculée. Vérifie les adresses.";
     return null;
   }
 
   function validateSender(): string | null {
     if (!senderName.trim()) return "Nom expéditeur manquant.";
     if (!senderPhone.trim()) return "Téléphone expéditeur manquant.";
-    if (!senderAddress.trim() || !senderCity.trim())
-      return "Adresse expéditeur incomplète.";
+    if (!senderAddress.trim() || !senderCity.trim()) return "Adresse expéditeur incomplète.";
     return null;
   }
 
@@ -435,22 +331,25 @@ export default function NewOrderPage() {
     setLoading(true);
 
     try {
+      const cleanSenderAddress = cleanSimpleAddress(senderAddress);
+      const cleanReceiverAddress = cleanSimpleAddress(receiverAddress);
+
       const parcelPhotoUrl = await uploadParcelPhoto();
       const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
       const payload: any = {
-        sender_name: senderName,
-        sender_phone: senderPhone,
-        pickup_address: senderAddress,
-        pickup_city: senderCity,
+        sender_name: senderName.trim(),
+        sender_phone: senderPhone.trim(),
+        pickup_address: cleanSenderAddress,
+        pickup_city: senderCity.trim(),
         pickup_floor: pickupFloor,
         pickup_has_elevator: elevatorValueToBoolean(pickupHasElevator),
 
-        receiver_name: receiverName,
-        receiver_phone: receiverPhone,
+        receiver_name: receiverName.trim(),
+        receiver_phone: receiverPhone.trim(),
         recipient_email: recipientEmail.trim(),
-        dropoff_address: receiverAddress,
-        dropoff_city: receiverCity,
+        dropoff_address: cleanReceiverAddress,
+        dropoff_city: receiverCity.trim(),
         dropoff_floor: dropoffFloor,
         dropoff_has_elevator: elevatorValueToBoolean(dropoffHasElevator),
 
@@ -465,9 +364,7 @@ export default function NewOrderPage() {
         client_proposed_price_cents: pricingView.proposedPriceCents,
         platform_fee_cents: pricingView.platformFeeCents,
         courier_earnings_cents: pricingView.courierEarningsCents,
-        pricing_mode: pricingView.proposedPriceCents
-          ? "client_proposal"
-          : "standard",
+        pricing_mode: pricingView.proposedPriceCents ? "client_proposal" : "standard",
 
         courier_offer_price_cents: null,
         courier_offer_status: null,
@@ -589,7 +486,7 @@ export default function NewOrderPage() {
                 placeholder="Adresse"
                 value={senderAddress}
                 onChange={(fullAddress, parsed) => {
-                  setSenderAddress(fullAddress);
+                  setSenderAddress(cleanSimpleAddress(fullAddress));
                   if (parsed.city) setSenderCity(parsed.city);
                 }}
               />
@@ -601,33 +498,31 @@ export default function NewOrderPage() {
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
               />
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <select
-                  value={pickupHasElevator}
-                  onChange={(e) => setPickupHasElevator(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
-                >
-                  <option value="">Ascenseur retrait ?</option>
-                  {ELEVATOR_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+              <select
+                value={pickupHasElevator}
+                onChange={(e) => setPickupHasElevator(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
+              >
+                <option value="">Ascenseur retrait ?</option>
+                {ELEVATOR_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
 
-                <select
-                  value={pickupFloor}
-                  onChange={(e) => setPickupFloor(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
-                >
-                  <option value="">Étage retrait</option>
-                  {FLOOR_OPTIONS.map((floor) => (
-                    <option key={floor} value={floor}>
-                      {floor}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <select
+                value={pickupFloor}
+                onChange={(e) => setPickupFloor(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
+              >
+                <option value="">Étage retrait</option>
+                {FLOOR_OPTIONS.map((floor) => (
+                  <option key={floor} value={floor}>
+                    {floor}
+                  </option>
+                ))}
+              </select>
 
               <button
                 type="button"
@@ -672,7 +567,7 @@ export default function NewOrderPage() {
                 placeholder="Adresse"
                 value={receiverAddress}
                 onChange={(fullAddress, parsed) => {
-                  setReceiverAddress(fullAddress);
+                  setReceiverAddress(cleanSimpleAddress(fullAddress));
                   if (parsed.city) setReceiverCity(parsed.city);
                 }}
               />
@@ -684,33 +579,31 @@ export default function NewOrderPage() {
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
               />
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <select
-                  value={dropoffHasElevator}
-                  onChange={(e) => setDropoffHasElevator(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
-                >
-                  <option value="">Ascenseur livraison ?</option>
-                  {ELEVATOR_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+              <select
+                value={dropoffHasElevator}
+                onChange={(e) => setDropoffHasElevator(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
+              >
+                <option value="">Ascenseur livraison ?</option>
+                {ELEVATOR_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
 
-                <select
-                  value={dropoffFloor}
-                  onChange={(e) => setDropoffFloor(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
-                >
-                  <option value="">Étage livraison</option>
-                  {FLOOR_OPTIONS.map((floor) => (
-                    <option key={floor} value={floor}>
-                      {floor}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <select
+                value={dropoffFloor}
+                onChange={(e) => setDropoffFloor(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
+              >
+                <option value="">Étage livraison</option>
+                {FLOOR_OPTIONS.map((floor) => (
+                  <option key={floor} value={floor}>
+                    {floor}
+                  </option>
+                ))}
+              </select>
             </div>
           </section>
 
@@ -791,12 +684,6 @@ export default function NewOrderPage() {
               </div>
             </div>
 
-            {geoLoading && (
-              <div className="mt-3 text-sm text-gray-500">
-                Calcul automatique en cours...
-              </div>
-            )}
-
             <div className="mt-3 text-sm text-gray-600">
               Prix :{" "}
               <span className="font-semibold">
@@ -834,4 +721,6 @@ export default function NewOrderPage() {
       </div>
     </main>
   );
+
+  
 }
