@@ -12,8 +12,12 @@ type Order = {
   receiver_phone?: string | null;
   pickup_address?: string | null;
   pickup_city?: string | null;
+  pickup_floor?: string | null;
+  pickup_has_elevator?: boolean | null;
   dropoff_address?: string | null;
   dropoff_city?: string | null;
+  dropoff_floor?: string | null;
+  dropoff_has_elevator?: boolean | null;
   recipient_email?: string | null;
   parcel_type?: string | null;
   parcel_note?: string | null;
@@ -32,6 +36,7 @@ type Order = {
   courier_offer_price_cents?: number | null;
   courier_offer_status?: string | null;
   courier_offer_by?: string | null;
+  otp_code?: string | null;
 };
 
 type CourierProfile = {
@@ -57,6 +62,20 @@ function cleanStatus(status?: string | null) {
   return String(status || "").trim().toUpperCase();
 }
 
+function cleanAddressDisplay(text?: string | null) {
+  return String(text || "")
+    .replace(/\b(RDC|DRC|rez-de-chaussée|rez de chaussée)\b/gi, "")
+    .replace(/[,.]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function elevatorLabel(value?: boolean | null) {
+  if (value === true) return "Oui";
+  if (value === false) return "Non";
+  return "-";
+}
+
 function profileName(profile: CourierProfile | null) {
   if (!profile) return "Livreur";
   return (
@@ -70,7 +89,9 @@ export default function MissionsPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const [userId, setUserId] = useState<string | null>(null);
-  const [courierProfile, setCourierProfile] = useState<CourierProfile | null>(null);
+  const [courierProfile, setCourierProfile] = useState<CourierProfile | null>(
+    null
+  );
   const [available, setAvailable] = useState<Order[]>([]);
   const [myMissions, setMyMissions] = useState<Order[]>([]);
   const [offerPrices, setOfferPrices] = useState<Record<string, string>>({});
@@ -322,7 +343,8 @@ export default function MissionsPage() {
   }) {
     const status = cleanStatus(order.status);
     const hasPendingOffer =
-      order.courier_offer_status === "pending" && order.courier_offer_price_cents;
+      order.courier_offer_status === "pending" &&
+      order.courier_offer_price_cents;
 
     return (
       <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
@@ -362,11 +384,20 @@ export default function MissionsPage() {
               </p>
 
               <p className="font-semibold">
-                {order.pickup_address || "-"} {order.pickup_city || ""}
+                {cleanAddressDisplay(order.pickup_address) || "-"}{" "}
+                {order.pickup_city || ""}
               </p>
 
               <p className="text-sm text-gray-600">
                 Expéditeur : {order.sender_name || "-"}
+              </p>
+
+              <p className="text-sm text-gray-600">
+                Étage retrait : {order.pickup_floor || "-"}
+              </p>
+
+              <p className="text-sm text-gray-600">
+                Ascenseur retrait : {elevatorLabel(order.pickup_has_elevator)}
               </p>
 
               {type === "mine" && order.sender_phone ? (
@@ -386,11 +417,21 @@ export default function MissionsPage() {
               </p>
 
               <p className="font-semibold">
-                {order.dropoff_address || "-"} {order.dropoff_city || ""}
+                {cleanAddressDisplay(order.dropoff_address) || "-"}{" "}
+                {order.dropoff_city || ""}
               </p>
 
               <p className="text-sm text-gray-600">
                 Receveur : {order.receiver_name || "-"}
+              </p>
+
+              <p className="text-sm text-gray-600">
+                Étage livraison : {order.dropoff_floor || "-"}
+              </p>
+
+              <p className="text-sm text-gray-600">
+                Ascenseur livraison :{" "}
+                {elevatorLabel(order.dropoff_has_elevator)}
               </p>
 
               {type === "mine" && order.receiver_phone ? (
@@ -453,9 +494,9 @@ export default function MissionsPage() {
           ) : null}
 
           <MissionRoutePreview
-            pickupAddress={order.pickup_address}
+            pickupAddress={cleanAddressDisplay(order.pickup_address)}
             pickupCity={order.pickup_city}
-            dropoffAddress={order.dropoff_address}
+            dropoffAddress={cleanAddressDisplay(order.dropoff_address)}
             dropoffCity={order.dropoff_city}
           />
 
@@ -513,6 +554,13 @@ export default function MissionsPage() {
 
           {type === "mine" && status === "OUT_FOR_DELIVERY" && (
             <div className="space-y-3">
+              <div className="rounded-xl bg-yellow-50 p-3 text-center">
+                <p className="text-sm font-medium">Code OTP client</p>
+                <p className="text-3xl font-bold tracking-widest">
+                  {order.otp_code || "----"}
+                </p>
+              </div>
+
               <input
                 id={`otp-${order.id}`}
                 type="tel"
