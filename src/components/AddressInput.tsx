@@ -15,6 +15,7 @@ type Props = {
 function cleanAddress(text: string) {
   return String(text || "")
     .replace(/\b(RDC|DRC|rez-de-chaussée|rez de chaussée)\b/gi, "")
+    .replace(/\b(appartement|appt|app|étage|etage|bâtiment|batiment|bât|bat|porte|escalier|esc)\b.*$/gi, "")
     .replace(/[,.]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();

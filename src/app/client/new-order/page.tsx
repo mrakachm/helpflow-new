@@ -11,8 +11,17 @@ function formatEuro(cents: number) {
 }
 
 function containsPhoneNumber(text: string) {
-  const cleaned = text.replace(/[\s.\-_/()+]/g, "");
-  return /\d{8,}/.test(cleaned);
+  const value = String(text || "");
+
+  const normalized = value.replace(/[\s.\-_/()]/g, "");
+
+  const frenchMobile =
+    /(?:\+33|0033|33)?[67]\d{8}/.test(normalized) ||
+    /0[67]\d{8}/.test(normalized);
+
+  const longNumber = /\d{8,}/.test(normalized);
+
+  return frenchMobile || longNumber;
 }
 
 export default function NewOrderPage() {
@@ -43,6 +52,23 @@ export default function NewOrderPage() {
     "Autre",
   ];
 
+  const FLOOR_OPTIONS = [
+    "RDC",
+    "1er étage",
+    "2e étage",
+    "3e étage",
+    "4e étage",
+    "5e étage",
+    "6e étage ou plus",
+  ];
+
+  const ELEVATOR_OPTIONS = [
+    { label: "Oui", value: "true" },
+    { label: "Non", value: "false" },
+  ];
+
+  const BAG_OPTIONS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10+"];
+
   const BASE_PRICE_CENTS = 500;
   const PRICE_PER_KM_CENTS = 20;
   const MIN_PRICE_CENTS = 500;
@@ -60,20 +86,37 @@ export default function NewOrderPage() {
     return Math.max(MIN_PRICE_CENTS, calculated);
   }
 
+  function elevatorValueToBoolean(value: string) {
+    if (value === "true") return true;
+    if (value === "false") return false;
+    return null;
+  }
+
+  function bagCountToNumber(value: string) {
+    if (value === "10+") return 10;
+    return Number(value || 0);
+  }
+
   const [parcelType, setParcelType] = useState("");
   const [parcelNote, setParcelNote] = useState("");
   const [parcelPhoto, setParcelPhoto] = useState<File | null>(null);
-  const [parcelPhotoPreview, setParcelPhotoPreview] = useState<string | null>(null);
+  const [parcelPhotoPreview, setParcelPhotoPreview] = useState<string | null>(
+    null
+  );
 
   const [senderName, setSenderName] = useState("");
   const [senderPhone, setSenderPhone] = useState("");
   const [senderAddress, setSenderAddress] = useState("");
   const [senderCity, setSenderCity] = useState("");
+  const [pickupFloor, setPickupFloor] = useState("");
+  const [pickupHasElevator, setPickupHasElevator] = useState("");
 
   const [receiverName, setReceiverName] = useState("");
   const [receiverPhone, setReceiverPhone] = useState("");
   const [receiverAddress, setReceiverAddress] = useState("");
   const [receiverCity, setReceiverCity] = useState("");
+  const [dropoffFloor, setDropoffFloor] = useState("");
+  const [dropoffHasElevator, setDropoffHasElevator] = useState("");
 
   const [bagCount, setBagCount] = useState("");
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
@@ -122,7 +165,10 @@ export default function NewOrderPage() {
       : Math.max(MIN_PRICE_CENTS, standardPriceCents);
 
     const platformFeeCents = Math.round(finalPriceCents * 0.2);
-    const courierEarningsCents = Math.max(0, finalPriceCents - platformFeeCents);
+    const courierEarningsCents = Math.max(
+      0,
+      finalPriceCents - platformFeeCents
+    );
 
     return {
       standardPriceCents,
@@ -259,7 +305,9 @@ export default function NewOrderPage() {
                 get("postal_town") ||
                 get("administrative_area_level_2");
 
-              const addressLine = [streetNumber, route].filter(Boolean).join(" ");
+              const addressLine = [streetNumber, route]
+                .filter(Boolean)
+                .join(" ");
 
               setSenderAddress(addressLine || place.formatted_address || "");
               setSenderCity(city || "");
@@ -282,10 +330,18 @@ export default function NewOrderPage() {
     if (!userId) return "Tu dois être connecté pour créer une commande.";
     if (!senderName.trim()) return "Nom expéditeur manquant.";
     if (!senderPhone.trim()) return "Téléphone expéditeur manquant.";
-    if (!senderAddress.trim() || !senderCity.trim()) return "Adresse expéditeur incomplète.";
+    if (!senderAddress.trim() || !senderCity.trim())
+      return "Adresse expéditeur incomplète.";
+    if (!pickupFloor) return "Étage de retrait manquant.";
+    if (!pickupHasElevator) return "Indique si le retrait possède un ascenseur.";
     if (!receiverName.trim()) return "Nom receveur manquant.";
     if (!receiverPhone.trim()) return "Téléphone receveur manquant.";
-    if (!receiverAddress.trim() || !receiverCity.trim()) return "Adresse receveur incomplète.";
+    if (!receiverAddress.trim() || !receiverCity.trim())
+      return "Adresse receveur incomplète.";
+    if (!dropoffFloor) return "Étage de livraison manquant.";
+    if (!dropoffHasElevator)
+      return "Indique si la livraison possède un ascenseur.";
+    if (!bagCount) return "Nombre de sacs / colis manquant.";
     if (distanceKm === null) return "Distance non calculée. Vérifie les adresses.";
     return null;
   }
@@ -293,7 +349,8 @@ export default function NewOrderPage() {
   function validateSender(): string | null {
     if (!senderName.trim()) return "Nom expéditeur manquant.";
     if (!senderPhone.trim()) return "Téléphone expéditeur manquant.";
-    if (!senderAddress.trim() || !senderCity.trim()) return "Adresse expéditeur incomplète.";
+    if (!senderAddress.trim() || !senderCity.trim())
+      return "Adresse expéditeur incomplète.";
     return null;
   }
 
@@ -386,14 +443,18 @@ export default function NewOrderPage() {
         sender_phone: senderPhone,
         pickup_address: senderAddress,
         pickup_city: senderCity,
+        pickup_floor: pickupFloor,
+        pickup_has_elevator: elevatorValueToBoolean(pickupHasElevator),
 
         receiver_name: receiverName,
         receiver_phone: receiverPhone,
         recipient_email: recipientEmail.trim(),
         dropoff_address: receiverAddress,
         dropoff_city: receiverCity,
+        dropoff_floor: dropoffFloor,
+        dropoff_has_elevator: elevatorValueToBoolean(dropoffHasElevator),
 
-        bag_count: Number(bagCount || 0),
+        bag_count: bagCountToNumber(bagCount),
         distance_km: distanceKm,
         scheduled_at: scheduledAt || null,
         parcel_type: parcelType || null,
@@ -404,7 +465,9 @@ export default function NewOrderPage() {
         client_proposed_price_cents: pricingView.proposedPriceCents,
         platform_fee_cents: pricingView.platformFeeCents,
         courier_earnings_cents: pricingView.courierEarningsCents,
-        pricing_mode: pricingView.proposedPriceCents ? "client_proposal" : "standard",
+        pricing_mode: pricingView.proposedPriceCents
+          ? "client_proposal"
+          : "standard",
 
         courier_offer_price_cents: null,
         courier_offer_status: null,
@@ -538,6 +601,34 @@ export default function NewOrderPage() {
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
               />
 
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <select
+                  value={pickupHasElevator}
+                  onChange={(e) => setPickupHasElevator(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
+                >
+                  <option value="">Ascenseur retrait ?</option>
+                  {ELEVATOR_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={pickupFloor}
+                  onChange={(e) => setPickupFloor(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
+                >
+                  <option value="">Étage retrait</option>
+                  {FLOOR_OPTIONS.map((floor) => (
+                    <option key={floor} value={floor}>
+                      {floor}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <button
                 type="button"
                 onClick={useMyLocationAsSender}
@@ -592,22 +683,52 @@ export default function NewOrderPage() {
                 placeholder="Ville"
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
               />
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <select
+                  value={dropoffHasElevator}
+                  onChange={(e) => setDropoffHasElevator(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
+                >
+                  <option value="">Ascenseur livraison ?</option>
+                  {ELEVATOR_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={dropoffFloor}
+                  onChange={(e) => setDropoffFloor(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
+                >
+                  <option value="">Étage livraison</option>
+                  {FLOOR_OPTIONS.map((floor) => (
+                    <option key={floor} value={floor}>
+                      {floor}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </section>
 
           <section className="rounded-2xl border border-gray-200 bg-white p-4">
             <h2 className="mb-3 text-base font-semibold">Colis & Livraison</h2>
 
-            <input
-              type="number"
-              inputMode="numeric"
-              min={0}
-              step={1}
+            <select
               value={bagCount}
               onChange={(e) => setBagCount(e.target.value)}
-              placeholder="Nombre de sacs"
-              className="w-full rounded-xl border border-gray-200 px-3 py-2"
-            />
+              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
+            >
+              <option value="">Nombre de sacs / colis</option>
+              {BAG_OPTIONS.map((count) => (
+                <option key={count} value={count}>
+                  {count}
+                </option>
+              ))}
+            </select>
 
             <div className="mt-3 rounded-2xl border border-gray-200 bg-white p-4 space-y-3">
               <h3 className="text-lg font-semibold">Description du colis</h3>
@@ -633,12 +754,16 @@ export default function NewOrderPage() {
               />
 
               <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-3">
-                <p className="mb-2 text-sm font-medium">Photo du colis optionnelle</p>
+                <p className="mb-2 text-sm font-medium">
+                  Photo du colis optionnelle
+                </p>
 
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={(e) => handleParcelPhotoChange(e.target.files?.[0] || null)}
+                  onChange={(e) =>
+                    handleParcelPhotoChange(e.target.files?.[0] || null)
+                  }
                   className="w-full text-sm"
                 />
 
