@@ -261,6 +261,8 @@ export default function NewOrderPage() {
       const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
       const payload: any = {
+        client_id: userId,
+        
         sender_name: senderName.trim(),
         sender_phone: senderPhone.trim(),
         pickup_address: cleanSimpleAddress(senderAddress),
