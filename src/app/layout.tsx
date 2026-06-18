@@ -1,3 +1,4 @@
+import "./globals.css";
 import GoogleMapsScript from "@/components/GoogleMapsScript";
 
 export default function RootLayout({
