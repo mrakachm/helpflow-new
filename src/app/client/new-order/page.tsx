@@ -262,7 +262,7 @@ export default function NewOrderPage() {
 
       const payload: any = {
         client_id: userId,
-        
+
         sender_name: senderName.trim(),
         sender_phone: senderPhone.trim(),
         pickup_address: cleanSimpleAddress(senderAddress),
@@ -477,7 +477,7 @@ export default function NewOrderPage() {
               <input
                 value={receiverAddress}
                 onChange={(e) =>
-                  setReceiverAddress(cleanSimpleAddress(e.target.value))
+                  setReceiverAddress(e.target.value)
                 }
                 onBlur={(e) =>
                   setReceiverAddress(cleanSimpleAddress(e.target.value))
