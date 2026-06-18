@@ -35,7 +35,6 @@ type Order = {
   courier_id?: string | null;
   courier_offer_price_cents?: number | null;
   courier_offer_status?: string | null;
-  courier_offer_by?: string | null;
   otp_code?: string | null;
 };
 
@@ -236,9 +235,7 @@ export default function MissionsPage() {
     const { error } = await supabase
       .from("orders")
       .update({
-        courier_offer_price_cents: proposedPriceCents,
-        courier_offer_status: "pending",
-        courier_offer_by: userId,
+        
         updated_at: new Date().toISOString(),
       })
       .eq("id", orderId)
