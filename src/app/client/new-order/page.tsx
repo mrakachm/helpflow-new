@@ -1,7 +1,5 @@
 "use client";
 
-import AddressInput from "@/components/AddressInput";
-import GoogleMapsClient from "@/components/GoogleMapsClient";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -13,19 +11,21 @@ function formatEuro(cents: number) {
 function cleanSimpleAddress(text: string) {
   return String(text || "")
     .replace(/\b(RDC|DRC|rez-de-chaussée|rez de chaussée)\b/gi, "")
-    .replace(/\b(appartement|appt|app|étage|etage|bâtiment|batiment|bât|bat|porte|escalier|esc)\b.*$/gi, "")
+    .replace(
+      /\b(appartement|appt|app|étage|etage|bâtiment|batiment|bât|bat|porte|escalier|esc)\b.*$/gi,
+      ""
+    )
     .replace(/[,.]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
 function containsPhoneNumber(text: string) {
-  const value = String(text || "");
-  const normalized = value.replace(/[\s.\-_/()]/g, "");
+  const normalized = String(text || "").replace(/[\s.\-_/()+]/g, "");
 
   return (
     /0[67]\d{8}/.test(normalized) ||
-    /(?:\+33|0033|33)[67]\d{8}/.test(normalized) ||
+    /(?:33|0033)[67]\d{8}/.test(normalized) ||
     /\d{8,}/.test(normalized)
   );
 }
@@ -79,10 +79,6 @@ export default function NewOrderPage() {
   const MIN_PRICE_CENTS = 500;
   const MAX_PHOTO_SIZE = 5 * 1024 * 1024;
 
-  function calculatePrice() {
-    return BASE_PRICE_CENTS;
-  }
-
   function elevatorValueToBoolean(value: string) {
     if (value === "true") return true;
     if (value === "false") return false;
@@ -97,7 +93,9 @@ export default function NewOrderPage() {
   const [parcelType, setParcelType] = useState("");
   const [parcelNote, setParcelNote] = useState("");
   const [parcelPhoto, setParcelPhoto] = useState<File | null>(null);
-  const [parcelPhotoPreview, setParcelPhotoPreview] = useState<string | null>(null);
+  const [parcelPhotoPreview, setParcelPhotoPreview] = useState<string | null>(
+    null
+  );
 
   const [senderName, setSenderName] = useState("");
   const [senderPhone, setSenderPhone] = useState("");
@@ -114,12 +112,9 @@ export default function NewOrderPage() {
   const [dropoffHasElevator, setDropoffHasElevator] = useState("");
 
   const [bagCount, setBagCount] = useState("");
-  const [distanceKm, setDistanceKm] = useState<number | null>(null);
+  const [distanceKm] = useState<number | null>(null);
   const [scheduledAt, setScheduledAt] = useState("");
   const [clientProposedPrice, setClientProposedPrice] = useState("");
-
-  const [gpsLoading, setGpsLoading] = useState(false);
-  const [gpsInfo, setGpsInfo] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -135,8 +130,6 @@ export default function NewOrderPage() {
   }, [supabase]);
 
   const pricingView = useMemo(() => {
-    const standardPriceCents = calculatePrice();
-
     const proposedPriceCents =
       clientProposedPrice && Number(clientProposedPrice) > 0
         ? Math.round(Number(clientProposedPrice) * 100)
@@ -144,7 +137,7 @@ export default function NewOrderPage() {
 
     const finalPriceCents = proposedPriceCents
       ? Math.max(MIN_PRICE_CENTS, proposedPriceCents)
-      : Math.max(MIN_PRICE_CENTS, standardPriceCents);
+      : BASE_PRICE_CENTS;
 
     const platformFeeCents = Math.round(finalPriceCents * 0.2);
     const courierEarningsCents = Math.max(0, finalPriceCents - platformFeeCents);
@@ -157,96 +150,35 @@ export default function NewOrderPage() {
     };
   }, [clientProposedPrice]);
 
-  async function useMyLocationAsSender() {
-    setMsg(null);
-    setGpsInfo(null);
-
-    if (!navigator.geolocation) {
-      setMsg("GPS non disponible sur ce navigateur.");
-      return;
-    }
-
-    const googleMaps = (window as any).google;
-
-    if (!googleMaps?.maps?.Geocoder) {
-      setMsg("Google Maps n’est pas encore chargé. Réessaie dans 2 secondes.");
-      return;
-    }
-
-    setGpsLoading(true);
-
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const { latitude, longitude } = pos.coords;
-
-          setGpsInfo("Position trouvée automatiquement.");
-
-          const geocoder = new googleMaps.maps.Geocoder();
-
-          geocoder.geocode(
-            { location: { lat: latitude, lng: longitude } },
-            (results: any[], status: string) => {
-              setGpsLoading(false);
-
-              if (status !== "OK" || !results?.[0]) {
-                setMsg("Impossible de trouver l’adresse avec le GPS.");
-                return;
-              }
-
-              const place = results[0];
-              const comps = place.address_components ?? [];
-
-              const get = (type: string) =>
-                comps.find((c: any) => c.types.includes(type))?.long_name || "";
-
-              const streetNumber = get("street_number");
-              const route = get("route");
-
-              const city =
-                get("locality") ||
-                get("postal_town") ||
-                get("administrative_area_level_2");
-
-              const addressLine = [streetNumber, route].filter(Boolean).join(" ");
-
-              setSenderAddress(cleanSimpleAddress(addressLine || place.formatted_address || ""));
-              setSenderCity(city || "");
-            }
-          );
-        } catch (e: any) {
-          setGpsLoading(false);
-          setMsg(e?.message || "Erreur GPS.");
-        }
-      },
-      () => {
-        setMsg("Impossible d’accéder au GPS.");
-        setGpsLoading(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  }
-
   function validate(): string | null {
     if (!userId) return "Tu dois être connecté pour créer une commande.";
     if (!senderName.trim()) return "Nom expéditeur manquant.";
     if (!senderPhone.trim()) return "Téléphone expéditeur manquant.";
-    if (!senderAddress.trim() || !senderCity.trim()) return "Adresse expéditeur incomplète.";
-    if (!pickupFloor) return "Étage de retrait manquant.";
+    if (!senderAddress.trim() || !senderCity.trim())
+      return "Adresse expéditeur incomplète.";
     if (!pickupHasElevator) return "Indique si le retrait possède un ascenseur.";
+    if (!pickupFloor) return "Étage de retrait manquant.";
+
     if (!receiverName.trim()) return "Nom receveur manquant.";
     if (!receiverPhone.trim()) return "Téléphone receveur manquant.";
-    if (!receiverAddress.trim() || !receiverCity.trim()) return "Adresse receveur incomplète.";
+    if (!recipientEmail.trim())
+      return "Email du receveur manquant pour envoyer le code OTP.";
+    if (!receiverAddress.trim() || !receiverCity.trim())
+      return "Adresse receveur incomplète.";
+    if (!dropoffHasElevator)
+      return "Indique si la livraison possède un ascenseur.";
     if (!dropoffFloor) return "Étage de livraison manquant.";
-    if (!dropoffHasElevator) return "Indique si la livraison possède un ascenseur.";
+
     if (!bagCount) return "Nombre de sacs / colis manquant.";
+
     return null;
   }
 
   function validateSender(): string | null {
     if (!senderName.trim()) return "Nom expéditeur manquant.";
     if (!senderPhone.trim()) return "Téléphone expéditeur manquant.";
-    if (!senderAddress.trim() || !senderCity.trim()) return "Adresse expéditeur incomplète.";
+    if (!senderAddress.trim() || !senderCity.trim())
+      return "Adresse expéditeur incomplète.";
     return null;
   }
 
@@ -299,7 +231,6 @@ export default function NewOrderPage() {
     }
 
     const { data } = supabase.storage.from("parcel-photos").getPublicUrl(path);
-
     return data.publicUrl || null;
   }
 
@@ -310,11 +241,6 @@ export default function NewOrderPage() {
     const err = validate();
     if (err) {
       setMsg(err);
-      return;
-    }
-
-    if (!recipientEmail.trim()) {
-      setMsg("Email du receveur manquant pour envoyer le code OTP.");
       return;
     }
 
@@ -331,16 +257,13 @@ export default function NewOrderPage() {
     setLoading(true);
 
     try {
-      const cleanSenderAddress = cleanSimpleAddress(senderAddress);
-      const cleanReceiverAddress = cleanSimpleAddress(receiverAddress);
-
       const parcelPhotoUrl = await uploadParcelPhoto();
       const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
       const payload: any = {
         sender_name: senderName.trim(),
         sender_phone: senderPhone.trim(),
-        pickup_address: cleanSenderAddress,
+        pickup_address: cleanSimpleAddress(senderAddress),
         pickup_city: senderCity.trim(),
         pickup_floor: pickupFloor,
         pickup_has_elevator: elevatorValueToBoolean(pickupHasElevator),
@@ -348,7 +271,7 @@ export default function NewOrderPage() {
         receiver_name: receiverName.trim(),
         receiver_phone: receiverPhone.trim(),
         recipient_email: recipientEmail.trim(),
-        dropoff_address: cleanReceiverAddress,
+        dropoff_address: cleanSimpleAddress(receiverAddress),
         dropoff_city: receiverCity.trim(),
         dropoff_floor: dropoffFloor,
         dropoff_has_elevator: elevatorValueToBoolean(dropoffHasElevator),
@@ -397,9 +320,8 @@ export default function NewOrderPage() {
         }),
       });
 
-      const emailData = await emailRes.json().catch(() => ({}));
-
       if (!emailRes.ok) {
+        const emailData = await emailRes.json().catch(() => ({}));
         setMsg(
           emailData?.error ||
             emailData?.message ||
@@ -418,8 +340,6 @@ export default function NewOrderPage() {
 
   return (
     <main className="min-h-screen bg-gray-50">
-      <GoogleMapsClient />
-
       <div className="mx-auto max-w-xl px-4 py-6">
         <div className="mb-5 flex items-center gap-3">
           <img
@@ -438,12 +358,6 @@ export default function NewOrderPage() {
         {msg && (
           <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm">
             {msg}
-          </div>
-        )}
-
-        {gpsInfo && (
-          <div className="mb-4 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm">
-            {gpsInfo}
           </div>
         )}
 
@@ -481,14 +395,13 @@ export default function NewOrderPage() {
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
               />
 
-              <AddressInput
-                label=""
-                placeholder="Adresse"
+              <input
                 value={senderAddress}
-                onChange={(fullAddress, parsed) => {
-                  setSenderAddress(cleanSimpleAddress(fullAddress));
-                  if (parsed.city) setSenderCity(parsed.city);
-                }}
+                onChange={(e) => setSenderAddress(e.target.value)}
+                onBlur={(e) => setSenderAddress(cleanSimpleAddress(e.target.value))}
+                placeholder="Adresse départ"
+                autoComplete="off"
+                className="w-full rounded-xl border border-gray-200 px-3 py-2"
               />
 
               <input
@@ -523,15 +436,6 @@ export default function NewOrderPage() {
                   </option>
                 ))}
               </select>
-
-              <button
-                type="button"
-                onClick={useMyLocationAsSender}
-                disabled={gpsLoading}
-                className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
-              >
-                {gpsLoading ? "GPS..." : "Utiliser ma position"}
-              </button>
             </div>
           </section>
 
@@ -562,14 +466,13 @@ export default function NewOrderPage() {
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
               />
 
-              <AddressInput
-                label=""
-                placeholder="Adresse"
+              <input
                 value={receiverAddress}
-                onChange={(fullAddress, parsed) => {
-                  setReceiverAddress(cleanSimpleAddress(fullAddress));
-                  if (parsed.city) setReceiverCity(parsed.city);
-                }}
+                onChange={(e) => setReceiverAddress(e.target.value)}
+                onBlur={(e) => setReceiverAddress(cleanSimpleAddress(e.target.value))}
+                placeholder="Adresse livraison"
+                autoComplete="off"
+                className="w-full rounded-xl border border-gray-200 px-3 py-2"
               />
 
               <input
@@ -721,6 +624,4 @@ export default function NewOrderPage() {
       </div>
     </main>
   );
-
-  
 }
