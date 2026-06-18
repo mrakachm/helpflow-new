@@ -322,7 +322,7 @@ const payload: any = {
   status: "DRAFT",
 };
 
-("📦 PAYLOAD:", payload);
+console.log("📦 PAYLOAD:", payload);
 
 const { data, error } = await supabase
   .from("orders")
@@ -330,7 +330,7 @@ const { data, error } = await supabase
   .select("id")
   .single();
 
-("📡 RESPONSE:", { data, error });
+console.log("📦 RESPONSE:", { data, error });
 
 if (error) throw error;
 
