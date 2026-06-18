@@ -112,7 +112,6 @@ export default function NewOrderPage() {
   const [dropoffHasElevator, setDropoffHasElevator] = useState("");
 
   const [bagCount, setBagCount] = useState("");
-  const [distanceKm] = useState<number | null>(null);
   const [scheduledAt, setScheduledAt] = useState("");
   const [clientProposedPrice, setClientProposedPrice] = useState("");
 
@@ -231,6 +230,7 @@ export default function NewOrderPage() {
     }
 
     const { data } = supabase.storage.from("parcel-photos").getPublicUrl(path);
+
     return data.publicUrl || null;
   }
 
@@ -277,7 +277,7 @@ export default function NewOrderPage() {
         dropoff_has_elevator: elevatorValueToBoolean(dropoffHasElevator),
 
         bag_count: bagCountToNumber(bagCount),
-        distance_km: distanceKm,
+        distance_km: null,
         scheduled_at: scheduledAt || null,
         parcel_type: parcelType || null,
         parcel_note: parcelNote || null,
@@ -287,7 +287,9 @@ export default function NewOrderPage() {
         client_proposed_price_cents: pricingView.proposedPriceCents,
         platform_fee_cents: pricingView.platformFeeCents,
         courier_earnings_cents: pricingView.courierEarningsCents,
-        pricing_mode: pricingView.proposedPriceCents ? "client_proposal" : "standard",
+        pricing_mode: pricingView.proposedPriceCents
+          ? "client_proposal"
+          : "standard",
 
         courier_offer_price_cents: null,
         courier_offer_status: null,
@@ -397,8 +399,12 @@ export default function NewOrderPage() {
 
               <input
                 value={senderAddress}
-                onChange={(e) => setSenderAddress(e.target.value)}
-                onBlur={(e) => setSenderAddress(cleanSimpleAddress(e.target.value))}
+                onChange={(e) =>
+                  setSenderAddress(cleanSimpleAddress(e.target.value))
+                }
+                onBlur={(e) =>
+                  setSenderAddress(cleanSimpleAddress(e.target.value))
+                }
                 placeholder="Adresse départ"
                 autoComplete="off"
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
@@ -468,8 +474,12 @@ export default function NewOrderPage() {
 
               <input
                 value={receiverAddress}
-                onChange={(e) => setReceiverAddress(e.target.value)}
-                onBlur={(e) => setReceiverAddress(cleanSimpleAddress(e.target.value))}
+                onChange={(e) =>
+                  setReceiverAddress(cleanSimpleAddress(e.target.value))
+                }
+                onBlur={(e) =>
+                  setReceiverAddress(cleanSimpleAddress(e.target.value))
+                }
                 placeholder="Adresse livraison"
                 autoComplete="off"
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
