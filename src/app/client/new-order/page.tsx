@@ -314,28 +314,19 @@ export default function NewOrderPage() {
         return;
       }
 
-      const emailRes = await fetch("/api/send-otp-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: data.recipient_email || recipientEmail.trim(),
-          otp: data.otp_code || otp,
-          orderId: data.id,
-        }),
-      });
+  try {
+  await fetch("/api/send-otp-email", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      to: data.recipient_email || recipientEmail.trim(),
+      otp: data.otp_code || otp,
+      orderId: data.id,
+    }),
+  });
+} catch {}
 
-      if (!emailRes.ok) {
-        const emailData = await emailRes.json().catch(() => ({}));
-        setMsg(
-          emailData?.error ||
-            emailData?.message ||
-            "Commande créée, mais email OTP non envoyé."
-        );
-        setLoading(false);
-        return;
-      }
-
-      router.push(`/client/orders/${data.id}`);
+router.push(`/client/orders/${data.id}`);
     } catch (e: any) {
       setMsg(e?.message || "Erreur pendant la création de la commande.");
       setLoading(false);
