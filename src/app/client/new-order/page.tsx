@@ -295,7 +295,7 @@ export default function NewOrderPage() {
 
         courier_offer_price_cents: null,
         courier_offer_status: null,
-        courier_offer_by: null,
+        
 
         status: "PENDING",
         payment_status: "PAID",
