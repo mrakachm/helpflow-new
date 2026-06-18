@@ -319,7 +319,7 @@ const payload: any = {
   courier_earnings_cents: pricingView.courierEarningsCents,
   pricing_mode: pricingView.proposedPriceCents ? "client_proposal" : "standard",
 
-  status: "DRAFT",
+ status: "PENDING",
 };
 
 console.log("📦 PAYLOAD:", payload);
