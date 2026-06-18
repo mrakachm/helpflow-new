@@ -391,17 +391,15 @@ router.push(`/client/orders/${data.id}`);
               />
 
               <input
-                value={senderAddress}
-                onChange={(e) =>
-                  setSenderAddress(cleanSimpleAddress(e.target.value))
-                }
-                onBlur={(e) =>
-                  setSenderAddress(cleanSimpleAddress(e.target.value))
-                }
-                placeholder="Adresse départ"
-                autoComplete="off"
-                className="w-full rounded-xl border border-gray-200 px-3 py-2"
-              />
+  value={senderAddress}
+  onChange={(e) => setSenderAddress(e.target.value)}
+  onBlur={(e) =>
+    setSenderAddress(cleanSimpleAddress(e.target.value))
+  }
+  placeholder="Adresse départ"
+  autoComplete="off"
+  className="w-full rounded-xl border border-gray-200 px-3 py-2"
+/>
 
               <input
                 value={senderCity}
