@@ -27,13 +27,11 @@ type Order = {
   zone_level?: string | null;
   parcel_photo_url?: string | null;
   bag_count?: number | null;
-  distance_km?: number | null;
   price_cents?: number | null;
   courier_earnings_cents?: number | null;
   status?: string | null;
   payment_status?: string | null;
   courier_id?: string | null;
-  otp_code?: string | null;
 };
 
 type CourierProfile = {
@@ -86,9 +84,7 @@ export default function MissionsPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const [userId, setUserId] = useState<string | null>(null);
-  const [courierProfile, setCourierProfile] = useState<CourierProfile | null>(
-    null
-  );
+  const [courierProfile, setCourierProfile] = useState<CourierProfile | null>(null);
   const [available, setAvailable] = useState<Order[]>([]);
   const [myMissions, setMyMissions] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -287,13 +283,7 @@ export default function MissionsPage() {
     window.location.href = `tel:${phone}`;
   }
 
-  function OrderCard({
-    order,
-    type,
-  }: {
-    order: Order;
-    type: "available" | "mine";
-  }) {
+  function OrderCard({ order, type }: { order: Order; type: "available" | "mine" }) {
     const status = cleanStatus(order.status);
 
     return (
@@ -320,13 +310,10 @@ export default function MissionsPage() {
 
           <div className="grid gap-3">
             <div className="rounded-2xl bg-gray-50 p-3">
-              <p className="text-xs font-semibold uppercase text-gray-500">
-                Retrait
-              </p>
+              <p className="text-xs font-semibold uppercase text-gray-500">Retrait</p>
 
               <p className="font-semibold">
-                {cleanAddressDisplay(order.pickup_address) || "-"}{" "}
-                {order.pickup_city || ""}
+                {cleanAddressDisplay(order.pickup_address) || "-"} {order.pickup_city || ""}
               </p>
 
               <p className="text-sm text-gray-600">
@@ -353,13 +340,10 @@ export default function MissionsPage() {
             </div>
 
             <div className="rounded-2xl bg-gray-50 p-3">
-              <p className="text-xs font-semibold uppercase text-gray-500">
-                Livraison
-              </p>
+              <p className="text-xs font-semibold uppercase text-gray-500">Livraison</p>
 
               <p className="font-semibold">
-                {cleanAddressDisplay(order.dropoff_address) || "-"}{" "}
-                {order.dropoff_city || ""}
+                {cleanAddressDisplay(order.dropoff_address) || "-"} {order.dropoff_city || ""}
               </p>
 
               <p className="text-sm text-gray-600">
@@ -371,8 +355,7 @@ export default function MissionsPage() {
               </p>
 
               <p className="text-sm text-gray-600">
-                Ascenseur livraison :{" "}
-                {elevatorLabel(order.dropoff_has_elevator)}
+                Ascenseur livraison : {elevatorLabel(order.dropoff_has_elevator)}
               </p>
 
               {type === "mine" && order.receiver_phone ? (
@@ -394,11 +377,6 @@ export default function MissionsPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-2 text-sm">
-            <div className="rounded-xl bg-gray-50 p-3">
-              <p className="text-gray-500">Distance</p>
-              <p className="font-semibold">{order.distance_km ?? "-"} km</p>
-            </div>
-
             <div className="rounded-xl bg-gray-50 p-3">
               <p className="text-gray-500">Sacs</p>
               <p className="font-semibold">{order.bag_count ?? "-"}</p>
@@ -463,13 +441,6 @@ export default function MissionsPage() {
 
           {type === "mine" && status === "OUT_FOR_DELIVERY" && (
             <div className="space-y-3">
-              <div className="rounded-xl bg-yellow-50 p-3 text-center">
-                <p className="text-sm font-medium">Code OTP client</p>
-                <p className="text-3xl font-bold tracking-widest">
-                  {order.otp_code || "----"}
-                </p>
-              </div>
-
               <input
                 id={`otp-${order.id}`}
                 type="tel"
