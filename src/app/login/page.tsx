@@ -27,25 +27,30 @@ function LoginPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  async function redirectAfterLogin(userId: string) {
-    if (nextUrl) {
-      router.replace(nextUrl);
-      return;
-    }
+ async function redirectAfterLogin(userId: string) {
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (profile?.role === "livreur") {
-      router.replace("/livreur/missions");
-      return;
-    }
-
-    router.replace("/client");
+  if (profile?.role === "livreur") {
+    router.replace("/livreur/missions");
+    return;
   }
+
+  if (profile?.role === "admin") {
+    router.replace("/admin");
+    return;
+  }
+
+  if (nextUrl) {
+    router.replace(nextUrl);
+    return;
+  }
+
+  router.replace("/client");
+}
 
   useEffect(() => {
     let cancelled = false;
