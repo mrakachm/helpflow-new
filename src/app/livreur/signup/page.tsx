@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 export default function LivreurSignupPage() {
+    const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -190,15 +191,25 @@ if (loginError) throw loginError;
             className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white"
           />
 
-          <input
-            type="password"
-            placeholder="Mot de passe (6 caractères minimum)"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={6}
-            className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white"
-          />
+      <div className="relative">
+  <input
+    type={showPassword ? "text" : "password"}
+    placeholder="Mot de passe (6 caractères minimum)"
+    value={password}
+    onChange={(e) => setPassword(e.target.value)}
+    required
+    minLength={6}
+    className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 pr-12 text-white"
+  />
+
+  <button
+    type="button"
+    onClick={() => setShowPassword(!showPassword)}
+    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+  >
+    👁
+  </button>
+</div>
 
           <input
             ref={fileRef}
