@@ -58,9 +58,6 @@ const { error: loginError } = await supabase.auth.signInWithPassword({
 
 if (loginError) throw loginError;
 
-      if (error) throw error;
-      if (!data.user) throw new Error("Compte non créé.");
-
       const ext = documentFile.name.split(".").pop() || "jpg";
       const path = `${data.user.id}/identity-${Date.now()}.${ext}`;
 
