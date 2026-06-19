@@ -28,6 +28,11 @@ function LoginPageInner() {
   const [info, setInfo] = useState<string | null>(null);
 
  async function redirectAfterLogin(userId: string) {
+  if (nextUrl) {
+    router.replace(nextUrl);
+    return;
+  }
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("role")
@@ -41,11 +46,6 @@ function LoginPageInner() {
 
   if (profile?.role === "admin") {
     router.replace("/admin");
-    return;
-  }
-
-  if (nextUrl) {
-    router.replace(nextUrl);
     return;
   }
 
