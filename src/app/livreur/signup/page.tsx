@@ -43,10 +43,20 @@ export default function LivreurSignupPage() {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
+     const { data, error } = await supabase.auth.signUp({
+  email,
+  password,
+});
+
+if (error) throw error;
+if (!data.user) throw new Error("Compte non créé.");
+
+const { error: loginError } = await supabase.auth.signInWithPassword({
+  email,
+  password,
+});
+
+if (loginError) throw loginError;
 
       if (error) throw error;
       if (!data.user) throw new Error("Compte non créé.");
@@ -242,13 +252,6 @@ export default function LivreurSignupPage() {
             {loading ? "Création..." : "Créer mon compte livreur"}
           </button>
         </form>
-
-<button
-  type="button"
-  className="mt-4 w-full rounded-xl bg-blue-600 py-3 text-white font-semibold"
->
-  Ajouter mon compte bancaire
-</button>
 
         <div className="mt-6 text-center text-slate-400">
           Déjà inscrit ?{" "}
