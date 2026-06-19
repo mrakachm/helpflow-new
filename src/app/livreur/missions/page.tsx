@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import MissionRoutePreview from "@/components/MissionRoutePreview";
-
+import Link from "next/link";
 type Order = {
   id: string;
   sender_name?: string | null;
@@ -562,28 +562,28 @@ export default function MissionsPage() {
                   Zone : {courierProfile?.city || "Non renseignée"}
                 </p>
 
-                {courierProfile?.phone ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => callPhone(courierProfile.phone)}
-                      className="mt-2 text-sm font-semibold text-blue-600 underline"
-                    >
-                      {courierProfile.phone}
-                    </button>
+             {courierProfile?.phone ? (
+  <button
+    type="button"
+    onClick={() => callPhone(courierProfile.phone)}
+    className="mt-2 text-sm font-semibold text-blue-600 underline"
+  >
+    {courierProfile.phone}
+  </button>
+) : (
+  <p className="mt-2 text-sm text-red-500">
+    Téléphone livreur non renseigné
+  </p>
+)}
 
-                    <a
-                      href="/profile/edit"
-                      className="mt-3 inline-block rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
-                    >
-                      Modifier mon profil
-                    </a>
-                  </>
-                ) : (
-                  <p className="mt-2 text-sm text-red-500">
-                    Téléphone livreur non renseigné
-                  </p>
-                )}
+<Link
+  href="/profile/edit"
+  className="mt-3 inline-block rounded-xl bg-blue-600 px-4 py-2 text-white"
+>
+  Modifier mon profil
+</Link>
+
+                                      
               </div>
 
               <div className="text-right">
