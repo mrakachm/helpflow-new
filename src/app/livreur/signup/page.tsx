@@ -66,7 +66,7 @@ export default function LivreurSignupPage() {
 
       const identityUrl = publicUrlData.publicUrl;
 
-      const { error: profileError } = await supabase.from("profiles").upsert({
+      const { error: profileError } = await supabase.from("profiles").insert({
         id: data.user.id,
         first_name: firstName,
         last_name: lastName,
