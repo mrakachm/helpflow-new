@@ -35,12 +35,9 @@ export default function Hero() {
               Créer une commande
             </Link>
 
-            <Link
-              href="/login?next=/livreur/missions"
-              className="inline-flex items-center justify-center rounded-2xl border border-white/40 bg-white/10 px-6 py-3 font-bold text-white transition hover:bg-white/20"
-            >
-              Devenir livreur
-            </Link>
+            <Link href="/livreur/signup">
+  Devenir livreur
+</Link>
           </div>
         </div>
       </div>
