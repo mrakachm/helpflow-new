@@ -270,9 +270,9 @@ export default function NewOrderPage() {
         courier_earnings_cents: pricingView.courierEarningsCents,
         pricing_mode: pricingView.proposedPriceCents ? "client_proposal" : "standard",
 
-        status: "CREATED",
-        payment_status: "PAID",
-        otp_code: otp,
+        status: "PUBLISHED",
+payment_status: "PAID",
+otp_code: otp,
       };
 
       const { data, error } = await supabase
