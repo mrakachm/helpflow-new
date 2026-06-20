@@ -118,7 +118,7 @@ export default function MissionsPage() {
       const { data: availableData, error: availableError } = await supabase
         .from("orders")
         .select("*")
-        .eq("status", "PENDING")
+        .eq("status", "CREATED")
         .eq("payment_status", "PAID")
         .is("courier_id", null)
         .order("created_at", { ascending: false });
@@ -141,8 +141,8 @@ export default function MissionsPage() {
 
       setAvailable(
         ((availableData as Order[]) || []).filter(
-          (o) =>
-            cleanStatus(o.status) === "PENDING" &&
+          (o) =>cleanStatus(o.status) === "CREATED"
+             &&
             cleanStatus(o.payment_status) === "PAID"
         )
       );
@@ -185,7 +185,7 @@ export default function MissionsPage() {
         updated_at: new Date().toISOString(),
       })
       .eq("id", orderId)
-      .eq("status", "PENDING")
+      .eq("status", "CREATED")
       .is("courier_id", null);
 
     if (error) {
@@ -260,7 +260,7 @@ export default function MissionsPage() {
     const { error } = await supabase
       .from("orders")
       .update({
-        status: "PENDING",
+        status: "CREATED",
         courier_id: null,
         accepted_at: null,
         started_at: null,
