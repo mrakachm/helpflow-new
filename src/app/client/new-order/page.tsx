@@ -270,7 +270,7 @@ export default function NewOrderPage() {
         courier_earnings_cents: pricingView.courierEarningsCents,
         pricing_mode: pricingView.proposedPriceCents ? "client_proposal" : "standard",
 
-        status: "PENDING",
+        status: "CREATED",
         payment_status: "PAID",
         otp_code: otp,
       };
