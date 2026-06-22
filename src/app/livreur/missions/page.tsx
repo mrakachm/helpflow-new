@@ -118,8 +118,8 @@ export default function MissionsPage() {
       const { data: availableData, error: availableError } = await supabase
         .from("orders")
         .select("*")
-        .eq("status", "CREATED")
-        .eq("payment_status", "PAID")
+        .eq("status", "PUBLISHED")
+.eq("payment_status", "PAID")
         .is("courier_id", null)
         .order("created_at", { ascending: false });
 
@@ -140,12 +140,12 @@ export default function MissionsPage() {
       }
 
       setAvailable(
-        ((availableData as Order[]) || []).filter(
-          (o) =>cleanStatus(o.status) === "CREATED"
-             &&
-            cleanStatus(o.payment_status) === "PAID"
-        )
-      );
+  ((availableData as Order[]) || []).filter(
+    (o) =>
+      cleanStatus(o.status) === "PUBLISHED" &&
+cleanStatus(o.payment_status) === "PAID"
+  )
+);
 
       setMyMissions(myData);
     } catch (error: any) {
@@ -185,8 +185,8 @@ export default function MissionsPage() {
         updated_at: new Date().toISOString(),
       })
       .eq("id", orderId)
-      .eq("status", "CREATED")
-      .is("courier_id", null);
+.eq("status", "PUBLISHED")
+.is("courier_id", null);
 
     if (error) {
       setMsg(error.message);
@@ -260,7 +260,7 @@ export default function MissionsPage() {
     const { error } = await supabase
       .from("orders")
       .update({
-        status: "CREATED",
+        
         courier_id: null,
         accepted_at: null,
         started_at: null,

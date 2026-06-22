@@ -25,36 +25,25 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (error) {
-      console.error("Erreur Supabase checkout:", error);
-      return Response.json({ error: error.message }, { status: 100 });
+      return Response.json({ error: error.message }, { status: 500 });
     }
 
     if (!order) {
-      return Response.json(
-        { error: "Commande introuvable" },
-        { status: 404 }
-      );
+      return Response.json({ error: "Commande introuvable" }, { status: 404 });
     }
 
     const alreadyPaid =
-      order.statut === "payé" ||
-      order.statut === "paid" ||
-      order.status === "paid" ||
-      order.status === "payé";
+      order.payment_status === "paid" ||
+      order.payment_status === "PAID";
 
     if (alreadyPaid) {
       return Response.json(
-        { error: "Cette commande est déjà payée. Impossible de repayer." },
+        { error: "Cette commande est déjà payée." },
         { status: 400 }
       );
     }
 
-    const amount =
-      order.price_cents ||
-      order.prix_cents ||
-      order["prix_cents"] ||
-      order["prix proposé par le client_cents"] ||
-      order["prix_proposé_par_le_client_cents"];
+    const amount = order.price_cents;
 
     if (!amount || amount <= 0) {
       return Response.json({ error: "Prix invalide" }, { status: 400 });
@@ -80,9 +69,18 @@ export async function POST(req: Request) {
       metadata: {
         orderId: order.id,
       },
-      success_url: `${origin}/payment/success?orderId=${order.id}`,
+      success_url: `${origin}/payment/success?orderId=${order.id}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/client/orders/${order.id}`,
     });
+
+    await supabase
+      .from("orders")
+      .update({
+        stripe_session_id: session.id,
+        payment_status: "pending",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", order.id);
 
     return Response.json({ url: session.url });
   } catch (err) {

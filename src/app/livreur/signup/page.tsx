@@ -76,6 +76,7 @@ if (loginError) throw loginError;
 
       const { error: profileError } = await supabase.from("profiles").insert({
         id: data.user.id,
+         email,
         first_name: firstName,
         last_name: lastName,
         full_name: `${firstName} ${lastName}`,
@@ -263,9 +264,9 @@ if (loginError) throw loginError;
 
         <div className="mt-6 text-center text-slate-400">
           Déjà inscrit ?{" "}
-          <Link href="/login" className="text-emerald-400 font-semibold">
-            Se connecter
-          </Link>
+ <Link href="/login?next=/livreur/missions" className="text-emerald-400 font-semibold">
+  Se connecter
+</Link>
         </div>
       </div>
     </main>

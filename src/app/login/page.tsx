@@ -11,11 +11,8 @@ function LoginPageInner() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const nextUrl = useMemo(() => {
-    const raw = searchParams.get("next");
-    if (!raw) return null;
-    if (!raw.startsWith("/")) return null;
-    if (raw.startsWith("//")) return null;
-    return raw;
+    const raw = searchParams.get("next") || "/client";
+    return raw.startsWith("/") ? raw : "/client";
   }, [searchParams]);
 
   const [email, setEmail] = useState("");
@@ -27,31 +24,6 @@ function LoginPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
- async function redirectAfterLogin(userId: string) {
-  if (nextUrl) {
-    router.replace(nextUrl);
-    return;
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (profile?.role === "livreur") {
-    router.replace("/livreur/missions");
-    return;
-  }
-
-  if (profile?.role === "admin") {
-    router.replace("/admin");
-    return;
-  }
-
-  router.replace("/client");
-}
-
   useEffect(() => {
     let cancelled = false;
 
@@ -61,7 +33,7 @@ function LoginPageInner() {
       if (cancelled) return;
 
       if (data.user) {
-        await redirectAfterLogin(data.user.id);
+        router.replace(nextUrl);
         return;
       }
 
@@ -73,7 +45,7 @@ function LoginPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [supabase, nextUrl]);
+  }, [supabase, router, nextUrl]);
 
   async function onLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -82,21 +54,14 @@ function LoginPageInner() {
     setInfo(null);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
         password,
       });
 
-      if (error) {
-        if (error.message.includes("Invalid login credentials")) {
-          throw new Error("Email ou mot de passe incorrect.");
-        }
-        throw error;
-      }
+      if (error) throw new Error("Email ou mot de passe incorrect.");
 
-      if (!data.user) throw new Error("Utilisateur introuvable.");
-
-      await redirectAfterLogin(data.user.id);
+      router.replace(nextUrl);
     } catch (err: any) {
       setError(err?.message || "Erreur de connexion");
     } finally {
@@ -116,7 +81,7 @@ function LoginPageInner() {
     try {
       setResetLoading(true);
 
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: "https://www.helpflow.fr/update-password",
       });
 
@@ -210,7 +175,7 @@ function LoginPageInner() {
           </button>
 
           <Link href="/signup" className="font-semibold text-emerald-400">
-            Créer un compte utilisateur
+            Créer un compte
           </Link>
         </div>
       </div>
