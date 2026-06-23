@@ -22,9 +22,9 @@ export default function Header() {
 
   return (
     <header className="mx-auto w-full max-w-6xl px-6 pt-6">
-      <div className="flex items-center justify-between gap-3 rounded-3xl border border-blue-100 bg-white/95 px-5 py-4 shadow-sm backdrop-blur">
+      <div className="flex items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
         <Link href="/" className="flex items-center gap-3">
-          <div className="h-11 w-11 overflow-hidden rounded-xl bg-white ring-1 ring-blue-100">
+          <div className="h-11 w-11 overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
             <Image
               src="/logo-helpflow.png"
               alt="HelpFlow"
@@ -36,12 +36,9 @@ export default function Header() {
           </div>
 
           <div>
-            <p className="font-extrabold text-slate-900">
-              HelpFlow
-            </p>
-
-            <p className="text-xs font-medium text-blue-600">
-              Achats locaux • Marketplace • Colis
+            <p className="font-extrabold text-slate-900">HelpFlow</p>
+            <p className="text-xs font-semibold text-blue-600">
+              HelpFlow Livraison
             </p>
           </div>
         </Link>
@@ -50,14 +47,14 @@ export default function Header() {
           {connected ? (
             <button
               onClick={logout}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
             >
               Déconnexion
             </button>
           ) : (
             <Link
               href="/login"
-              className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-bold text-white transition hover:bg-blue-700"
+              className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-bold text-white hover:bg-blue-700"
             >
               Connexion
             </Link>
