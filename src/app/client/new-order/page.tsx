@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -50,7 +48,8 @@ export default function NewOrderPage() {
   ];
 
   const FLOOR_OPTIONS = [
-    "RDC",
+    "Maison / RDC",
+    "Garage",
     "1er étage",
     "2e étage",
     "3e étage",
@@ -271,8 +270,8 @@ export default function NewOrderPage() {
         pricing_mode: pricingView.proposedPriceCents ? "client_proposal" : "standard",
 
         status: "PUBLISHED",
-payment_status: "PAID",
-otp_code: otp,
+        payment_status: "PAID",
+        otp_code: otp,
       };
 
       const { data, error } = await supabase
@@ -354,7 +353,7 @@ otp_code: otp,
               </select>
 
               <select value={pickupFloor} onChange={(e) => setPickupFloor(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2">
-                <option value="">Étage retrait</option>
+                <option value="">Étage / lieu retrait</option>
                 {FLOOR_OPTIONS.map((floor) => (
                   <option key={floor} value={floor}>{floor}</option>
                 ))}
@@ -380,7 +379,7 @@ otp_code: otp,
               </select>
 
               <select value={dropoffFloor} onChange={(e) => setDropoffFloor(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2">
-                <option value="">Étage livraison</option>
+                <option value="">Étage / lieu livraison</option>
                 {FLOOR_OPTIONS.map((floor) => (
                   <option key={floor} value={floor}>{floor}</option>
                 ))}
@@ -408,7 +407,12 @@ otp_code: otp,
                 ))}
               </select>
 
-              <textarea value={parcelNote} onChange={(e) => setParcelNote(e.target.value)} placeholder="Fragile, ne pas pencher… Numéro de téléphone interdit ici." className="w-full rounded-xl border border-gray-200 p-3" />
+              <textarea
+                value={parcelNote}
+                onChange={(e) => setParcelNote(e.target.value)}
+                placeholder="Exemple : fragile, ne pas pencher, petit colis, sac léger, objet à manipuler avec soin..."
+                className="w-full rounded-xl border border-gray-200 p-3"
+              />
 
               <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-3">
                 <p className="mb-2 text-sm font-medium">Photo du colis optionnelle</p>
@@ -442,7 +446,7 @@ otp_code: otp,
             step="0.5"
             value={clientProposedPrice}
             onChange={(e) => setClientProposedPrice(e.target.value)}
-            placeholder="Prix proposé client, minimum 5 €"
+            placeholder="Prix proposé utilisateur, minimum 5 €"
             className="w-full rounded-xl border border-gray-200 px-3 py-2"
           />
 
