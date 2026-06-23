@@ -18,19 +18,21 @@ export default function Hero() {
         </p>
 
         <h1 className="max-w-4xl text-3xl font-black leading-tight tracking-tight text-slate-950 sm:text-5xl">
-          La solution simple et fiable pour vos livraisons locales
+          La solution simple et fiable pour récupérer ou faire livrer vos achats
+          et colis de proximité
         </h1>
 
         <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-700">
           HelpFlow facilite la récupération et la livraison de vos achats
-          locaux, colis, documents et objets du quotidien.
+          locaux, commandes Marketplace, colis, documents et objets du
+          quotidien.
         </p>
 
         <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600">
-          Vous avez acheté un article sur une marketplace, Leboncoin, les
-          réseaux sociaux, en magasin ou auprès d’un particulier ? Publiez une
-          demande et trouvez un livreur disponible pour le récupérer ou le
-          livrer localement.
+          Vous avez acheté un article sur Leboncoin, Facebook Marketplace, les
+          réseaux sociaux, en magasin, chez un artisan ou auprès d’un
+          particulier ? Publiez une demande et trouvez un livreur disponible
+          pour récupérer ou livrer votre commande localement.
         </p>
 
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
