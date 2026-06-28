@@ -1,18 +1,36 @@
 import Link from "next/link";
 
 const purchaseSources = [
-  "Marketplace",
-  "Leboncoin",
-  "Réseaux sociaux",
-  "Commerces locaux",
-  "Entre particuliers",
-  "Commandes en magasin",
+  {
+    title: "Marketplace",
+    desc: "Vous avez acheté un article sur Facebook Marketplace ou une autre marketplace locale ? HelpFlow permet de faire récupérer votre achat par un livreur de proximité et de le recevoir rapidement sans vous déplacer.",
+  },
+  {
+    title: "Leboncoin",
+    desc: "Vous avez trouvé une bonne affaire sur Leboncoin ? Avec HelpFlow, un livreur récupère votre achat directement chez le vendeur et le livre jusqu'à votre domicile.",
+  },
+  {
+    title: "Réseaux sociaux",
+    desc: "Vous avez acheté un produit auprès d'un vendeur sur Facebook, Instagram ou d'autres réseaux sociaux ? HelpFlow récupère votre achat localement et vous le livre en toute simplicité.",
+  },
+  {
+    title: "Commerces locaux",
+    desc: "Pressing, tailleur, fleuriste, artisan ou tout autre commerce de proximité : faites récupérer vos achats ou objets sans perdre de temps.",
+  },
+  {
+    title: "Entre particuliers",
+    desc: "Envoyez facilement des clés, documents, vêtements, cadeaux ou objets à un proche ou entre particuliers grâce à un livreur local.",
+  },
+  {
+    title: "Commandes en magasin",
+    desc: "Votre commande est prête en magasin ? HelpFlow la récupère pour vous et vous la livre au moment qui vous convient.",
+  },
 ];
 
 export default function Hero() {
   return (
     <section className="mx-auto w-full max-w-6xl px-6 pt-6">
-      <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-10">
+      <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-r from-blue-50 via-white to-blue-100 p-6 shadow-xl sm:p-10">
         <p className="mb-4 inline-flex rounded-full bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700">
           HelpFlow Livraison
         </p>
@@ -23,25 +41,31 @@ export default function Hero() {
         </h1>
 
         <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-700">
-          HelpFlow facilite la récupération et la livraison de vos achats
-          locaux, commandes Marketplace, colis, documents et objets du
+          HelpFlow met en relation les utilisateurs avec des livreurs de
+          proximité pour récupérer ou livrer rapidement des achats locaux, des
+          commandes Marketplace, des colis, des documents et des objets du
           quotidien.
         </p>
 
         <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600">
-          Vous avez acheté un article sur Leboncoin, Facebook Marketplace, les
-          réseaux sociaux, en magasin, chez un artisan ou auprès d’un
-          particulier ? Publiez une demande et trouvez un livreur disponible
-          pour récupérer ou livrer votre commande localement.
+          Vous achetez sur Leboncoin, Facebook Marketplace, les réseaux sociaux,
+          en magasin ou auprès d’un particulier ? Publiez une demande, trouvez
+          un livreur disponible et recevez votre achat sans vous déplacer.
         </p>
 
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {purchaseSources.map((item) => (
             <div
-              key={item}
-              className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-center text-sm font-bold text-blue-700"
+              key={item.title}
+              className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4"
             >
-              {item}
+              <h3 className="text-sm font-black text-blue-700">
+                {item.title}
+              </h3>
+
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                {item.desc}
+              </p>
             </div>
           ))}
         </div>
