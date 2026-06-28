@@ -1,15 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 export default function LivreurSignupPage() {
-    const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  const [showPassword, setShowPassword] = useState(false);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -21,20 +21,14 @@ export default function LivreurSignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [acceptedCgu, setAcceptedCgu] = useState(false);
-
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErrorMsg(null);
-
-    if (!documentFile) {
-      setErrorMsg("La pièce d'identité est obligatoire.");
-      return;
-    }
 
     if (!acceptedCgu) {
       setErrorMsg("Tu dois accepter les CGU pour créer ton compte livreur.");
@@ -44,61 +38,102 @@ export default function LivreurSignupPage() {
     setLoading(true);
 
     try {
-     const { data, error } = await supabase.auth.signUp({
-  email,
-  password,
-});
-
-if (error) throw error;
-if (!data.user) throw new Error("Compte non créé.");
-
-const { error: loginError } = await supabase.auth.signInWithPassword({
-  email,
-  password,
-});
-
-if (loginError) throw loginError;
-
-      const ext = documentFile.name.split(".").pop() || "jpg";
-      const path = `${data.user.id}/identity-${Date.now()}.${ext}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("courier-documents")
-        .upload(path, documentFile, { upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      const { data: publicUrlData } = supabase.storage
-        .from("courier-documents")
-        .getPublicUrl(path);
-
-      const identityUrl = publicUrlData.publicUrl;
-
-      const { error: profileError } = await supabase.from("profiles").insert({
-        id: data.user.id,
-         email,
-        first_name: firstName,
-        last_name: lastName,
-        full_name: `${firstName} ${lastName}`,
-        date_of_birth: dateOfBirth,
+      const draft = {
+        firstName,
+        lastName,
+        fullName: `${firstName} ${lastName}`.trim(),
+        dateOfBirth,
         phone,
         address,
         city,
         iban,
+        email: email.trim(),
         role: "livreur",
-        verification_status: "pending",
-        identity_document_path: identityUrl,
+      };
+
+      localStorage.setItem("helpflow_livreur_draft", JSON.stringify(draft));
+
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: {
+            first_name: firstName,
+            last_name: lastName,
+            full_name: `${firstName} ${lastName}`.trim(),
+            phone,
+            city,
+            role: "livreur",
+          },
+          emailRedirectTo: "https://www.helpflow.fr/login?next=/profile/edit",
+        },
       });
 
-      if (profileError) throw profileError;
+      if (error) throw error;
+      if (!data.user) throw new Error("Compte non créé.");
 
-      alert("Compte livreur créé. En attente de validation admin.");
-      router.replace("/login");
+      if (data.session) {
+        await supabase.from("profiles").upsert(
+          {
+            id: data.user.id,
+            email: email.trim(),
+            first_name: firstName,
+            last_name: lastName,
+            full_name: `${firstName} ${lastName}`.trim(),
+            date_of_birth: dateOfBirth,
+            phone,
+            address,
+            city,
+            iban,
+            role: "livreur",
+            verification_status: "pending",
+          },
+          { onConflict: "id" }
+        );
+      }
+
+      setSuccess(true);
     } catch (err: any) {
       setErrorMsg(err?.message || "Erreur lors de la création du compte livreur");
     } finally {
       setLoading(false);
     }
+  }
+
+  if (success) {
+    return (
+      <main className="min-h-screen bg-slate-950 flex items-center justify-center px-4 py-8">
+        <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl p-6 text-center">
+          <img
+            src="/logo-helpflow.png"
+            alt="HelpFlow"
+            className="mx-auto mb-4 h-20 w-20 rounded-2xl object-contain"
+          />
+
+          <h1 className="text-3xl font-bold text-white">
+            Compte créé avec succès
+          </h1>
+
+          <div className="mt-5 rounded-2xl bg-emerald-500/10 border border-emerald-700 p-4 text-left text-emerald-200">
+            <p className="font-semibold">Votre compte livreur a été créé.</p>
+            <p className="mt-3">
+              Vérifiez votre boîte mail et cliquez sur le lien de confirmation.
+            </p>
+            <p className="mt-3">
+              Ensuite, connectez-vous pour <strong>compléter votre inscription</strong> :
+              photo, pièce d'identité, véhicule et rayon d'intervention.
+            </p>
+          </div>
+
+          <Link
+            href="/login?next=/profile/edit"
+            className="mt-6 inline-block w-full rounded-xl bg-emerald-500 px-4 py-3 font-semibold text-white"
+          >
+            Se connecter et compléter mon inscription
+          </Link>
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -116,7 +151,7 @@ if (loginError) throw loginError;
           </h1>
 
           <p className="mt-2 text-slate-400">
-            Inscription obligatoire avec document d'identité.
+            Créez votre compte. Vous compléterez ensuite votre dossier livreur après validation de votre email.
           </p>
         </div>
 
@@ -192,44 +227,30 @@ if (loginError) throw loginError;
             className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white"
           />
 
-      <div className="relative">
-  <input
-    type={showPassword ? "text" : "password"}
-    placeholder="Mot de passe (6 caractères minimum)"
-    value={password}
-    onChange={(e) => setPassword(e.target.value)}
-    required
-    minLength={6}
-    className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 pr-12 text-white"
-  />
+          <div className="relative">
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Mot de passe (6 caractères minimum)"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+              className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 pr-12 text-white"
+            />
 
-  <button
-    type="button"
-    onClick={() => setShowPassword(!showPassword)}
-    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-  >
-    👁
-  </button>
-</div>
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+            >
+              👁
+            </button>
+          </div>
 
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*,.pdf"
-            onChange={(e) => setDocumentFile(e.target.files?.[0] || null)}
-            required
-            className="hidden"
-          />
-
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="w-full rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white"
-          >
-            {documentFile
-              ? "Document ajouté : " + documentFile.name
-              : "Ajouter ma pièce d'identité"}
-          </button>
+          <div className="rounded-2xl bg-blue-500/10 border border-blue-700 p-4 text-sm text-blue-200">
+            La pièce d'identité sera demandée après confirmation de votre email,
+            dans la page <strong>Compléter mon inscription</strong>.
+          </div>
 
           <label className="flex gap-3 text-sm text-slate-300">
             <input
@@ -264,9 +285,12 @@ if (loginError) throw loginError;
 
         <div className="mt-6 text-center text-slate-400">
           Déjà inscrit ?{" "}
- <Link href="/login?next=/livreur/missions" className="text-emerald-400 font-semibold">
-  Se connecter
-</Link>
+          <Link
+            href="/login?next=/profile/edit"
+            className="text-emerald-400 font-semibold"
+          >
+            Se connecter
+          </Link>
         </div>
       </div>
     </main>
