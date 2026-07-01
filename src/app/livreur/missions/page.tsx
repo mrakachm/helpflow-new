@@ -304,7 +304,7 @@ cleanStatus(o.payment_status) === "PAID"
             </div>
 
             <div className="rounded-full bg-green-50 px-3 py-2 font-bold text-green-700">
-              Gain : {formatEuro(order.courier_earnings_cents)}
+             Montant du livreur : {formatEuro(order.courier_earnings_cents)}
             </div>
           </div>
 
@@ -451,7 +451,7 @@ cleanStatus(o.payment_status) === "PAID"
                   const input = e.currentTarget;
                   input.value = input.value.replace(/\D/g, "").slice(0, 4);
                 }}
-                placeholder="Code OTP à 4 chiffres"
+                placeholder="Code de vérification"
                 className="w-full rounded-2xl border px-4 py-3 text-lg tracking-widest"
               />
 
