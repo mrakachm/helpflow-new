@@ -178,6 +178,11 @@ export default function MissionsPage() {
       return;
     }
 
+    if (myMissions.length > 0) {
+      setMsg("Tu dois terminer ta mission actuelle avant d'en accepter une autre.");
+      return;
+    }
+
     const { error } = await supabase
       .from("orders")
       .update({
@@ -290,7 +295,19 @@ export default function MissionsPage() {
       order.vehicle_required || order.required_vehicle || "Non précisé";
 
     return (
-      <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
+      <div
+        className={`overflow-hidden rounded-3xl border shadow-sm ${
+          type === "mine"
+            ? "border-green-300 bg-green-50 ring-2 ring-green-200"
+            : "border-gray-200 bg-white"
+        }`}
+      >
+        {type === "mine" ? (
+          <div className="bg-green-600 px-4 py-3 text-center font-bold text-white">
+            ✅ Ma mission en cours
+          </div>
+        ) : null}
+
         {order.parcel_photo_url ? (
           <img
             src={order.parcel_photo_url}
@@ -423,10 +440,17 @@ export default function MissionsPage() {
           {type === "available" && (
             <button
               type="button"
+              disabled={myMissions.length > 0}
               onClick={() => acceptMission(order.id)}
-              className="w-full rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white"
+              className={`w-full rounded-2xl px-4 py-3 font-semibold text-white ${
+                myMissions.length > 0
+                  ? "cursor-not-allowed bg-gray-400"
+                  : "bg-blue-600"
+              }`}
             >
-              Accepter cette mission
+              {myMissions.length > 0
+                ? "Mission en cours"
+                : "Accepter cette mission"}
             </button>
           )}
 
@@ -599,12 +623,40 @@ export default function MissionsPage() {
           </div>
         )}
 
+        <section id="mes-missions" className="space-y-4 scroll-mt-6">
+          <div className="rounded-3xl border border-green-200 bg-green-50 p-4">
+            <h2 className="text-2xl font-bold text-green-800">
+              Ma mission en cours
+            </h2>
+            <p className="text-sm text-green-700">
+              Une seule mission peut être prise à la fois.
+            </p>
+          </div>
+
+          {myMissions.length === 0 ? (
+            <div className="rounded-3xl bg-white p-6 text-center text-gray-600">
+              Aucune mission en cours
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {myMissions.map((order) => (
+                <OrderCard key={order.id} order={order} type="mine" />
+              ))}
+            </div>
+          )}
+        </section>
+
         <section className="space-y-4">
           <div>
-            <h2 className="text-2xl font-bold">Missions recommandées</h2>
+            <h2 className="text-2xl font-bold">Missions disponibles</h2>
             <p className="text-gray-500">
               Les étoiles indiquent les missions simples à prendre.
             </p>
+            {myMissions.length > 0 ? (
+              <p className="mt-2 rounded-2xl bg-yellow-50 p-3 text-sm font-semibold text-yellow-800">
+                Tu as déjà une mission en cours. Termine-la avant d'en accepter une autre.
+              </p>
+            ) : null}
           </div>
 
           {available.length === 0 ? (
@@ -618,22 +670,6 @@ export default function MissionsPage() {
             <div className="space-y-4">
               {available.map((order) => (
                 <OrderCard key={order.id} order={order} type="available" />
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section id="mes-missions" className="space-y-4 scroll-mt-6">
-          <h2 className="text-2xl font-bold">Mes missions en cours</h2>
-
-          {myMissions.length === 0 ? (
-            <div className="rounded-3xl bg-white p-6 text-center text-gray-600">
-              Aucune mission en cours
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {myMissions.map((order) => (
-                <OrderCard key={order.id} order={order} type="mine" />
               ))}
             </div>
           )}
