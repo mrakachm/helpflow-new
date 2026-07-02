@@ -380,6 +380,18 @@ parcel_size: parcelSize || null,
 
           <section className="rounded-2xl border border-gray-200 bg-white p-4">
             <h2 className="mb-3 text-base font-semibold">Receveur</h2>
+            <select
+  value={bagCount}
+  onChange={(e) => setBagCount(e.target.value)}
+  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
+>
+  <option value="">Nombre de sacs / colis</option>
+  {BAG_OPTIONS.map((count) => (
+    <option key={count} value={count}>
+      {count}
+    </option>
+  ))}
+</select>
 
             <div className="grid grid-cols-1 gap-3">
               <input value={receiverName} onChange={(e) => setReceiverName(e.target.value)} placeholder="Nom + Prénom" className="w-full rounded-xl border border-gray-200 px-3 py-2" />
@@ -415,9 +427,9 @@ parcel_size: parcelSize || null,
   className="mt-3 w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
 >
   <option value="">Véhicule requis</option>
-  <option value="À pied">À pied</option>
-  <option value="Vélo">Vélo</option>
-  <option value="Scooter">Scooter</option>
+  <option value="Petit transport">
+    À pied / Vélo / Scooter / Transports
+  </option>
   <option value="Voiture">Voiture</option>
   <option value="Utilitaire">Utilitaire</option>
 </select>
