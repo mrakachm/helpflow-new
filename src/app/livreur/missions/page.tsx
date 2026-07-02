@@ -185,7 +185,7 @@ cleanStatus(o.payment_status) === "PAID"
         updated_at: new Date().toISOString(),
       })
       .eq("id", orderId)
-.eq("status", "PUBLISHED")
+.eq("status", "Publie")
 .is("courier_id", null);
 
     if (error) {

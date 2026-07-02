@@ -106,6 +106,9 @@ export default function NewOrderPage() {
   const [scheduledAt, setScheduledAt] = useState("");
   const [clientProposedPrice, setClientProposedPrice] = useState("5");
 
+  const [vehicleRequired, setVehicleRequired] = useState("");
+const [parcelSize, setParcelSize] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -273,6 +276,9 @@ export default function NewOrderPage() {
         parcel_type: parcelType || null,
         parcel_note: parcelNote || null,
         parcel_photo_url: parcelPhotoUrl,
+vehicle_required: vehicleRequired || null,
+parcel_size: parcelSize || null,
+
 
         price_cents: pricingView.finalPriceCents,
         client_proposed_price_cents: pricingView.proposedPriceCents,
@@ -280,8 +286,8 @@ export default function NewOrderPage() {
         courier_earnings_cents: pricingView.courierEarningsCents,
         pricing_mode: pricingView.proposedPriceCents ? "client_proposal" : "standard",
 
-        status: "PUBLISHED",
-        payment_status: "PAID",
+       status: "PUBLISHED",
+        payment_status: "paid",
         otp_code: otp,
       };
 
