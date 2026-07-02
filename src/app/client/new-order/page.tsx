@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -86,7 +85,9 @@ export default function NewOrderPage() {
   const [parcelType, setParcelType] = useState("");
   const [parcelNote, setParcelNote] = useState("");
   const [parcelPhoto, setParcelPhoto] = useState<File | null>(null);
-  const [parcelPhotoPreview, setParcelPhotoPreview] = useState<string | null>(null);
+  const [parcelPhotoPreview, setParcelPhotoPreview] = useState<string | null>(
+    null
+  );
 
   const [senderName, setSenderName] = useState("");
   const [senderPhone, setSenderPhone] = useState("");
@@ -105,9 +106,8 @@ export default function NewOrderPage() {
   const [bagCount, setBagCount] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [clientProposedPrice, setClientProposedPrice] = useState("5");
-
   const [vehicleRequired, setVehicleRequired] = useState("");
-const [parcelSize, setParcelSize] = useState("");
+  const [parcelSize, setParcelSize] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -133,7 +133,10 @@ const [parcelSize, setParcelSize] = useState("");
       : BASE_PRICE_CENTS;
 
     const platformFeeCents = Math.round(finalPriceCents * 0.2);
-    const courierEarningsCents = Math.max(0, finalPriceCents - platformFeeCents);
+    const courierEarningsCents = Math.max(
+      0,
+      finalPriceCents - platformFeeCents
+    );
 
     return {
       proposedPriceCents,
@@ -147,26 +150,33 @@ const [parcelSize, setParcelSize] = useState("");
     if (!userId) return "Tu dois être connecté pour créer une commande.";
     if (!senderName.trim()) return "Nom expéditeur manquant.";
     if (!senderPhone.trim()) return "Téléphone expéditeur manquant.";
-    if (!senderAddress.trim() || !senderCity.trim()) return "Adresse expéditeur incomplète.";
+    if (!senderAddress.trim() || !senderCity.trim())
+      return "Adresse expéditeur incomplète.";
     if (!pickupHasElevator) return "Indique si le retrait possède un ascenseur.";
     if (!pickupFloor) return "Étage de retrait manquant.";
 
     if (!receiverName.trim()) return "Nom receveur manquant.";
     if (!receiverPhone.trim()) return "Téléphone receveur manquant.";
-    if (!recipientEmail.trim()) return "Email du receveur manquant pour envoyer le code OTP.";
-    if (!receiverAddress.trim() || !receiverCity.trim()) return "Adresse receveur incomplète.";
-    if (!dropoffHasElevator) return "Indique si la livraison possède un ascenseur.";
+    if (!recipientEmail.trim())
+      return "Email du receveur manquant pour envoyer le code OTP.";
+    if (!receiverAddress.trim() || !receiverCity.trim())
+      return "Adresse receveur incomplète.";
+    if (!dropoffHasElevator)
+      return "Indique si la livraison possède un ascenseur.";
     if (!dropoffFloor) return "Étage de livraison manquant.";
 
     if (!bagCount) return "Nombre de sacs / colis manquant.";
-if (!vehicleRequired) return "Choisis le véhicule requis pour cette livraison.";
+    if (!vehicleRequired)
+      return "Choisis le véhicule requis pour cette livraison.";
+
     return null;
   }
 
   function validateSender(): string | null {
     if (!senderName.trim()) return "Nom expéditeur manquant.";
     if (!senderPhone.trim()) return "Téléphone expéditeur manquant.";
-    if (!senderAddress.trim() || !senderCity.trim()) return "Adresse expéditeur incomplète.";
+    if (!senderAddress.trim() || !senderCity.trim())
+      return "Adresse expéditeur incomplète.";
     return null;
   }
 
@@ -198,33 +208,33 @@ if (!vehicleRequired) return "Choisis le véhicule requis pour cette livraison."
   }
 
   async function uploadParcelPhoto(): Promise<string | null> {
-  if (!parcelPhoto || !userId) return null;
+    if (!parcelPhoto || !userId) return null;
 
-  try {
-    const extension = parcelPhoto.name.split(".").pop()?.toLowerCase() || "jpg";
-    const safeExtension = extension.replace(/[^a-z0-9]/g, "") || "jpg";
-    const path = `${userId}/${Date.now()}.${safeExtension}`;
+    try {
+      const extension = parcelPhoto.name.split(".").pop()?.toLowerCase() || "jpg";
+      const safeExtension = extension.replace(/[^a-z0-9]/g, "") || "jpg";
+      const path = `${userId}/${Date.now()}.${safeExtension}`;
 
-    const { error } = await supabase.storage
-      .from("parcel-photos")
-      .upload(path, parcelPhoto, {
-        cacheControl: "3600",
-        upsert: false,
-        contentType: parcelPhoto.type,
-      });
+      const { error } = await supabase.storage
+        .from("parcel-photos")
+        .upload(path, parcelPhoto, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: parcelPhoto.type,
+        });
 
-    if (error) {
-      console.error("UPLOAD PHOTO ERROR =>", error);
+      if (error) {
+        console.error("UPLOAD PHOTO ERROR =>", error);
+        return null;
+      }
+
+      const { data } = supabase.storage.from("parcel-photos").getPublicUrl(path);
+      return data.publicUrl || null;
+    } catch (error) {
+      console.error("UPLOAD PHOTO FAILED =>", error);
       return null;
     }
-
-    const { data } = supabase.storage.from("parcel-photos").getPublicUrl(path);
-    return data.publicUrl || null;
-  } catch (error) {
-    console.error("UPLOAD PHOTO FAILED =>", error);
-    return null;
   }
-}
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -276,17 +286,18 @@ if (!vehicleRequired) return "Choisis le véhicule requis pour cette livraison."
         parcel_type: parcelType || null,
         parcel_note: parcelNote || null,
         parcel_photo_url: parcelPhotoUrl,
-vehicle_required: vehicleRequired || null,
-parcel_size: parcelSize || null,
-
+        vehicle_required: vehicleRequired || null,
+        parcel_size: parcelSize || null,
 
         price_cents: pricingView.finalPriceCents,
         client_proposed_price_cents: pricingView.proposedPriceCents,
         platform_fee_cents: pricingView.platformFeeCents,
         courier_earnings_cents: pricingView.courierEarningsCents,
-        pricing_mode: pricingView.proposedPriceCents ? "client_proposal" : "standard",
+        pricing_mode: pricingView.proposedPriceCents
+          ? "client_proposal"
+          : "standard",
 
-       status: "PUBLISHED",
+        status: "PUBLISHED",
         payment_status: "paid",
         otp_code: otp,
       };
@@ -326,10 +337,16 @@ parcel_size: parcelSize || null,
     <main className="min-h-screen bg-gray-50">
       <div className="mx-auto max-w-xl px-4 py-6">
         <div className="mb-5 flex items-center gap-3">
-          <img src="/logo-helpflow.png" alt="HelpFlow" className="h-10 w-10 rounded-xl object-cover" />
+          <img
+            src="/logo-helpflow.png"
+            alt="HelpFlow"
+            className="h-10 w-10 rounded-xl object-cover"
+          />
           <div>
             <h1 className="text-xl font-semibold">Créer une commande</h1>
-            <p className="text-sm text-gray-600">Remplis les infos pour créer ta livraison.</p>
+            <p className="text-sm text-gray-600">
+              Remplis les infos pour créer ta livraison.
+            </p>
           </div>
         </div>
 
@@ -357,22 +374,57 @@ parcel_size: parcelSize || null,
             </div>
 
             <div className="grid grid-cols-1 gap-3">
-              <input value={senderName} onChange={(e) => setSenderName(e.target.value)} placeholder="Nom + Prénom" className="w-full rounded-xl border border-gray-200 px-3 py-2" />
-              <input type="tel" value={senderPhone} onChange={(e) => setSenderPhone(e.target.value)} placeholder="Téléphone" className="w-full rounded-xl border border-gray-200 px-3 py-2" />
-              <input value={senderAddress} onChange={(e) => setSenderAddress(e.target.value)} onBlur={(e) => setSenderAddress(cleanSimpleAddress(e.target.value))} placeholder="Adresse départ" autoComplete="off" className="w-full rounded-xl border border-gray-200 px-3 py-2" />
-              <input value={senderCity} onChange={(e) => setSenderCity(e.target.value)} placeholder="Ville" className="w-full rounded-xl border border-gray-200 px-3 py-2" />
+              <input
+                value={senderName}
+                onChange={(e) => setSenderName(e.target.value)}
+                placeholder="Nom + Prénom"
+                className="w-full rounded-xl border border-gray-200 px-3 py-2"
+              />
+              <input
+                type="tel"
+                value={senderPhone}
+                onChange={(e) => setSenderPhone(e.target.value)}
+                placeholder="Téléphone"
+                className="w-full rounded-xl border border-gray-200 px-3 py-2"
+              />
+              <input
+                value={senderAddress}
+                onChange={(e) => setSenderAddress(e.target.value)}
+                onBlur={(e) => setSenderAddress(cleanSimpleAddress(e.target.value))}
+                placeholder="Adresse départ"
+                autoComplete="off"
+                className="w-full rounded-xl border border-gray-200 px-3 py-2"
+              />
+              <input
+                value={senderCity}
+                onChange={(e) => setSenderCity(e.target.value)}
+                placeholder="Ville"
+                className="w-full rounded-xl border border-gray-200 px-3 py-2"
+              />
 
-              <select value={pickupHasElevator} onChange={(e) => setPickupHasElevator(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2">
+              <select
+                value={pickupHasElevator}
+                onChange={(e) => setPickupHasElevator(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
+              >
                 <option value="">Ascenseur retrait ?</option>
                 {ELEVATOR_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
                 ))}
               </select>
 
-              <select value={pickupFloor} onChange={(e) => setPickupFloor(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2">
+              <select
+                value={pickupFloor}
+                onChange={(e) => setPickupFloor(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
+              >
                 <option value="">Étage / lieu retrait</option>
                 {FLOOR_OPTIONS.map((floor) => (
-                  <option key={floor} value={floor}>{floor}</option>
+                  <option key={floor} value={floor}>
+                    {floor}
+                  </option>
                 ))}
               </select>
             </div>
@@ -380,37 +432,68 @@ parcel_size: parcelSize || null,
 
           <section className="rounded-2xl border border-gray-200 bg-white p-4">
             <h2 className="mb-3 text-base font-semibold">Receveur</h2>
-            <select
-  value={bagCount}
-  onChange={(e) => setBagCount(e.target.value)}
-  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
->
-  <option value="">Nombre de sacs / colis</option>
-  {BAG_OPTIONS.map((count) => (
-    <option key={count} value={count}>
-      {count}
-    </option>
-  ))}
-</select>
 
             <div className="grid grid-cols-1 gap-3">
-              <input value={receiverName} onChange={(e) => setReceiverName(e.target.value)} placeholder="Nom + Prénom" className="w-full rounded-xl border border-gray-200 px-3 py-2" />
-              <input type="tel" value={receiverPhone} onChange={(e) => setReceiverPhone(e.target.value)} placeholder="Téléphone" className="w-full rounded-xl border border-gray-200 px-3 py-2" />
-              <input type="email" value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} placeholder="Email du receveur" className="w-full rounded-xl border border-gray-200 px-3 py-2" />
-              <input value={receiverAddress} onChange={(e) => setReceiverAddress(e.target.value)} onBlur={(e) => setReceiverAddress(cleanSimpleAddress(e.target.value))} placeholder="Adresse livraison" autoComplete="off" className="w-full rounded-xl border border-gray-200 px-3 py-2" />
-              <input value={receiverCity} onChange={(e) => setReceiverCity(e.target.value)} placeholder="Ville" className="w-full rounded-xl border border-gray-200 px-3 py-2" />
+              <input
+                value={receiverName}
+                onChange={(e) => setReceiverName(e.target.value)}
+                placeholder="Nom + Prénom"
+                className="w-full rounded-xl border border-gray-200 px-3 py-2"
+              />
+              <input
+                type="tel"
+                value={receiverPhone}
+                onChange={(e) => setReceiverPhone(e.target.value)}
+                placeholder="Téléphone"
+                className="w-full rounded-xl border border-gray-200 px-3 py-2"
+              />
+              <input
+                type="email"
+                value={recipientEmail}
+                onChange={(e) => setRecipientEmail(e.target.value)}
+                placeholder="Email du receveur"
+                className="w-full rounded-xl border border-gray-200 px-3 py-2"
+              />
+              <input
+                value={receiverAddress}
+                onChange={(e) => setReceiverAddress(e.target.value)}
+                onBlur={(e) =>
+                  setReceiverAddress(cleanSimpleAddress(e.target.value))
+                }
+                placeholder="Adresse livraison"
+                autoComplete="off"
+                className="w-full rounded-xl border border-gray-200 px-3 py-2"
+              />
+              <input
+                value={receiverCity}
+                onChange={(e) => setReceiverCity(e.target.value)}
+                placeholder="Ville"
+                className="w-full rounded-xl border border-gray-200 px-3 py-2"
+              />
 
-              <select value={dropoffHasElevator} onChange={(e) => setDropoffHasElevator(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2">
+              <select
+                value={dropoffHasElevator}
+                onChange={(e) => setDropoffHasElevator(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
+              >
                 <option value="">Ascenseur livraison ?</option>
                 {ELEVATOR_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
                 ))}
               </select>
 
-              <select value={dropoffFloor} onChange={(e) => setDropoffFloor(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2">
+              <select
+                value={dropoffFloor}
+                onChange={(e) => setDropoffFloor(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
+              >
                 <option value="">Étage / lieu livraison</option>
                 {FLOOR_OPTIONS.map((floor) => (
-                  <option key={floor} value={floor}>{floor}</option>
+                  <option key={floor} value={floor}>
+                    {floor}
+                  </option>
                 ))}
               </select>
             </div>
@@ -419,40 +502,59 @@ parcel_size: parcelSize || null,
           <section className="rounded-2xl border border-gray-200 bg-white p-4">
             <h2 className="mb-3 text-base font-semibold">Colis & Livraison</h2>
 
-          
+            <div className="grid grid-cols-1 gap-3">
+              <select
+                value={bagCount}
+                onChange={(e) => setBagCount(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
+              >
+                <option value="">Nombre de sacs / colis</option>
+                {BAG_OPTIONS.map((count) => (
+                  <option key={count} value={count}>
+                    {count}
+                  </option>
+                ))}
+              </select>
 
-<select
-  value={vehicleRequired}
-  onChange={(e) => setVehicleRequired(e.target.value)}
-  className="mt-3 w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
->
-  <option value="">Véhicule requis</option>
-  <option value="Petit transport">
-    À pied / Vélo / Scooter / Transports
-  </option>
-  <option value="Voiture">Voiture</option>
-  <option value="Utilitaire">Utilitaire</option>
-</select>
+              <select
+                value={vehicleRequired}
+                onChange={(e) => setVehicleRequired(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
+              >
+                <option value="">Véhicule requis</option>
+                <option value="Petit transport">
+                  À pied / Vélo / Scooter / Transports
+                </option>
+                <option value="Voiture">Voiture</option>
+                <option value="Utilitaire">Utilitaire</option>
+              </select>
 
-<select
-  value={parcelSize}
-  onChange={(e) => setParcelSize(e.target.value)}
-  className="mt-3 w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
->
-  <option value="">Taille du colis (optionnelle)</option>
-  <option value="Petit">Petit</option>
-  <option value="Moyen">Moyen</option>
-  <option value="Grand">Grand</option>
-  <option value="Très grand">Très grand</option>
-</select>
+              <select
+                value={parcelSize}
+                onChange={(e) => setParcelSize(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
+              >
+                <option value="">Taille du colis (optionnelle)</option>
+                <option value="Petit">Petit</option>
+                <option value="Moyen">Moyen</option>
+                <option value="Grand">Grand</option>
+                <option value="Très grand">Très grand</option>
+              </select>
+            </div>
 
-<div className="mt-3 rounded-2xl border border-gray-200 bg-white p-4 space-y-3">
+            <div className="mt-3 rounded-2xl border border-gray-200 bg-white p-4 space-y-3">
               <h3 className="text-lg font-semibold">Description du colis</h3>
 
-              <select value={parcelType} onChange={(e) => setParcelType(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white p-3">
+              <select
+                value={parcelType}
+                onChange={(e) => setParcelType(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-white p-3"
+              >
                 <option value="">Choisir…</option>
                 {PARCEL_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
                 ))}
               </select>
 
@@ -464,16 +566,35 @@ parcel_size: parcelSize || null,
               />
 
               <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-3">
-                <p className="mb-2 text-sm font-medium">Photo du colis optionnelle</p>
+                <p className="mb-2 text-sm font-medium">
+                  Photo du colis optionnelle
+                </p>
 
-                <input type="file" accept="image/*" onChange={(e) => handleParcelPhotoChange(e.target.files?.[0] || null)} className="w-full text-sm" />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) =>
+                    handleParcelPhotoChange(e.target.files?.[0] || null)
+                  }
+                  className="w-full text-sm"
+                />
 
-                <p className="mt-2 text-xs text-gray-500">Image facultative. Taille maximum : 5 MB.</p>
+                <p className="mt-2 text-xs text-gray-500">
+                  Image facultative. Taille maximum : 5 MB.
+                </p>
 
                 {parcelPhotoPreview ? (
                   <div className="mt-3">
-                    <img src={parcelPhotoPreview} alt="Aperçu du colis" className="max-h-56 w-full rounded-2xl object-cover" />
-                    <button type="button" onClick={() => handleParcelPhotoChange(null)} className="mt-2 rounded-xl border border-gray-200 px-3 py-2 text-sm">
+                    <img
+                      src={parcelPhotoPreview}
+                      alt="Aperçu du colis"
+                      className="max-h-56 w-full rounded-2xl object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleParcelPhotoChange(null)}
+                      className="mt-2 rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                    >
                       Retirer la photo
                     </button>
                   </div>
@@ -482,25 +603,29 @@ parcel_size: parcelSize || null,
             </div>
 
             <div className="mt-3 text-sm text-gray-600">
-              Prix : <span className="font-semibold">{formatEuro(pricingView.finalPriceCents)}</span>
+              Prix :{" "}
+              <span className="font-semibold">
+                {formatEuro(pricingView.finalPriceCents)}
+              </span>
             </div>
 
             <div className="mt-3">
-  <label className="mb-2 block text-sm font-semibold text-gray-700">
-    Date et heure souhaitées pour la livraison
-  </label>
+              <label className="mb-2 block text-sm font-semibold text-gray-700">
+                Date et heure souhaitées pour la livraison
+              </label>
 
-  <input
-    type="datetime-local"
-    value={scheduledAt}
-    onChange={(e) => setScheduledAt(e.target.value)}
-    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-3 text-gray-900"
-  />
+              <input
+                type="datetime-local"
+                value={scheduledAt}
+                onChange={(e) => setScheduledAt(e.target.value)}
+                className="w-full rounded-xl border border-gray-300 bg-white px-3 py-3 text-gray-900"
+              />
 
-  <p className="mt-1 text-xs text-gray-500">
-    Optionnel : laisse vide si la livraison peut être faite dès qu’un livreur est disponible.
-  </p>
-</div>
+              <p className="mt-1 text-xs text-gray-500">
+                Optionnel : laisse vide si la livraison peut être faite dès
+                qu’un livreur est disponible.
+              </p>
+            </div>
           </section>
 
           <input
@@ -514,7 +639,11 @@ parcel_size: parcelSize || null,
             className="w-full rounded-xl border border-gray-200 px-3 py-2"
           />
 
-          <button type="submit" disabled={loading} className="w-full rounded-xl bg-black px-4 py-3 text-white disabled:opacity-60">
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-xl bg-black px-4 py-3 text-white disabled:opacity-60"
+          >
             {loading ? "Création..." : "Créer la commande"}
           </button>
         </form>
