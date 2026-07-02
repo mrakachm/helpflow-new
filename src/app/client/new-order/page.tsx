@@ -195,8 +195,9 @@ export default function NewOrderPage() {
   }
 
   async function uploadParcelPhoto(): Promise<string | null> {
-    if (!parcelPhoto || !userId) return null;
+  if (!parcelPhoto || !userId) return null;
 
+  try {
     const extension = parcelPhoto.name.split(".").pop()?.toLowerCase() || "jpg";
     const safeExtension = extension.replace(/[^a-z0-9]/g, "") || "jpg";
     const path = `${userId}/${Date.now()}.${safeExtension}`;
@@ -209,11 +210,18 @@ export default function NewOrderPage() {
         contentType: parcelPhoto.type,
       });
 
-    if (error) throw new Error(error.message || "Erreur upload photo colis.");
+    if (error) {
+      console.error("UPLOAD PHOTO ERROR =>", error);
+      return null;
+    }
 
     const { data } = supabase.storage.from("parcel-photos").getPublicUrl(path);
     return data.publicUrl || null;
+  } catch (error) {
+    console.error("UPLOAD PHOTO FAILED =>", error);
+    return null;
   }
+}
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
