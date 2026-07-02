@@ -287,7 +287,7 @@ export default function NewOrderPage() {
         parcel_note: parcelNote || null,
         parcel_photo_url: parcelPhotoUrl,
         vehicle_required: vehicleRequired || null,
-        parcel_size: parcelSize || null,
+        
 
         price_cents: pricingView.finalPriceCents,
         client_proposed_price_cents: pricingView.proposedPriceCents,
