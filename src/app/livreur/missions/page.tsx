@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import MissionRoutePreview from "@/components/MissionRoutePreview";
 import Link from "next/link";
+
 type Order = {
   id: string;
   sender_name?: string | null;
@@ -23,6 +24,7 @@ type Order = {
   parcel_note?: string | null;
   parcel_size?: string | null;
   required_vehicle?: string | null;
+  vehicle_required?: string | null;
   service_zone?: string | null;
   zone_level?: string | null;
   parcel_photo_url?: string | null;
@@ -119,7 +121,7 @@ export default function MissionsPage() {
         .from("orders")
         .select("*")
         .eq("status", "PUBLISHED")
-.eq("payment_status", "PAID")
+        .in("payment_status", ["PAID", "paid"])
         .is("courier_id", null)
         .order("created_at", { ascending: false });
 
@@ -140,12 +142,12 @@ export default function MissionsPage() {
       }
 
       setAvailable(
-  ((availableData as Order[]) || []).filter(
-    (o) =>
-      cleanStatus(o.status) === "PUBLISHED" &&
-cleanStatus(o.payment_status) === "PAID"
-  )
-);
+        ((availableData as Order[]) || []).filter(
+          (o) =>
+            cleanStatus(o.status) === "PUBLISHED" &&
+            cleanStatus(o.payment_status) === "PAID"
+        )
+      );
 
       setMyMissions(myData);
     } catch (error: any) {
@@ -185,8 +187,8 @@ cleanStatus(o.payment_status) === "PAID"
         updated_at: new Date().toISOString(),
       })
       .eq("id", orderId)
-.eq("status", "PUBLISHED")
-.is("courier_id", null);
+      .eq("status", "PUBLISHED")
+      .is("courier_id", null);
 
     if (error) {
       setMsg(error.message);
@@ -232,7 +234,7 @@ cleanStatus(o.payment_status) === "PAID"
     const enteredOtp = input?.value.trim();
 
     if (!enteredOtp || enteredOtp.length !== 4) {
-      setMsg("Entre le code OTP à 4 chiffres.");
+      setMsg("Entre le code de vérification à 4 chiffres.");
       return;
     }
 
@@ -245,7 +247,7 @@ cleanStatus(o.payment_status) === "PAID"
     const result = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      setMsg(result?.error || "Code OTP incorrect.");
+      setMsg(result?.error || "Code de vérification incorrect.");
       return;
     }
 
@@ -260,7 +262,6 @@ cleanStatus(o.payment_status) === "PAID"
     const { error } = await supabase
       .from("orders")
       .update({
-        
         courier_id: null,
         accepted_at: null,
         started_at: null,
@@ -285,6 +286,8 @@ cleanStatus(o.payment_status) === "PAID"
 
   function OrderCard({ order, type }: { order: Order; type: "available" | "mine" }) {
     const status = cleanStatus(order.status);
+    const vehicleRequired =
+      order.vehicle_required || order.required_vehicle || "Non précisé";
 
     return (
       <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
@@ -304,7 +307,7 @@ cleanStatus(o.payment_status) === "PAID"
             </div>
 
             <div className="rounded-full bg-green-50 px-3 py-2 font-bold text-green-700">
-             Montant du livreur : {formatEuro(order.courier_earnings_cents)}
+              Montant du livreur : {formatEuro(order.courier_earnings_cents)}
             </div>
           </div>
 
@@ -370,7 +373,7 @@ cleanStatus(o.payment_status) === "PAID"
 
               {type === "mine" && order.recipient_email ? (
                 <p className="mt-2 text-xs text-gray-500">
-                  Email OTP : {order.recipient_email}
+                  Email du receveur : {order.recipient_email}
                 </p>
               ) : null}
             </div>
@@ -394,9 +397,7 @@ cleanStatus(o.payment_status) === "PAID"
 
             <div className="rounded-xl bg-gray-50 p-3">
               <p className="text-gray-500">Véhicule requis</p>
-              <p className="font-semibold">
-                {order.required_vehicle || "Non précisé"}
-              </p>
+              <p className="font-semibold">{vehicleRequired}</p>
             </div>
           </div>
 
@@ -562,28 +563,26 @@ cleanStatus(o.payment_status) === "PAID"
                   Zone : {courierProfile?.city || "Non renseignée"}
                 </p>
 
-             {courierProfile?.phone ? (
-  <button
-    type="button"
-    onClick={() => callPhone(courierProfile.phone)}
-    className="mt-2 text-sm font-semibold text-blue-600 underline"
-  >
-    {courierProfile.phone}
-  </button>
-) : (
-  <p className="mt-2 text-sm text-red-500">
-    Téléphone livreur non renseigné
-  </p>
-)}
+                {courierProfile?.phone ? (
+                  <button
+                    type="button"
+                    onClick={() => callPhone(courierProfile.phone)}
+                    className="mt-2 text-sm font-semibold text-blue-600 underline"
+                  >
+                    {courierProfile.phone}
+                  </button>
+                ) : (
+                  <p className="mt-2 text-sm text-red-500">
+                    Téléphone livreur non renseigné
+                  </p>
+                )}
 
-<Link
-  href="/profile/edit"
-  className="mt-3 inline-block rounded-xl bg-blue-600 px-4 py-2 text-white"
->
-  Modifier mon profil
-</Link>
-
-                                      
+                <Link
+                  href="/profile/edit"
+                  className="mt-3 inline-block rounded-xl bg-blue-600 px-4 py-2 text-white"
+                >
+                  Modifier mon profil
+                </Link>
               </div>
 
               <div className="text-right">
