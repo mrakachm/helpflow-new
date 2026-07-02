@@ -309,7 +309,7 @@ export default function NewOrderPage() {
         .single();
 
       if (error) {
-        setMsg(error.message || JSON.stringify(error));
+        setMsg("Impossible de créer la commande. Vérifie les informations puis réessaie.");
         setLoading(false);
         return;
       }
