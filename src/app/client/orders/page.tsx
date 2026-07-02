@@ -8,24 +8,18 @@ type OrderRow = {
   id: string;
   created_at: string;
   status: string | null;
-
   pickup_address: string | null;
   dropoff_address: string | null;
-
   pickup_city: string | null;
   dropoff_city: string | null;
-
   pickup_zip: string | null;
   dropoff_zip: string | null;
-
   distance_km: number | null;
   bag_count: number | null;
   weight_kg: number | null;
-
   price_cents: number | null;
   platform_fee_cents: number | null;
   courier_earnings_cents: number | null;
-
   courier_offer_price_cents: number | null;
   courier_offer_status: string | null;
   courier_offer_by: string | null;
@@ -36,14 +30,8 @@ function formatMoney(cents: number | null) {
   return (cents / 100).toFixed(2).replace(".", ",");
 }
 
-function formatLine(
-  address?: string | null,
-  zip?: string | null,
-  city?: string | null
-) {
-  const parts = [address, zip, city].filter(
-    (v) => v && String(v).trim().length > 0
-  );
+function formatLine(address?: string | null, zip?: string | null, city?: string | null) {
+  const parts = [address, zip, city].filter((v) => v && String(v).trim().length > 0);
   return parts.join(", ");
 }
 
@@ -62,7 +50,7 @@ function getStatusLabel(status?: string | null) {
   if (s === "pending") return "Payée - en attente";
   if (s === "accepted") return "Livreur accepté";
   if (s === "out_for_delivery" || s === "en_cours") return "En cours";
-  if (s === "livre" || s === "livree" || s === "delivered") return "Livrée";
+  if (s === "livre" || s === "livree" || s === "delivered") return "✅ Livrée";
   if (s === "draft" || s === "brouillon") return "Brouillon";
 
   return status || "—";
@@ -125,10 +113,7 @@ export default function OrdersPage() {
 
     const finalPriceCents = order.courier_offer_price_cents;
     const platformFeeCents = Math.round(finalPriceCents * 0.2);
-    const courierEarningsCents = Math.max(
-      0,
-      finalPriceCents - platformFeeCents
-    );
+    const courierEarningsCents = Math.max(0, finalPriceCents - platformFeeCents);
 
     setActionLoading(order.id);
     setError(null);
@@ -194,11 +179,7 @@ export default function OrdersPage() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold">Mes commandes</h1>
 
-        <button
-          onClick={loadOrders}
-          className="border px-3 py-2 rounded"
-          disabled={loading}
-        >
+        <button onClick={loadOrders} className="border px-3 py-2 rounded" disabled={loading}>
           {loading ? "Chargement..." : "Rafraîchir"}
         </button>
       </div>
@@ -210,20 +191,14 @@ export default function OrdersPage() {
       )}
 
       {!loading && !error && orders.length === 0 && (
-        <div className="p-3 rounded border bg-white">
-          Aucune commande pour le moment.
-        </div>
+        <div className="p-3 rounded border bg-white">Aucune commande pour le moment.</div>
       )}
 
       <div className="space-y-3">
         {orders.map((o) => {
           const price = formatMoney(o.price_cents);
           const pickup = formatLine(o.pickup_address, o.pickup_zip, o.pickup_city);
-          const dropoff = formatLine(
-            o.dropoff_address,
-            o.dropoff_zip,
-            o.dropoff_city
-          );
+          const dropoff = formatLine(o.dropoff_address, o.dropoff_zip, o.dropoff_city);
 
           const hasPendingOffer =
             o.courier_offer_status === "pending" &&
@@ -247,7 +222,7 @@ export default function OrdersPage() {
                       Statut : <span>{getStatusLabel(o.status)}</span>
                     </p>
                     <p className="text-xs text-gray-600">
-                      {new Date(o.created_at).toLocaleString()}
+                      {new Date(o.created_at).toLocaleString("fr-FR")}
                     </p>
                   </div>
 
@@ -258,12 +233,10 @@ export default function OrdersPage() {
 
                 <div className="mt-3 text-sm">
                   <p>
-                    <span className="font-semibold">Départ :</span>{" "}
-                    {pickup || "—"}
+                    <span className="font-semibold">Départ :</span> {pickup || "—"}
                   </p>
                   <p>
-                    <span className="font-semibold">Arrivée :</span>{" "}
-                    {dropoff || "—"}
+                    <span className="font-semibold">Arrivée :</span> {dropoff || "—"}
                   </p>
                 </div>
 
@@ -275,13 +248,12 @@ export default function OrdersPage() {
               {hasPendingOffer ? (
                 <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50 p-3">
                   <p className="text-sm font-semibold text-orange-900">
-                    Un livreur propose :{" "}
-                    {formatMoney(o.courier_offer_price_cents)} €
+                    Un livreur propose : {formatMoney(o.courier_offer_price_cents)} €
                   </p>
 
                   <p className="mt-1 text-xs text-orange-800">
-                    Tu peux accepter ce nouveau prix ou refuser. En cas de
-                    refus, la commande reste disponible au prix initial.
+                    Tu peux accepter ce nouveau prix ou refuser. En cas de refus,
+                    la commande reste disponible au prix initial.
                   </p>
 
                   <div className="mt-3 grid grid-cols-2 gap-2">

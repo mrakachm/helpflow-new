@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type OrderRow = {
@@ -13,18 +13,25 @@ type OrderRow = {
   dropoff_city?: string | null;
   pickup_zip?: string | null;
   dropoff_zip?: string | null;
-  zone?: string | null;
-  vehicle_required?: string | null;
-  distance_km: number | null;
-  weight_kg: number | null;
+  pickup_floor?: string | null;
+  dropoff_floor?: string | null;
+  pickup_has_elevator?: boolean | null;
+  dropoff_has_elevator?: boolean | null;
   bag_count: number | null;
   price_cents: number | null;
-  platform_fee_cents?: number | null;
+  courier_earnings_cents?: number | null;
   status: string | null;
   payment_status: string | null;
-  delivery_otp: string | null;
+  delivery_otp?: string | null;
+  otp_code?: string | null;
   delivered_at: string | null;
   created_at: string | null;
+  parcel_type?: string | null;
+  parcel_note?: string | null;
+  parcel_photo_url?: string | null;
+  vehicle_required?: string | null;
+  parcel_size?: string | null;
+  scheduled_at?: string | null;
 };
 
 function formatEURFromCents(cents?: number | null) {
@@ -38,6 +45,7 @@ function formatEURFromCents(cents?: number | null) {
 function statusLabel(status?: string | null) {
   const s = (status || "").toLowerCase();
 
+  if (s === "published") return "📢 Publiée";
   if (s === "pending" || s === "en_attente") return "⏳ En attente";
   if (s === "accepted" || s === "en_cours") return "🚚 En cours";
   if (
@@ -47,12 +55,7 @@ function statusLabel(status?: string | null) {
   )
     return "🚚 Livraison en cours";
 
-  if (
-    s === "delivered" ||
-    s === "livre" ||
-    s === "livré" ||
-    s === "livrée"
-  )
+  if (s === "delivered" || s === "livre" || s === "livré" || s === "livrée")
     return "✅ Livrée";
 
   if (s === "draft" || s === "brouillon") return "📝 Brouillon";
@@ -71,17 +74,25 @@ function paymentLabel(payment?: string | null) {
   return payment || "--";
 }
 
-export default function ClientOrdersPage() {
+function yesNo(value?: boolean | null) {
+  if (value === true) return "Oui";
+  if (value === false) return "Non";
+  return "--";
+}
+
+export default function ClientOrderDetailPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router = useRouter();
+  const params = useParams();
 
-  const [orders, setOrders] = useState<OrderRow[]>([]);
-  const [selected, setSelected] = useState<OrderRow | null>(null);
+  const orderId = String(params?.id || "");
+
+  const [order, setOrder] = useState<OrderRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function loadOrders(silent = false) {
+  async function loadOrder(silent = false) {
     if (!silent) setLoading(true);
     else setRefreshing(true);
 
@@ -101,26 +112,19 @@ export default function ClientOrdersPage() {
       const { data, error } = await supabase
         .from("orders")
         .select("*")
+        .eq("id", orderId)
         .eq("client_id", user.id)
-        .order("created_at", { ascending: false });
+        .single();
 
       if (error) {
-        console.error("LOAD CLIENT ORDERS ERROR =>", error);
-        setError("Impossible de charger vos commandes.");
+        console.error("LOAD CLIENT ORDER DETAIL ERROR =>", error);
+        setError("Impossible de charger le détail de cette commande.");
         return;
       }
 
-      const rows = (data || []) as OrderRow[];
-      setOrders(rows);
-
-      if (selected) {
-        const freshSelected = rows.find((o) => o.id === selected.id) || null;
-        setSelected(freshSelected);
-      } else {
-        setSelected(rows[0] || null);
-      }
+      setOrder(data as OrderRow);
     } catch (err) {
-      console.error("LOAD CLIENT ORDERS UNCAUGHT ERROR =>", err);
+      console.error("LOAD CLIENT ORDER DETAIL UNCAUGHT ERROR =>", err);
       setError("Erreur serveur pendant le chargement.");
     } finally {
       setLoading(false);
@@ -129,18 +133,30 @@ export default function ClientOrdersPage() {
   }
 
   useEffect(() => {
-    loadOrders();
+    if (orderId) loadOrder();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [orderId]);
+
+  const verificationCode = order?.delivery_otp || order?.otp_code || null;
 
   return (
-    <main className="p-4 max-w-5xl mx-auto space-y-6">
+    <main className="p-4 max-w-3xl mx-auto space-y-6">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Mes commandes</h1>
+        <div>
+          <button
+            type="button"
+            onClick={() => router.push("/client/orders")}
+            className="text-sm text-blue-600 font-semibold mb-2"
+          >
+            ← Retour à mes commandes
+          </button>
+
+          <h1 className="text-2xl font-bold">Détail de la commande</h1>
+        </div>
 
         <button
           type="button"
-          onClick={() => loadOrders(true)}
+          onClick={() => loadOrder(true)}
           disabled={loading || refreshing}
           className="px-3 py-2 rounded border"
         >
@@ -156,111 +172,134 @@ export default function ClientOrdersPage() {
 
       {loading && <p>Chargement...</p>}
 
-      {!loading && orders.length === 0 && <p>Aucune commande trouvée.</p>}
+      {!loading && !order && !error && <p>Commande introuvable.</p>}
 
-      {!loading && orders.length > 0 && (
-        <div className="grid md:grid-cols-2 gap-4">
-          <section className="space-y-3">
-            {orders.map((o) => {
-              const isSelected = selected?.id === o.id;
+      {!loading && order && (
+        <section className="border rounded-2xl bg-white p-4 space-y-4">
+          <div>
+            <div className="text-sm text-gray-500">ID commande</div>
+            <div className="font-semibold break-all">{order.id}</div>
+          </div>
 
-              return (
-                <button
-                  key={o.id}
-                  type="button"
-                  onClick={() => setSelected(o)}
-                  className={`w-full text-left border rounded p-3 ${
-                    isSelected ? "bg-blue-50 border-blue-500" : ""
-                  }`}
-                >
-                  <div className="font-semibold">
-                    Statut :{" "}
-                    <span className="uppercase">{statusLabel(o.status)}</span>
-                  </div>
+          <div className="p-3 rounded-xl border space-y-2">
+            <div>
+              <strong>Statut :</strong> {statusLabel(order.status)}
+            </div>
 
-                  <div className="text-sm text-gray-600">
-                    Paiement : {paymentLabel(o.payment_status)}
-                  </div>
+            <div>
+              <strong>Paiement :</strong> {paymentLabel(order.payment_status)}
+            </div>
 
-                  <div className="text-sm text-gray-600">
-                    Prix : {formatEURFromCents(o.price_cents)}
-                  </div>
+            <div>
+              <strong>Prix :</strong> {formatEURFromCents(order.price_cents)}
+            </div>
 
-                  <div className="text-xs text-gray-500 mt-1">ID : {o.id}</div>
-                </button>
-              );
-            })}
-          </section>
-
-          {selected && (
-            <section className="border rounded p-4 space-y-4">
-              <h2 className="text-xl font-bold">Détail commande</h2>
-
-              <div>ID : {selected.id}</div>
-
-              <div className="p-3 rounded border space-y-2">
-                <div>
-                  <strong>Statut :</strong> {statusLabel(selected.status)}
-                </div>
-
-                <div>
-                  <strong>Paiement :</strong>{" "}
-                  {paymentLabel(selected.payment_status)}
-                </div>
-
-                <div>
-                  <strong>Départ :</strong> {selected.pickup_address || "--"}
-                  {selected.pickup_city ? `, ${selected.pickup_city}` : ""}
-                  {selected.pickup_zip ? ` (${selected.pickup_zip})` : ""}
-                </div>
-
-                <div>
-                  <strong>Arrivée :</strong> {selected.dropoff_address || "--"}
-                  {selected.dropoff_city ? `, ${selected.dropoff_city}` : ""}
-                  {selected.dropoff_zip ? ` (${selected.dropoff_zip})` : ""}
-                </div>
-
-                <div>
-                  <strong>Zone :</strong> {selected.zone || "--"}
-                </div>
-
-                <div>
-                  <strong>Véhicule requis :</strong>{" "}
-                  {selected.vehicle_required || "--"}
-                </div>
-
-                <div>
-                  <strong>Sacs :</strong> {selected.bag_count ?? "--"}
-                </div>
-
-                <div>
-                  <strong>Prix :</strong>{" "}
-                  {formatEURFromCents(selected.price_cents)}
-                </div>
-
-                {selected.delivery_otp && !selected.delivered_at && (
-                  <div className="mt-4 p-3 rounded border bg-gray-50">
-                    <div className="font-semibold">Code de vérification :</div>
-                    <div className="text-3xl font-bold tracking-widest">
-                      {selected.delivery_otp}
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      Communique ce code au livreur uniquement lorsque la
-                      livraison est effectuée.
-                    </p>
-                  </div>
-                )}
-
-                {selected.delivered_at && (
-                  <div className="mt-4 p-3 rounded bg-green-100 text-green-700">
-                    ✅ Commande livrée le{" "}
-                    {new Date(selected.delivered_at).toLocaleString("fr-FR")}
-                  </div>
-                )}
+            {order.created_at && (
+              <div>
+                <strong>Créée le :</strong>{" "}
+                {new Date(order.created_at).toLocaleString("fr-FR")}
               </div>
-            </section>
+            )}
+
+            {order.scheduled_at && (
+              <div>
+                <strong>Date souhaitée :</strong>{" "}
+                {new Date(order.scheduled_at).toLocaleString("fr-FR")}
+              </div>
+            )}
+          </div>
+
+          <div className="p-3 rounded-xl border space-y-2">
+            <h2 className="font-bold">Adresses</h2>
+
+            <div>
+              <strong>Départ :</strong> {order.pickup_address || "--"}
+              {order.pickup_city ? `, ${order.pickup_city}` : ""}
+              {order.pickup_zip ? ` (${order.pickup_zip})` : ""}
+            </div>
+
+            <div>
+              <strong>Étage retrait :</strong> {order.pickup_floor || "--"}
+            </div>
+
+            <div>
+              <strong>Ascenseur retrait :</strong>{" "}
+              {yesNo(order.pickup_has_elevator)}
+            </div>
+
+            <div>
+              <strong>Arrivée :</strong> {order.dropoff_address || "--"}
+              {order.dropoff_city ? `, ${order.dropoff_city}` : ""}
+              {order.dropoff_zip ? ` (${order.dropoff_zip})` : ""}
+            </div>
+
+            <div>
+              <strong>Étage livraison :</strong> {order.dropoff_floor || "--"}
+            </div>
+
+            <div>
+              <strong>Ascenseur livraison :</strong>{" "}
+              {yesNo(order.dropoff_has_elevator)}
+            </div>
+          </div>
+
+          <div className="p-3 rounded-xl border space-y-2">
+            <h2 className="font-bold">Colis</h2>
+
+            <div>
+              <strong>Nombre de sacs / colis :</strong>{" "}
+              {order.bag_count ?? "--"}
+            </div>
+
+            <div>
+              <strong>Véhicule requis :</strong>{" "}
+              {order.vehicle_required || "--"}
+            </div>
+
+            <div>
+              <strong>Taille du colis :</strong> {order.parcel_size || "--"}
+            </div>
+
+            <div>
+              <strong>Type de colis :</strong> {order.parcel_type || "--"}
+            </div>
+
+            <div>
+              <strong>Description :</strong> {order.parcel_note || "--"}
+            </div>
+
+            {order.parcel_photo_url && (
+              <div className="mt-3">
+                <div className="font-semibold mb-2">Photo du colis :</div>
+                <img
+                  src={order.parcel_photo_url}
+                  alt="Photo du colis"
+                  className="w-full max-h-80 object-cover rounded-2xl border"
+                />
+              </div>
+            )}
+          </div>
+
+          {verificationCode && !order.delivered_at && (
+            <div className="mt-4 p-3 rounded-xl border bg-gray-50">
+              <div className="font-semibold">Code de vérification :</div>
+              <div className="text-3xl font-bold tracking-widest">
+                {verificationCode}
+              </div>
+              <p className="text-sm text-gray-600">
+                Communique ce code au livreur uniquement lorsque la livraison est
+                effectuée.
+              </p>
+            </div>
           )}
-        </div>
+
+          {order.delivered_at && (
+            <div className="mt-4 p-3 rounded-xl bg-green-100 text-green-700">
+              ✅ Commande livrée le{" "}
+              {new Date(order.delivered_at).toLocaleString("fr-FR")}
+            </div>
+          )}
+        </section>
       )}
     </main>
   );
