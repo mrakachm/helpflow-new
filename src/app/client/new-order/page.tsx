@@ -159,7 +159,7 @@ const [parcelSize, setParcelSize] = useState("");
     if (!dropoffFloor) return "Étage de livraison manquant.";
 
     if (!bagCount) return "Nombre de sacs / colis manquant.";
-
+if (!vehicleRequired) return "Choisis le véhicule requis pour cette livraison.";
     return null;
   }
 
@@ -407,14 +407,34 @@ parcel_size: parcelSize || null,
           <section className="rounded-2xl border border-gray-200 bg-white p-4">
             <h2 className="mb-3 text-base font-semibold">Colis & Livraison</h2>
 
-            <select value={bagCount} onChange={(e) => setBagCount(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2">
-              <option value="">Nombre de sacs / colis</option>
-              {BAG_OPTIONS.map((count) => (
-                <option key={count} value={count}>{count}</option>
-              ))}
-            </select>
+          
 
-            <div className="mt-3 rounded-2xl border border-gray-200 bg-white p-4 space-y-3">
+<select
+  value={vehicleRequired}
+  onChange={(e) => setVehicleRequired(e.target.value)}
+  className="mt-3 w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
+>
+  <option value="">Véhicule requis</option>
+  <option value="À pied">À pied</option>
+  <option value="Vélo">Vélo</option>
+  <option value="Scooter">Scooter</option>
+  <option value="Voiture">Voiture</option>
+  <option value="Utilitaire">Utilitaire</option>
+</select>
+
+<select
+  value={parcelSize}
+  onChange={(e) => setParcelSize(e.target.value)}
+  className="mt-3 w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
+>
+  <option value="">Taille du colis (optionnelle)</option>
+  <option value="Petit">Petit</option>
+  <option value="Moyen">Moyen</option>
+  <option value="Grand">Grand</option>
+  <option value="Très grand">Très grand</option>
+</select>
+
+<div className="mt-3 rounded-2xl border border-gray-200 bg-white p-4 space-y-3">
               <h3 className="text-lg font-semibold">Description du colis</h3>
 
               <select value={parcelType} onChange={(e) => setParcelType(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white p-3">
