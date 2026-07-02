@@ -473,7 +473,22 @@ parcel_size: parcelSize || null,
               Prix : <span className="font-semibold">{formatEuro(pricingView.finalPriceCents)}</span>
             </div>
 
-            <input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2" />
+            <div className="mt-3">
+  <label className="mb-2 block text-sm font-semibold text-gray-700">
+    Date et heure souhaitées pour la livraison
+  </label>
+
+  <input
+    type="datetime-local"
+    value={scheduledAt}
+    onChange={(e) => setScheduledAt(e.target.value)}
+    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-3 text-gray-900"
+  />
+
+  <p className="mt-1 text-xs text-gray-500">
+    Optionnel : laisse vide si la livraison peut être faite dès qu’un livreur est disponible.
+  </p>
+</div>
           </section>
 
           <input
