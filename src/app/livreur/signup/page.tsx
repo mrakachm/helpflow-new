@@ -53,21 +53,21 @@ export default function LivreurSignupPage() {
 
       localStorage.setItem("helpflow_livreur_draft", JSON.stringify(draft));
 
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: {
-          data: {
-            first_name: firstName,
-            last_name: lastName,
-            full_name: `${firstName} ${lastName}`.trim(),
-            phone,
-            city,
-            role: "livreur",
-          },
-          emailRedirectTo: "https://www.helpflow.fr/login?next=/profile/edit",
-        },
-      });
+     const { data, error } = await supabase.auth.signUp({
+  email: email.trim(),
+  password,
+  options: {
+    data: {
+      first_name: firstName,
+      last_name: lastName,
+      full_name: `${firstName} ${lastName}`.trim(),
+      phone,
+      city,
+      role: "livreur",
+    },
+    emailRedirectTo: "https://www.helpflow.fr/login?next=/livreur/missions",
+  },
+});
 
       if (error) throw error;
       if (!data.user) throw new Error("Compte non créé.");
@@ -126,7 +126,7 @@ export default function LivreurSignupPage() {
           </div>
 
           <Link
-            href="/login?next=/profile/edit"
+           href="/login?next=/livreur/missions"
             className="mt-6 inline-block w-full rounded-xl bg-emerald-500 px-4 py-3 font-semibold text-white"
           >
             Se connecter et compléter mon inscription
@@ -286,7 +286,7 @@ export default function LivreurSignupPage() {
         <div className="mt-6 text-center text-slate-400">
           Déjà inscrit ?{" "}
           <Link
-            href="/login?next=/profile/edit"
+            href="/login?next=/livreur/missions"
             className="text-emerald-400 font-semibold"
           >
             Se connecter
