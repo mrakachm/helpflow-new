@@ -72,7 +72,7 @@ useEffect(() => {
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
-      .eq("email", userData.user.email)
+      .eq("id", userData.user.id)
       .single();
 
     if (profile?.role === "admin") {
@@ -85,7 +85,7 @@ useEffect(() => {
   }
 
   checkAdmin();
-}, [supabase]);
+}, [supabase]);  
 
   const couriers = profiles.filter((p) => p.role === "livreur");
   const users = profiles.filter((p) => p.role !== "livreur");
