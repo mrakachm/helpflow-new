@@ -78,13 +78,13 @@ export default function AdminVirementsPage() {
       const { data } = await supabase.auth.getUser();
       const email = data.user?.email?.toLowerCase();
 
-      if (email === "mohamedlarbimrakach39@gmail.com") {
-        setAuthorized(true);
-        await loadPayouts();
-      } else {
-        setAuthorized(false);
-        setLoading(false);
-      }
+     if (data.user) {
+  setAuthorized(true);
+  await loadPayouts();
+} else {
+  setAuthorized(false);
+  setLoading(false);
+}
     }
 
     checkAdmin();
