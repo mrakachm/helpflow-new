@@ -1,5 +1,6 @@
 import "./globals.css";
 import GoogleMapsScript from "@/components/GoogleMapsScript";
+import RegisterSW from "@/components/RegisterSW";
 
 export default function RootLayout({
   children,
@@ -10,6 +11,7 @@ export default function RootLayout({
     <html lang="fr">
       <body className="relative min-h-screen bg-white text-gray-900">
         <GoogleMapsScript />
+        <RegisterSW />
         {children}
       </body>
     </html>

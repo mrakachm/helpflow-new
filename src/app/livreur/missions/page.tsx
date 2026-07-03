@@ -1,5 +1,6 @@
 "use client";
 
+import PushNotifications from "@/components/PushNotifications";
 import { useEffect, useMemo, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import MissionRoutePreview from "@/components/MissionRoutePreview";
@@ -534,8 +535,10 @@ export default function MissionsPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gray-50 p-4">
-        <div className="mx-auto max-w-3xl rounded-3xl bg-white p-6 shadow-sm">
+  <main className="min-h-screen bg-gray-50 p-4">
+    <PushNotifications />
+
+    <div className="mx-auto max-w-3xl space-y-6">
           Chargement des missions...
         </div>
       </main>
@@ -552,8 +555,12 @@ export default function MissionsPage() {
       .filter(Boolean)
       .join(" · ") || "Véhicule non renseigné";
 
+      
+
   return (
+    
     <main className="min-h-screen bg-gray-50 p-4">
+      <PushNotifications />
       <div className="mx-auto max-w-3xl space-y-6">
         <section className="rounded-3xl bg-blue-600 p-6 text-white shadow-lg">
           <div className="flex items-start justify-between gap-4">
