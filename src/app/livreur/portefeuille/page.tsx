@@ -71,14 +71,9 @@ export default function LivreurPortefeuillePage() {
     <main className="min-h-screen bg-gray-50 p-4">
       <div className="mx-auto max-w-3xl space-y-5">
         <div className="flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              Mon portefeuille
-            </h1>
-            <p className="text-sm text-gray-500">
-              Ici, tu vois uniquement ce que tu as réellement gagné.
-            </p>
-          </div>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Mon portefeuille
+          </h1>
 
           <Link
             href="/livreur/missions"
@@ -91,9 +86,6 @@ export default function LivreurPortefeuillePage() {
         <section className="rounded-3xl bg-green-600 p-6 text-white shadow-lg">
           <p className="text-sm text-green-100">Solde disponible</p>
           <p className="mt-2 text-5xl font-bold">{formatEuro(totalCents)}</p>
-          <p className="mt-3 text-sm text-green-100">
-            Total des livraisons terminées.
-          </p>
         </section>
 
         <button
@@ -101,7 +93,7 @@ export default function LivreurPortefeuillePage() {
           disabled
           className="w-full rounded-2xl bg-gray-300 px-4 py-4 font-bold text-gray-700"
         >
-          Demander un virement bientôt disponible
+          Demander un virement
         </button>
 
         {loading && (
@@ -119,12 +111,12 @@ export default function LivreurPortefeuillePage() {
         {!loading && !error && (
           <section className="space-y-4">
             <h2 className="text-xl font-bold text-gray-900">
-              Mes gains par livraison
+              Mes revenus
             </h2>
 
             {orders.length === 0 ? (
               <div className="rounded-3xl bg-white p-6 text-center text-gray-600">
-                Aucun gain pour le moment.
+                Aucun revenu pour le moment.
               </div>
             ) : (
               <div className="space-y-3">
@@ -136,7 +128,7 @@ export default function LivreurPortefeuillePage() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-semibold text-gray-900">
-                          Livraison terminée
+                          Mission terminée
                         </p>
                         <p className="text-sm text-gray-500">
                           {order.pickup_city || "Départ"} →{" "}
