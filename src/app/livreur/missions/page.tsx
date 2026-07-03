@@ -710,29 +710,6 @@ export default function MissionsPage() {
           )}
         </section>
 
-
-        <section className="space-y-4">
-          <div className="rounded-3xl border border-gray-200 bg-white p-4">
-            <h2 className="text-2xl font-bold text-gray-900">
-              Historique de mes livraisons
-            </h2>
-            <p className="text-sm text-gray-500">
-              Ici apparaissent les missions terminées par ce livreur.
-            </p>
-          </div>
-
-          {historyMissions.length === 0 ? (
-            <div className="rounded-3xl bg-white p-6 text-center text-gray-600">
-              Aucune livraison terminée pour le moment.
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {historyMissions.map((order) => (
-                <OrderCard key={order.id} order={order} type="history" />
-              ))}
-            </div>
-          )}
-        </section>
       </div>
     </main>
   );
