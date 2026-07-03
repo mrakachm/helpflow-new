@@ -24,6 +24,8 @@ export default function LivreurPortefeuillePage() {
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     async function loadWallet() {
@@ -35,11 +37,7 @@ export default function LivreurPortefeuillePage() {
           await supabase.auth.getUser();
 
         if (userError || !userData.user) {
-  setLoading(false);
-  return;
-}
-        if (!userData.user) {
-          setError("Tu dois être connecté comme livreur.");
+          setLoading(false);
           return;
         }
 
@@ -70,6 +68,42 @@ export default function LivreurPortefeuillePage() {
     0
   );
 
+  async function requestPayout() {
+    setError(null);
+    setSuccess(null);
+
+    if (totalCents <= 0) {
+      setError("Aucun solde disponible pour demander un virement.");
+      return;
+    }
+
+    setSending(true);
+
+    try {
+      const { data: userData, error: userError } =
+        await supabase.auth.getUser();
+
+      if (userError || !userData.user) {
+        setError("Tu dois être connecté comme livreur.");
+        return;
+      }
+
+      const { error } = await supabase.from("payout_requests").insert({
+        courier_id: userData.user.id,
+        amount_cents: totalCents,
+        status: "PENDING",
+      });
+
+      if (error) throw error;
+
+      setSuccess("Demande de virement envoyée.");
+    } catch (e: any) {
+      setError(e?.message || "Impossible d’envoyer la demande de virement.");
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-gray-50 p-4">
       <div className="mx-auto max-w-3xl space-y-5">
@@ -93,11 +127,18 @@ export default function LivreurPortefeuillePage() {
 
         <button
           type="button"
-          disabled
-          className="w-full rounded-2xl bg-gray-300 px-4 py-4 font-bold text-gray-700"
+          disabled={loading || sending || totalCents <= 0}
+          onClick={requestPayout}
+          className="w-full rounded-2xl bg-blue-600 px-4 py-4 font-bold text-white disabled:bg-gray-300 disabled:text-gray-700"
         >
-          Demander un virement
+          {sending ? "Envoi..." : "Demander un virement"}
         </button>
+
+        {success && (
+          <div className="rounded-3xl border border-green-200 bg-green-50 p-4 text-green-700">
+            {success}
+          </div>
+        )}
 
         {loading && (
           <div className="rounded-3xl bg-white p-6 text-center">
@@ -113,9 +154,7 @@ export default function LivreurPortefeuillePage() {
 
         {!loading && !error && (
           <section className="space-y-4">
-            <h2 className="text-xl font-bold text-gray-900">
-              Mes revenus
-            </h2>
+            <h2 className="text-xl font-bold text-gray-900">Mes revenus</h2>
 
             {orders.length === 0 ? (
               <div className="rounded-3xl bg-white p-6 text-center text-gray-600">
