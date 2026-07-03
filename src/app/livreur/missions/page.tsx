@@ -573,7 +573,25 @@ export default function MissionsPage() {
   return (
     
     <main className="min-h-screen bg-gray-50 p-4">
-      <PushNotifications />
+     <div className="mb-3 flex justify-end">
+  <button
+    type="button"
+    onClick={() => {
+      const pause = localStorage.getItem("pause_livreur");
+      localStorage.setItem(
+        "pause_livreur",
+        pause === "1" ? "0" : "1"
+      );
+      window.location.reload();
+    }}
+    className="rounded-2xl bg-white px-4 py-2 font-bold shadow"
+  >
+    {typeof window !== "undefined" &&
+    localStorage.getItem("pause_livreur") === "1"
+      ? "⏸️ Pause"
+      : "🟢 En ligne"}
+  </button>
+</div>
       <nav className="mx-auto mb-4 grid max-w-3xl grid-cols-2 gap-2 sm:grid-cols-4">
   <Link
     href="/livreur/missions"
