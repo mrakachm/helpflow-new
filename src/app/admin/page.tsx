@@ -29,6 +29,7 @@ type CityStats = {
 export default function AdminPage() {
   const supabase = useMemo(() => supabaseBrowser(), []);
 
+  const [authorized, setAuthorized] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -55,6 +56,17 @@ export default function AdminPage() {
       .update({ verification_status: status })
       .eq("id", id);
 
+      useEffect(() => {
+  async function checkAdmin() {
+    const { data } = await supabase.auth.getUser();
+
+    if (data.user?.email === "TON_EMAIL_ADMIN@gmail.com") {
+      setAuthorized(true);
+    }
+  }
+
+  checkAdmin();
+}, [supabase]);
     await loadProfiles();
   }
 
@@ -80,6 +92,16 @@ export default function AdminPage() {
     (p) => !p.verification_status || p.verification_status === "pending"
   ).length;
   const refused = couriers.filter((p) => p.verification_status === "refused").length;
+
+  if (!authorized) {
+  return (
+    <main className="min-h-screen bg-slate-100 p-10">
+      <div className="rounded-3xl bg-white p-6 shadow">
+        Accès réservé administrateur.
+      </div>
+    </main>
+  );
+}
 
   return (
     <main className="min-h-screen bg-slate-100 p-6">
