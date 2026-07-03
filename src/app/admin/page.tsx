@@ -60,9 +60,9 @@ export default function AdminPage() {
   async function checkAdmin() {
     const { data } = await supabase.auth.getUser();
 
-    if (data.user?.email === "TON_EMAIL_ADMIN@gmail.com") {
-      setAuthorized(true);
-    }
+    if (data.user?.email === "mohamedlarbimrakach39@gmail.com") {
+  setAuthorized(true);
+}
   }
 
   checkAdmin();
