@@ -34,7 +34,10 @@ export default function LivreurPortefeuillePage() {
         const { data: userData, error: userError } =
           await supabase.auth.getUser();
 
-        if (userError) throw userError;
+        if (userError || !userData.user) {
+  setLoading(false);
+  return;
+}
         if (!userData.user) {
           setError("Tu dois être connecté comme livreur.");
           return;
