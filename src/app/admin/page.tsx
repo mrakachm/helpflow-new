@@ -56,22 +56,24 @@ export default function AdminPage() {
       .update({ verification_status: status })
       .eq("id", id);
 
-      useEffect(() => {
-  async function checkAdmin() {
-    const { data } = await supabase.auth.getUser();
-
-    if (data.user?.email === "mohamedlarbimrakach39@gmail.com") {
-  setAuthorized(true);
-}
-  }
-
-  checkAdmin();
-}, [supabase]);
     await loadProfiles();
   }
 
   useEffect(() => {
-    loadProfiles();
+    async function checkAdmin() {
+      const { data } = await supabase.auth.getUser();
+      const email = data.user?.email?.toLowerCase();
+
+      if (email === "mohamedlarbimrakach39@gmail.com") {
+        setAuthorized(true);
+        await loadProfiles();
+      } else {
+        setAuthorized(false);
+        setLoading(false);
+      }
+    }
+
+    checkAdmin();
   }, [supabase]);
 
   const couriers = profiles.filter((p) => p.role === "livreur");
@@ -87,21 +89,27 @@ export default function AdminPage() {
   const courierCities = groupByCity(couriers);
   const userCities = groupByCity(users);
 
-  const approved = couriers.filter((p) => p.verification_status === "approved").length;
+  const approved = couriers.filter(
+    (p) => p.verification_status === "approved"
+  ).length;
+
   const pending = couriers.filter(
     (p) => !p.verification_status || p.verification_status === "pending"
   ).length;
-  const refused = couriers.filter((p) => p.verification_status === "refused").length;
+
+  const refused = couriers.filter(
+    (p) => p.verification_status === "refused"
+  ).length;
 
   if (!authorized) {
-  return (
-    <main className="min-h-screen bg-slate-100 p-10">
-      <div className="rounded-3xl bg-white p-6 shadow">
-        Accès réservé administrateur.
-      </div>
-    </main>
-  );
-}
+    return (
+      <main className="min-h-screen bg-slate-100 p-10">
+        <div className="rounded-3xl bg-white p-6 shadow">
+          Accès réservé administrateur.
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-slate-100 p-6">
