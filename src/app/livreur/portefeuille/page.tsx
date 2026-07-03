@@ -96,7 +96,9 @@ export default function LivreurPortefeuillePage() {
 
       if (error) throw error;
 
-      setSuccess("Demande de virement envoyée.");
+     setSuccess(
+  "Demande de virement envoyée. Votre demande est en cours de validation. Le virement sera traité sous 2 à 3 jours ouvrés."
+);
     } catch (e: any) {
       setError(e?.message || "Impossible d’envoyer la demande de virement.");
     } finally {
