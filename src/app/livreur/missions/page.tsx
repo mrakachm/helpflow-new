@@ -597,7 +597,7 @@ export default function MissionsPage() {
   </Link>
 
   <Link
-    href="/livreur/aide"
+   href="/aide"
     className="rounded-2xl bg-white px-4 py-3 text-center text-sm font-bold text-gray-800 shadow-sm"
   >
     Aide
