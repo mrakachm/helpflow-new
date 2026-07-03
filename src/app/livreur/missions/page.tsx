@@ -573,25 +573,36 @@ export default function MissionsPage() {
   return (
     
     <main className="min-h-screen bg-gray-50 p-4">
-     <div className="mb-3 flex justify-end">
-  <button
-    type="button"
-    onClick={() => {
-      const pause = localStorage.getItem("pause_livreur");
-      localStorage.setItem(
-        "pause_livreur",
-        pause === "1" ? "0" : "1"
-      );
-      window.location.reload();
-    }}
-    className="rounded-2xl bg-white px-4 py-2 font-bold shadow"
-  >
+    <button
+  type="button"
+  onClick={() => {
+    const pause = localStorage.getItem("pause_livreur");
+    localStorage.setItem(
+      "pause_livreur",
+      pause === "1" ? "0" : "1"
+    );
+    window.location.reload();
+  }}
+  className="flex items-center gap-3 rounded-full bg-white px-4 py-2 font-bold shadow"
+>
+  <span>
     {typeof window !== "undefined" &&
     localStorage.getItem("pause_livreur") === "1"
-      ? "⏸️ Pause"
-      : "🟢 En ligne"}
-  </button>
-</div>
+      ? "Pause"
+      : "En ligne"}
+  </span>
+
+  <span
+    className={`flex h-7 w-14 items-center rounded-full p-1 ${
+      typeof window !== "undefined" &&
+      localStorage.getItem("pause_livreur") === "1"
+        ? "bg-orange-400 justify-end"
+        : "bg-green-500 justify-start"
+    }`}
+  >
+    <span className="h-5 w-5 rounded-full bg-white shadow" />
+  </span>
+</button>
       <nav className="mx-auto mb-4 grid max-w-3xl grid-cols-2 gap-2 sm:grid-cols-4">
   <Link
     href="/livreur/missions"
