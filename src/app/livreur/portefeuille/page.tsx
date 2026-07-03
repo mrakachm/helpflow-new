@@ -18,6 +18,22 @@ function formatEuro(cents: number) {
   return `${(cents / 100).toFixed(2).replace(".", ",")} €`;
 }
 
+function statutFrancais(status: string | null) {
+  if (status === "PENDING") {
+    return "⏳ Demande en cours de validation. Le virement sera traité sous 2 à 3 jours.";
+  }
+
+  if (status === "PAID") {
+    return "✅ Virement effectué.";
+  }
+
+  if (status === "REFUSED") {
+    return "❌ Virement refusé.";
+  }
+
+  return "En attente";
+}
+
 export default function LivreurPortefeuillePage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
