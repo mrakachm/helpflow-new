@@ -63,29 +63,20 @@ useEffect(() => {
   async function checkAdmin() {
     const { data: userData } = await supabase.auth.getUser();
 
-    if (!userData.user) {
-      setAuthorized(false);
-      setLoading(false);
+    const email = userData.user?.email?.trim().toLowerCase();
+
+    if (email === "mohamedlarbimrakach39@gmail.com") {
+      setAuthorized(true);
+      await loadProfiles();
       return;
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", userData.user.id)
-      .single();
-
-    if (profile?.role === "admin") {
-      setAuthorized(true);
-      await loadProfiles();
-    } else {
-      setAuthorized(false);
-      setLoading(false);
-    }
+    setAuthorized(false);
+    setLoading(false);
   }
 
   checkAdmin();
-}, [supabase]);  
+}, [supabase]);
 
   const couriers = profiles.filter((p) => p.role === "livreur");
   const users = profiles.filter((p) => p.role !== "livreur");
