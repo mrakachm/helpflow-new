@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabaseClient";
+import Link from "next/link";
 
 type Profile = {
   id: string;
@@ -89,6 +90,36 @@ export default function AdminPage() {
             Gestion des livreurs, utilisateurs, villes, documents et validations.
           </p>
         </div>
+
+<section className="mb-8 rounded-3xl bg-white p-6 shadow">
+  <h2 className="mb-4 text-2xl font-bold">Tableau de bord rapide</h2>
+
+  <div className="grid gap-4 md:grid-cols-3">
+    <Link href="/admin/revenus" className="rounded-2xl bg-green-600 p-5 text-center font-bold text-white">
+      💰 Revenus HelpFlow
+    </Link>
+
+    <Link href="/admin/virements" className="rounded-2xl bg-blue-600 p-5 text-center font-bold text-white">
+      💳 Demandes de virements
+    </Link>
+
+    <Link href="/aide" className="rounded-2xl bg-purple-600 p-5 text-center font-bold text-white">
+      🆘 Centre d’aide
+    </Link>
+
+    <Link href="/livreur/missions" className="rounded-2xl bg-orange-500 p-5 text-center font-bold text-white">
+      🚴 Page livreur
+    </Link>
+
+    <Link href="/livreur/portefeuille" className="rounded-2xl bg-emerald-600 p-5 text-center font-bold text-white">
+      💼 Portefeuille livreur
+    </Link>
+
+    <Link href="/" className="rounded-2xl bg-slate-900 p-5 text-center font-bold text-white">
+      🏠 Retour au site
+    </Link>
+  </div>
+</section>
 
         <div className="mb-8 grid gap-4 md:grid-cols-5">
           <Stat title="Livreurs" value={couriers.length} color="bg-blue-600" />
