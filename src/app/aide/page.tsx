@@ -1,49 +1,111 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 
 export default function AidePage() {
+  const [question, setQuestion] = useState("");
+  const [reponse, setReponse] = useState("");
+
+  function demander() {
+    const q = question.toLowerCase();
+
+    if (q.includes("mission")) {
+      setReponse(
+        "Les livreurs reçoivent les missions disponibles quand ils sont en ligne. Les utilisateurs peuvent créer une livraison depuis leur espace."
+      );
+    } else if (q.includes("code") || q.includes("otp")) {
+      setReponse(
+        "Le code de livraison doit être donné au livreur uniquement après réception du colis."
+      );
+    } else if (q.includes("argent") || q.includes("virement")) {
+      setReponse(
+        "Les revenus apparaissent dans le portefeuille après une mission terminée. Le livreur peut demander un virement."
+      );
+    } else if (q.includes("pause") || q.includes("ligne")) {
+      setReponse(
+        "Le livreur peut passer En ligne ou Pause avec le bouton disponible dans son espace."
+      );
+    } else if (q.includes("annuler")) {
+      setReponse(
+        "Une livraison peut être annulée avant la prise en charge par un livreur."
+      );
+    } else if (q.includes("paiement")) {
+      setReponse(
+        "Les paiements HelpFlow sont sécurisés."
+      );
+    } else {
+      setReponse(
+        "Je n’ai pas trouvé la réponse exacte. Contactez l’assistance HelpFlow."
+      );
+    }
+  }
+
   return (
     <main className="min-h-screen bg-gray-50 p-4">
       <div className="mx-auto max-w-3xl space-y-5">
-        <h1 className="text-3xl font-bold text-gray-900">Centre d’aide</h1>
 
-        <section className="rounded-3xl bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-bold text-gray-900">Aide livreur</h2>
-          <div className="mt-4 space-y-4 text-gray-700">
-            <p><b>Comment recevoir une mission ?</b><br />Mettez votre statut sur En ligne. Les missions disponibles apparaissent automatiquement.</p>
-            <p><b>Pourquoi je ne reçois aucune mission ?</b><br />Vérifiez que vous êtes en ligne, que votre zone est correcte et que les notifications sont activées.</p>
-            <p><b>Comment mettre les missions en pause ?</b><br />Appuyez sur le bouton En ligne / Pause en haut de la page livreur.</p>
-            <p><b>Comment accepter une livraison ?</b><br />Appuyez sur une mission disponible puis confirmez la prise en charge.</p>
-            <p><b>Comment terminer une livraison ?</b><br />Entrez le code de validation donné par l’utilisateur.</p>
-            <p><b>Où voir mes revenus ?</b><br />Allez dans Portefeuille pour voir votre solde et vos revenus.</p>
+        <h1 className="text-3xl font-bold">
+          Centre d’aide HelpFlow
+        </h1>
+
+        <section className="rounded-3xl bg-white p-5 shadow">
+          <h2 className="text-xl font-bold mb-3">
+            Assistant automatique
+          </h2>
+
+          <input
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder="Posez votre question..."
+            className="w-full rounded-xl border p-3"
+          />
+
+          <button
+            onClick={demander}
+            className="mt-3 w-full rounded-xl bg-blue-600 p-3 font-bold text-white"
+          >
+            Demander
+          </button>
+
+          {reponse && (
+            <div className="mt-4 rounded-xl bg-green-50 p-4">
+              {reponse}
+            </div>
+          )}
+        </section>
+
+
+        <section className="rounded-3xl bg-white p-5 shadow">
+          <h2 className="text-xl font-bold">
+            Questions fréquentes
+          </h2>
+
+          <div className="mt-4 space-y-4">
+
+            <p>
+              <b>Comment créer une livraison ?</b><br/>
+              Remplissez les informations du colis et validez.
+            </p>
+
+            <p>
+              <b>Comment devenir livreur ?</b><br/>
+              Complétez votre profil et passez en ligne.
+            </p>
+
+            <p>
+              <b>Comment suivre ma commande ?</b><br/>
+              Le suivi est disponible depuis votre compte.
+            </p>
+
+            <p>
+              <b>Comment recevoir mon argent ?</b><br/>
+              Les gains arrivent dans votre portefeuille.
+            </p>
+
           </div>
         </section>
 
-        <section className="rounded-3xl bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-bold text-gray-900">Aide utilisateur</h2>
-          <div className="mt-4 space-y-4 text-gray-700">
-            <p><b>Comment créer une livraison ?</b><br />Indiquez les adresses, les informations du colis puis validez la demande.</p>
-            <p><b>Comment suivre ma livraison ?</b><br />Vous pouvez suivre l’état de votre commande depuis votre espace.</p>
-            <p><b>À quoi sert le code de livraison ?</b><br />Donnez ce code au livreur uniquement lorsque la livraison est effectuée.</p>
-            <p><b>Je n’ai pas reçu ma livraison, que faire ?</b><br />Vérifiez l’état de votre commande ou contactez l’assistance HelpFlow.</p>
-            <p><b>Comment annuler une mission ?</b><br />Vous pouvez annuler avant que le livreur commence la mission.</p>
-          </div>
-        </section>
-
-        <section className="rounded-3xl bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-bold text-gray-900">Paiement</h2>
-          <div className="mt-4 space-y-4 text-gray-700">
-            <p><b>Le paiement est-il sécurisé ?</b><br />Oui, les paiements sont sécurisés.</p>
-            <p><b>Quand le livreur reçoit son argent ?</b><br />Après validation de la livraison, le montant apparaît dans son portefeuille.</p>
-            <p><b>Comment demander un virement ?</b><br />Le livreur pourra demander un virement depuis son portefeuille.</p>
-          </div>
-        </section>
-
-        <section className="rounded-3xl bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-bold text-gray-900">Contact</h2>
-          <p className="mt-3 text-gray-700">
-            Besoin d’aide ? Contactez l’équipe HelpFlow depuis l’assistance.
-          </p>
-        </section>
 
         <Link
           href="/"
@@ -51,6 +113,7 @@ export default function AidePage() {
         >
           Retour accueil
         </Link>
+
       </div>
     </main>
   );
