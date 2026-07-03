@@ -89,6 +89,7 @@ export default function MissionsPage() {
   const [courierProfile, setCourierProfile] = useState<CourierProfile | null>(null);
   const [available, setAvailable] = useState<Order[]>([]);
   const [myMissions, setMyMissions] = useState<Order[]>([]);
+  const [historyMissions, setHistoryMissions] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -128,6 +129,7 @@ export default function MissionsPage() {
       if (availableError) throw availableError;
 
       let myData: Order[] = [];
+      let historyData: Order[] = [];
 
       if (currentUserId) {
         const { data, error } = await supabase
@@ -139,6 +141,17 @@ export default function MissionsPage() {
 
         if (error) throw error;
         myData = (data as Order[]) || [];
+
+        const { data: deliveredData, error: deliveredError } = await supabase
+          .from("orders")
+          .select("*")
+          .eq("courier_id", currentUserId)
+          .in("status", ["DELIVERED", "delivered", "LIVREE", "LIVRÉE"])
+          .order("updated_at", { ascending: false })
+          .limit(30);
+
+        if (deliveredError) throw deliveredError;
+        historyData = (deliveredData as Order[]) || [];
       }
 
       setAvailable(
@@ -150,6 +163,7 @@ export default function MissionsPage() {
       );
 
       setMyMissions(myData);
+      setHistoryMissions(historyData);
     } catch (error: any) {
       setMsg(error?.message || "Impossible de charger les missions.");
     } finally {
@@ -289,7 +303,13 @@ export default function MissionsPage() {
     window.location.href = `tel:${phone}`;
   }
 
-  function OrderCard({ order, type }: { order: Order; type: "available" | "mine" }) {
+  function OrderCard({
+    order,
+    type,
+  }: {
+    order: Order;
+    type: "available" | "mine" | "history";
+  }) {
     const status = cleanStatus(order.status);
     const vehicleRequired =
       order.vehicle_required || order.required_vehicle || "Non précisé";
@@ -299,12 +319,20 @@ export default function MissionsPage() {
         className={`overflow-hidden rounded-3xl border shadow-sm ${
           type === "mine"
             ? "border-green-300 bg-green-50 ring-2 ring-green-200"
-            : "border-gray-200 bg-white"
+            : type === "history"
+              ? "border-gray-200 bg-white opacity-95"
+              : "border-gray-200 bg-white"
         }`}
       >
         {type === "mine" ? (
           <div className="bg-green-600 px-4 py-3 text-center font-bold text-white">
             ✅ Ma mission en cours
+          </div>
+        ) : null}
+
+        {type === "history" ? (
+          <div className="bg-gray-800 px-4 py-3 text-center font-bold text-white">
+            📦 Livraison terminée
           </div>
         ) : null}
 
@@ -670,6 +698,30 @@ export default function MissionsPage() {
             <div className="space-y-4">
               {available.map((order) => (
                 <OrderCard key={order.id} order={order} type="available" />
+              ))}
+            </div>
+          )}
+        </section>
+
+
+        <section className="space-y-4">
+          <div className="rounded-3xl border border-gray-200 bg-white p-4">
+            <h2 className="text-2xl font-bold text-gray-900">
+              Historique de mes livraisons
+            </h2>
+            <p className="text-sm text-gray-500">
+              Ici apparaissent les missions terminées par ce livreur.
+            </p>
+          </div>
+
+          {historyMissions.length === 0 ? (
+            <div className="rounded-3xl bg-white p-6 text-center text-gray-600">
+              Aucune livraison terminée pour le moment.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {historyMissions.map((order) => (
+                <OrderCard key={order.id} order={order} type="history" />
               ))}
             </div>
           )}
