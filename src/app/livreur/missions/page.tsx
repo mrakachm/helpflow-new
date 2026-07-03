@@ -247,36 +247,49 @@ export default function MissionsPage() {
   }
 
   async function validateDelivery(order: Order) {
-    const input = document.getElementById(
-      `otp-${order.id}`
-    ) as HTMLInputElement | null;
+  const input = document.getElementById(
+    `otp-${order.id}`
+  ) as HTMLInputElement | null;
 
-    const enteredOtp = input?.value.trim();
+  const enteredOtp = input?.value.trim();
 
-    if (!enteredOtp || enteredOtp.length !== 4) {
-      setMsg("Entre le code de vérification à 4 chiffres.");
-      return;
-    }
-
-    const res = await fetch("/api/verify-otp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId: order.id, otp: enteredOtp }),
-    });
-
-    const result = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      setMsg(result?.error || "Code de vérification incorrect.");
-      return;
-    }
-
-    setMsg("✅ Commande livrée.");
-
-    if (input) input.value = "";
-
-    await loadOrders(userId, true);
+  if (!enteredOtp || enteredOtp.length !== 4) {
+    setMsg("Entre le code de vérification à 4 chiffres.");
+    return;
   }
+
+  const res = await fetch("/api/verify-otp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ orderId: order.id, otp: enteredOtp }),
+  });
+
+  const result = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    setMsg(result?.error || "Code de vérification incorrect.");
+    return;
+  }
+
+  const { error } = await supabase
+    .from("orders")
+    .update({
+      status: "delivered",
+      delivered_at: new Date().toISOString(),
+    })
+    .eq("id", order.id);
+
+  if (error) {
+    setMsg("Erreur validation livraison : " + error.message);
+    return;
+  }
+
+  setMsg("✅ Livraison terminée.");
+
+  if (input) input.value = "";
+
+  await loadOrders(userId, true);
+}
 
   async function cancelMission(orderId: string) {
     const { error } = await supabase
