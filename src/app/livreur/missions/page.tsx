@@ -574,6 +574,35 @@ export default function MissionsPage() {
     
     <main className="min-h-screen bg-gray-50 p-4">
       <PushNotifications />
+      <nav className="mx-auto mb-4 grid max-w-3xl grid-cols-2 gap-2 sm:grid-cols-4">
+  <Link
+    href="/livreur/missions"
+    className="rounded-2xl bg-blue-600 px-4 py-3 text-center text-sm font-bold text-white"
+  >
+    Missions
+  </Link>
+
+  <Link
+    href="/livreur/historique"
+    className="rounded-2xl bg-white px-4 py-3 text-center text-sm font-bold text-gray-800 shadow-sm"
+  >
+    Historique
+  </Link>
+
+  <Link
+    href="/livreur/portefeuille"
+    className="rounded-2xl bg-white px-4 py-3 text-center text-sm font-bold text-gray-800 shadow-sm"
+  >
+    Portefeuille
+  </Link>
+
+  <Link
+    href="/livreur/aide"
+    className="rounded-2xl bg-white px-4 py-3 text-center text-sm font-bold text-gray-800 shadow-sm"
+  >
+    Aide
+  </Link>
+</nav>
       <div className="mx-auto max-w-3xl space-y-6">
         <section className="rounded-3xl bg-blue-600 p-6 text-white shadow-lg">
           <div className="flex items-start justify-between gap-4">

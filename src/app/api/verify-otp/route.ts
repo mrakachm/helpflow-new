@@ -33,7 +33,7 @@ export async function POST(req: Request) {
 
     const { data: order, error: fetchError } = await supabase
       .from("orders")
-      .select("id,status,otp_code,courier_id")
+      .select("id,status,otp_code,courier_id,courier_earnings_cents")
       .eq("id", orderId)
       .single();
 
@@ -68,6 +68,7 @@ export async function POST(req: Request) {
         status: "DELIVERED",
         delivered_at: now,
         updated_at: now,
+        courier_earnings_cents: order.courier_earnings_cents || 2000,
       })
       .eq("id", orderId)
       .select()
