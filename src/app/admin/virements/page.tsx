@@ -74,21 +74,32 @@ export default function AdminVirementsPage() {
   }
 
   useEffect(() => {
-    async function checkAdmin() {
-      const { data } = await supabase.auth.getUser();
-      const email = data.user?.email?.toLowerCase();
+  async function checkAdmin() {
+    const { data: userData } = await supabase.auth.getUser();
 
-     if (data.user) {
-  setAuthorized(true);
-  await loadPayouts();
-} else {
-  setAuthorized(false);
-  setLoading(false);
-}
+    if (!userData.user) {
+      setAuthorized(false);
+      setLoading(false);
+      return;
     }
 
-    checkAdmin();
-  }, [supabase]);
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", userData.user.id)
+      .single();
+
+    if (profile?.role === "admin") {
+      setAuthorized(true);
+      await loadPayouts();
+    } else {
+      setAuthorized(false);
+      setLoading(false);
+    }
+  }
+
+  checkAdmin();
+}, [supabase]);
 
   async function updatePayout(id: string, status: "PAID" | "REFUSED") {
     setMessage("");

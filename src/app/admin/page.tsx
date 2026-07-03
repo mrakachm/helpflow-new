@@ -59,22 +59,33 @@ export default function AdminPage() {
     await loadProfiles();
   }
 
-  useEffect(() => {
-    async function checkAdmin() {
-      const { data } = await supabase.auth.getUser();
-      const email = data.user?.email?.toLowerCase();
+ useEffect(() => {
+  async function checkAdmin() {
+    const { data: userData } = await supabase.auth.getUser();
 
-      if (email === "mohamedlarbimrakach39@gmail.com") {
-        setAuthorized(true);
-        await loadProfiles();
-      } else {
-        setAuthorized(false);
-        setLoading(false);
-      }
+    if (!userData.user) {
+      setAuthorized(false);
+      setLoading(false);
+      return;
     }
 
-    checkAdmin();
-  }, [supabase]);
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", userData.user.id)
+      .single();
+
+    if (profile?.role === "admin") {
+      setAuthorized(true);
+      await loadProfiles();
+    } else {
+      setAuthorized(false);
+      setLoading(false);
+    }
+  }
+
+  checkAdmin();
+}, [supabase]);
 
   const couriers = profiles.filter((p) => p.role === "livreur");
   const users = profiles.filter((p) => p.role !== "livreur");
