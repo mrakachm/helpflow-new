@@ -35,6 +35,9 @@ type Order = {
   status?: string | null;
   payment_status?: string | null;
   courier_id?: string | null;
+  absence_reason?: string | null;
+  absence_declared_at?: string | null;
+  next_delivery_at?: string | null;
 };
 
 type CourierProfile = {
@@ -94,6 +97,12 @@ export default function MissionsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [receiverCallStartedAt, setReceiverCallStartedAt] = useState<Record<string, number>>({});
+  const [callSecondsLeft, setCallSecondsLeft] = useState<Record<string, number>>({});
+  const [absenceReason, setAbsenceReason] = useState<Record<string, string>>({});
+  const [nextDeliveryAt, setNextDeliveryAt] = useState<Record<string, string>>({});
+  const [absenceOpen, setAbsenceOpen] = useState<Record<string, boolean>>({});
+  const [nextDeliveryOpen, setNextDeliveryOpen] = useState<Record<string, boolean>>({});
 
   async function loadCourierProfile(uid: string) {
     const { data, error } = await supabase
@@ -187,6 +196,110 @@ export default function MissionsPage() {
     init();
   }, [supabase]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const next: Record<string, number> = {};
+      Object.entries(receiverCallStartedAt).forEach(([orderId, startedAt]) => {
+        next[orderId] = Math.max(0, 15 - Math.floor((Date.now() - startedAt) / 1000));
+      });
+      setCallSecondsLeft(next);
+    }, 500);
+
+    return () => window.clearInterval(timer);
+  }, [receiverCallStartedAt]);
+
+  function callReceiver(order: Order) {
+    if (!order.receiver_phone) {
+      setMsg("Numéro du receveur non renseigné.");
+      return;
+    }
+
+    const startedAt = Date.now();
+    setReceiverCallStartedAt((current) => ({ ...current, [order.id]: startedAt }));
+    setCallSecondsLeft((current) => ({ ...current, [order.id]: 15 }));
+    window.location.href = `tel:${order.receiver_phone}`;
+  }
+
+  function canDeclareAbsent(orderId: string) {
+    const startedAt = receiverCallStartedAt[orderId];
+    return Boolean(startedAt && Date.now() - startedAt >= 15000);
+  }
+
+  async function declareAbsent(order: Order) {
+    if (!canDeclareAbsent(order.id)) {
+      setMsg("Appelle d'abord le client et attends au moins 15 secondes.");
+      return;
+    }
+
+    const reason = (absenceReason[order.id] || "").trim();
+    if (!reason) {
+      setMsg("Écris le motif de l'absence avant de confirmer.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("orders")
+      .update({
+        status: "ABSENT",
+        absence_reason: reason,
+        absence_declared_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", order.id)
+      .eq("courier_id", userId);
+
+    if (error) {
+      setMsg("Erreur déclaration client absent : " + error.message);
+      return;
+    }
+
+    setMsg("✅ Client déclaré absent. Le motif a été enregistré.");
+    setAbsenceOpen((current) => ({ ...current, [order.id]: false }));
+    await loadOrders(userId, true);
+  }
+
+  async function scheduleNextDelivery(order: Order) {
+    if (!canDeclareAbsent(order.id)) {
+      setMsg("Appelle d'abord le client et attends au moins 15 secondes.");
+      return;
+    }
+
+    const dateValue = nextDeliveryAt[order.id];
+    if (!dateValue) {
+      setMsg("Choisis la date et l'heure de la prochaine distribution.");
+      return;
+    }
+
+    const nextDate = new Date(dateValue);
+    if (Number.isNaN(nextDate.getTime()) || nextDate.getTime() <= Date.now()) {
+      setMsg("Choisis une date et une heure futures.");
+      return;
+    }
+
+    const reason = (absenceReason[order.id] || "").trim();
+
+    const { error } = await supabase
+      .from("orders")
+      .update({
+        status: "DISTRIBUTION_A_VENIR",
+        next_delivery_at: nextDate.toISOString(),
+        absence_reason: reason || null,
+        absence_declared_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", order.id)
+      .eq("courier_id", userId);
+
+    if (error) {
+      setMsg("Erreur programmation distribution : " + error.message);
+      return;
+    }
+
+    setMsg("✅ Distribution à venir enregistrée.");
+    setNextDeliveryOpen((current) => ({ ...current, [order.id]: false }));
+    await loadOrders(userId, true);
+  }
+
   async function acceptMission(orderId: string) {
     if (!userId) {
       setMsg("Tu dois être connecté comme livreur.");
@@ -254,7 +367,7 @@ export default function MissionsPage() {
   const enteredOtp = input?.value.trim();
 
   if (!enteredOtp || enteredOtp.length !== 4) {
-    setMsg("Entre le code de vérification à 4 chiffres.");
+    setMsg("Entre le Code PIN à 4 chiffres.");
     return;
   }
 
@@ -267,7 +380,7 @@ export default function MissionsPage() {
   const result = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    setMsg(result?.error || "Code de vérification incorrect.");
+    setMsg(result?.error || "Code PIN incorrect.");
     return;
   }
 
@@ -423,7 +536,7 @@ export default function MissionsPage() {
               {type === "mine" && order.receiver_phone ? (
                 <button
                   type="button"
-                  onClick={() => callPhone(order.receiver_phone)}
+                  onClick={() => callReceiver(order)}
                   className="mt-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium"
                 >
                   Appeler receveur
@@ -518,7 +631,7 @@ export default function MissionsPage() {
                   const input = e.currentTarget;
                   input.value = input.value.replace(/\D/g, "").slice(0, 4);
                 }}
-                placeholder="Code de vérification"
+                placeholder="Code PIN à 4 chiffres"
                 className="w-full rounded-2xl border px-4 py-3 text-lg tracking-widest"
               />
 
@@ -529,6 +642,108 @@ export default function MissionsPage() {
               >
                 Valider la livraison
               </button>
+            </div>
+          )}
+
+          {type === "mine" && status === "OUT_FOR_DELIVERY" && (
+            <div className="space-y-3 rounded-2xl border border-orange-200 bg-orange-50 p-4">
+              <p className="font-bold text-orange-900">Client indisponible ?</p>
+
+              {!receiverCallStartedAt[order.id] ? (
+                <p className="text-sm text-orange-800">
+                  Appelle d'abord le receveur. Les actions « Client absent » et
+                  « Distribution à venir » seront disponibles après 15 secondes.
+                </p>
+              ) : (callSecondsLeft[order.id] ?? 0) > 0 ? (
+                <p className="text-sm font-semibold text-orange-800">
+                  Attends encore {callSecondsLeft[order.id]} seconde(s) avant de déclarer le client absent.
+                </p>
+              ) : (
+                <p className="text-sm font-semibold text-green-700">
+                  Délai de 15 secondes respecté. Tu peux maintenant choisir une action.
+                </p>
+              )}
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  disabled={!canDeclareAbsent(order.id)}
+                  onClick={() =>
+                    setAbsenceOpen((current) => ({
+                      ...current,
+                      [order.id]: !current[order.id],
+                    }))
+                  }
+                  className="rounded-xl bg-orange-600 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
+                >
+                  Client absent
+                </button>
+
+                <button
+                  type="button"
+                  disabled={!canDeclareAbsent(order.id)}
+                  onClick={() =>
+                    setNextDeliveryOpen((current) => ({
+                      ...current,
+                      [order.id]: !current[order.id],
+                    }))
+                  }
+                  className="rounded-xl bg-blue-600 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
+                >
+                  Distribution à venir
+                </button>
+              </div>
+
+              {(absenceOpen[order.id] || nextDeliveryOpen[order.id]) && (
+                <textarea
+                  value={absenceReason[order.id] || ""}
+                  onChange={(e) =>
+                    setAbsenceReason((current) => ({
+                      ...current,
+                      [order.id]: e.target.value,
+                    }))
+                  }
+                  placeholder="Motif : téléphone éteint, aucune réponse, boîte vocale, message laissé..."
+                  className="min-h-24 w-full rounded-xl border border-orange-200 bg-white px-4 py-3"
+                />
+              )}
+
+              {absenceOpen[order.id] && (
+                <button
+                  type="button"
+                  onClick={() => declareAbsent(order)}
+                  className="w-full rounded-xl bg-orange-700 px-4 py-3 font-bold text-white"
+                >
+                  Confirmer client absent
+                </button>
+              )}
+
+              {nextDeliveryOpen[order.id] && (
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Nouvelle date et heure
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={nextDeliveryAt[order.id] || ""}
+                    onChange={(e) =>
+                      setNextDeliveryAt((current) => ({
+                        ...current,
+                        [order.id]: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-xl border border-blue-200 bg-white px-4 py-3"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => scheduleNextDelivery(order)}
+                    className="w-full rounded-xl bg-blue-700 px-4 py-3 font-bold text-white"
+                  >
+                    Enregistrer la distribution à venir
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
