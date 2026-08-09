@@ -620,18 +620,23 @@ setPinByOrder((current) => ({
           {type === "mine" && status === "OUT_FOR_DELIVERY" && (
             <div className="space-y-3">
               <input
-                id={`otp-${order.id}`}
-                type="tel"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={4}
-                onInput={(e) => {
-                  const input = e.currentTarget;
-                  input.value = input.value.replace(/\D/g, "").slice(0, 4);
-                }}
-                placeholder="Code PIN à 4 chiffres"
-                className="w-full rounded-2xl border px-4 py-3 text-lg tracking-widest"
-              />
+  id={`otp-${order.id}`}
+  type="text"
+  inputMode="numeric"
+  autoComplete="one-time-code"
+  maxLength={4}
+  value={pinByOrder[order.id] || ""}
+  onChange={(e) => {
+    const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+
+    setPinByOrder((current) => ({
+      ...current,
+      [order.id]: value,
+    }));
+  }}
+  placeholder="Code PIN à 4 chiffres"
+  className="w-full rounded-2xl border bg-white px-4 py-3 text-lg text-gray-900 tracking-widest"
+/>
 
               <button
                 type="button"
