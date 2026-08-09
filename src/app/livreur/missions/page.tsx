@@ -103,7 +103,7 @@ export default function MissionsPage() {
   const [nextDeliveryAt, setNextDeliveryAt] = useState<Record<string, string>>({});
   const [absenceOpen, setAbsenceOpen] = useState<Record<string, boolean>>({});
   const [nextDeliveryOpen, setNextDeliveryOpen] = useState<Record<string, boolean>>({});
-
+  const [pinByOrder, setPinByOrder] = useState<Record<string, string>>({});
   async function loadCourierProfile(uid: string) {
     const { data, error } = await supabase
       .from("profiles")
@@ -197,13 +197,23 @@ export default function MissionsPage() {
   }, [supabase]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
+    if (Object.keys(receiverCallStartedAt).length === 0) return;
+
+    const updateCountdown = () => {
       const next: Record<string, number> = {};
+
       Object.entries(receiverCallStartedAt).forEach(([orderId, startedAt]) => {
-        next[orderId] = Math.max(0, 15 - Math.floor((Date.now() - startedAt) / 1000));
+        next[orderId] = Math.max(
+          0,
+          15 - Math.floor((Date.now() - startedAt) / 1000)
+        );
       });
+
       setCallSecondsLeft(next);
-    }, 500);
+    };
+
+    updateCountdown();
+    const timer = window.setInterval(updateCountdown, 1000);
 
     return () => window.clearInterval(timer);
   }, [receiverCallStartedAt]);
@@ -360,11 +370,7 @@ export default function MissionsPage() {
   }
 
   async function validateDelivery(order: Order) {
-  const input = document.getElementById(
-    `otp-${order.id}`
-  ) as HTMLInputElement | null;
-
-  const enteredOtp = input?.value.trim();
+  const enteredOtp = (pinByOrder[order.id] || "").trim();
 
   if (!enteredOtp || enteredOtp.length !== 4) {
     setMsg("Entre le Code PIN à 4 chiffres.");
@@ -398,8 +404,10 @@ export default function MissionsPage() {
   }
 
   setMsg("✅ Livraison terminée.");
-
-  if (input) input.value = "";
+setPinByOrder((current) => ({
+  ...current,
+  [order.id]: "",
+}));
 
   await loadOrders(userId, true);
 }
@@ -443,6 +451,7 @@ export default function MissionsPage() {
 
     return (
       <div
+        key={order.id}
         className={`overflow-hidden rounded-3xl border shadow-sm ${
           type === "mine"
             ? "border-green-300 bg-green-50 ring-2 ring-green-200"
@@ -622,18 +631,23 @@ export default function MissionsPage() {
           {type === "mine" && status === "OUT_FOR_DELIVERY" && (
             <div className="space-y-3">
               <input
-                id={`otp-${order.id}`}
-                type="tel"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={4}
-                onInput={(e) => {
-                  const input = e.currentTarget;
-                  input.value = input.value.replace(/\D/g, "").slice(0, 4);
-                }}
-                placeholder="Code PIN à 4 chiffres"
-                className="w-full rounded-2xl border px-4 py-3 text-lg tracking-widest"
-              />
+  id={`otp-${order.id}`}
+  type="text"
+  inputMode="numeric"
+  autoComplete="one-time-code"
+  maxLength={4}
+  value={pinByOrder[order.id] || ""}
+  onChange={(e) => {
+    const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+
+    setPinByOrder((current) => ({
+      ...current,
+      [order.id]: value,
+    }));
+  }}
+  placeholder="Code PIN à 4 chiffres"
+  className="w-full rounded-2xl border bg-white px-4 py-3 text-lg text-gray-900 tracking-widest"
+/>
 
               <button
                 type="button"
@@ -960,9 +974,9 @@ export default function MissionsPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {myMissions.map((order) => (
-                <OrderCard key={order.id} order={order} type="mine" />
-              ))}
+              {myMissions.map((order) =>
+                OrderCard({ order, type: "mine" })
+              )}
             </div>
           )}
         </section>
@@ -989,9 +1003,9 @@ export default function MissionsPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {available.map((order) => (
-                <OrderCard key={order.id} order={order} type="available" />
-              ))}
+              {available.map((order) =>
+                OrderCard({ order, type: "available" })
+              )}
             </div>
           )}
         </section>
