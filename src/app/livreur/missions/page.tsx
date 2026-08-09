@@ -103,7 +103,7 @@ export default function MissionsPage() {
   const [nextDeliveryAt, setNextDeliveryAt] = useState<Record<string, string>>({});
   const [absenceOpen, setAbsenceOpen] = useState<Record<string, boolean>>({});
   const [nextDeliveryOpen, setNextDeliveryOpen] = useState<Record<string, boolean>>({});
-
+  const [pinByOrder, setPinByOrder] = useState<Record<string, string>>({});
   async function loadCourierProfile(uid: string) {
     const { data, error } = await supabase
       .from("profiles")
@@ -360,11 +360,7 @@ export default function MissionsPage() {
   }
 
   async function validateDelivery(order: Order) {
-  const input = document.getElementById(
-    `otp-${order.id}`
-  ) as HTMLInputElement | null;
-
-  const enteredOtp = input?.value.trim();
+  const enteredOtp = (pinByOrder[order.id] || "").trim();
 
   if (!enteredOtp || enteredOtp.length !== 4) {
     setMsg("Entre le Code PIN à 4 chiffres.");
@@ -398,8 +394,10 @@ export default function MissionsPage() {
   }
 
   setMsg("✅ Livraison terminée.");
-
-  if (input) input.value = "";
+setPinByOrder((current) => ({
+  ...current,
+  [order.id]: "",
+}));
 
   await loadOrders(userId, true);
 }
