@@ -28,7 +28,7 @@ export async function sendOtpEmail({
     body: JSON.stringify({
       from: "HelpFlow <noreply@helpflow.fr>",
       to: [to],
-      subject: "Votre code OTP HelpFlow",
+      subject: "Votre Code PIN HelpFlow",
       html: `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
           <h2>Votre code de livraison HelpFlow</h2>
@@ -38,7 +38,7 @@ export async function sendOtpEmail({
           <p><strong>Numéro de commande :</strong> ${orderId}</p>
 
           <div style="margin: 24px 0; padding: 18px; background: #f3f4f6; border-radius: 12px; text-align: center;">
-            <p style="margin: 0 0 8px; font-size: 14px; color: #6b7280;">Code OTP de livraison</p>
+            <p style="margin: 0 0 8px; font-size: 14px; color: #6b7280;">Code PIN de livraison</p>
             <p style="margin: 0; font-size: 34px; font-weight: 700; letter-spacing: 5px; color: #2563eb;">
               ${otp}
             </p>
