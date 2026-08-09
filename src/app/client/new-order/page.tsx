@@ -260,7 +260,6 @@ export default function NewOrderPage() {
 
     try {
       const parcelPhotoUrl = await uploadParcelPhoto();
-      const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
       const payload: any = {
         client_id: userId,
@@ -287,9 +286,9 @@ export default function NewOrderPage() {
         parcel_note: parcelNote || null,
         parcel_photo_url: parcelPhotoUrl,
         vehicle_required: vehicleRequired || null,
-parcel_size: parcelSize || null,
+        parcel_size: parcelSize || null,
 
-price_cents: pricingView.finalPriceCents,
+        price_cents: pricingView.finalPriceCents,
         client_proposed_price_cents: pricingView.proposedPriceCents,
         platform_fee_cents: pricingView.platformFeeCents,
         courier_earnings_cents: pricingView.courierEarningsCents,
@@ -297,38 +296,59 @@ price_cents: pricingView.finalPriceCents,
           ? "client_proposal"
           : "standard",
 
-        status: "PUBLISHED",
-        payment_status: "paid",
-        otp_code: otp,
+        // La commande ne devient visible aux livreurs qu'après confirmation Stripe.
+        status: "PAYMENT_PENDING",
+        payment_status: "pending",
+        otp_code: null,
       };
 
       const { data, error } = await supabase
         .from("orders")
         .insert(payload)
-        .select("id, otp_code, recipient_email")
+        .select("id")
         .single();
 
-      if (error) {
-        setMsg("Impossible de créer la commande. Vérifie les informations puis réessaie.");
+      if (error || !data?.id) {
+        console.error("CREATE ORDER ERROR =>", error);
+        setMsg(
+          "Impossible de créer la commande. Vérifie les informations puis réessaie."
+        );
         setLoading(false);
         return;
       }
 
-      try {
-        await fetch("/api/send-otp-email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: data.recipient_email || recipientEmail.trim(),
-            otp: data.otp_code || otp,
-            orderId: data.id,
-          }),
-        });
-      } catch {}
+      const checkoutResponse = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: data.id,
+          paymentType: "INITIAL",
+        }),
+      });
 
-      router.push(`/client/orders/${data.id}`);
-    } catch (e: any) {
-      setMsg(e?.message || "Erreur pendant la création de la commande.");
+      const checkoutResult = await checkoutResponse
+        .json()
+        .catch(() => ({}));
+
+      if (!checkoutResponse.ok || !checkoutResult?.url) {
+        console.error("CREATE CHECKOUT ERROR =>", checkoutResult);
+        setMsg(
+          checkoutResult?.error ||
+            `Commande créée (${data.id}), mais le paiement Stripe n'a pas pu s'ouvrir.`
+        );
+        setLoading(false);
+        return;
+      }
+
+      window.location.assign(checkoutResult.url);
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error
+          ? e.message
+          : "Erreur pendant la création de la commande.";
+
+      console.error("NEW ORDER UNCAUGHT ERROR =>", e);
+      setMsg(message);
       setLoading(false);
     }
   }

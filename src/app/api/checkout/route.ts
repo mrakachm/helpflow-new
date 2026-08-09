@@ -10,18 +10,23 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
-    const { orderId } = await req.json();
+    const body = await req.json();
+
+    const orderId = String(body?.orderId || "").trim();
+    const paymentType =
+      body?.paymentType === "RETURN" ? "RETURN" : "INITIAL";
 
     if (!orderId) {
-      return Response.json({ error: "ID commande manquant" }, { status: 400 });
+      return Response.json(
+        { error: "ID commande manquant" },
+        { status: 400 }
+      );
     }
-
-    const cleanOrderId = String(orderId).trim();
 
     const { data: order, error } = await supabase
       .from("orders")
       .select("*")
-      .eq("id", cleanOrderId)
+      .eq("id", orderId)
       .maybeSingle();
 
     if (error) {
@@ -29,62 +34,174 @@ export async function POST(req: Request) {
     }
 
     if (!order) {
-      return Response.json({ error: "Commande introuvable" }, { status: 404 });
-    }
-
-    const alreadyPaid =
-      order.payment_status === "paid" ||
-      order.payment_status === "PAID";
-
-    if (alreadyPaid) {
       return Response.json(
-        { error: "Cette commande est déjà payée." },
-        { status: 400 }
+        { error: "Commande introuvable" },
+        { status: 404 }
       );
     }
 
-    const amount = order.price_cents;
+    let amount = 0;
+    let productName = "";
+    let successUrl = "";
 
-    if (!amount || amount <= 0) {
-      return Response.json({ error: "Prix invalide" }, { status: 400 });
+    const origin =
+      req.headers.get("origin") || "http://localhost:3000";
+
+    // =========================
+    // PAIEMENT INITIAL
+    // =========================
+    if (paymentType === "INITIAL") {
+      const alreadyPaid =
+        String(order.payment_status || "").toLowerCase() === "paid";
+
+      if (alreadyPaid) {
+        return Response.json(
+          { error: "Cette commande est déjà payée." },
+          { status: 400 }
+        );
+      }
+
+      amount = Number(order.price_cents || 0);
+
+      if (amount <= 0) {
+        return Response.json(
+          { error: "Prix de commande invalide." },
+          { status: 400 }
+        );
+      }
+
+      productName = `Livraison HelpFlow (${order.id})`;
+
+      successUrl =
+        `${origin}/payment/success` +
+        `?orderId=${order.id}` +
+        `&paymentType=INITIAL` +
+        `&session_id={CHECKOUT_SESSION_ID}`;
     }
 
-    const origin = req.headers.get("origin") || "http://localhost:3000";
+    // =========================
+    // PAIEMENT DU RETOUR
+    // =========================
+    if (paymentType === "RETURN") {
+      const allowedStatuses = [
+        "RETURN_PAYMENT_PENDING",
+        "RETURN_TO_SENDER",
+      ];
+
+      if (!allowedStatuses.includes(String(order.status || ""))) {
+        return Response.json(
+          {
+            error:
+              "Cette commande n'est pas en attente d'un paiement de retour.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const returnAlreadyPaid =
+        String(order.return_payment_status || "").toLowerCase() === "paid";
+
+      if (returnAlreadyPaid) {
+        return Response.json(
+          { error: "Le retour de cette commande est déjà payé." },
+          { status: 400 }
+        );
+      }
+
+      // 50 % du prix initial.
+      amount = Math.round(Number(order.price_cents || 0) * 0.5);
+
+      if (amount <= 0) {
+        return Response.json(
+          { error: "Prix du retour invalide." },
+          { status: 400 }
+        );
+      }
+
+      productName = `Retour à l'expéditeur HelpFlow (${order.id})`;
+
+      successUrl =
+        `${origin}/payment/success` +
+        `?orderId=${order.id}` +
+        `&paymentType=RETURN` +
+        `&session_id={CHECKOUT_SESSION_ID}`;
+    }
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       mode: "payment",
+
       line_items: [
         {
           price_data: {
             currency: "eur",
             product_data: {
-              name: `Commande HelpFlow (${order.id})`,
+              name: productName,
             },
             unit_amount: amount,
           },
           quantity: 1,
         },
       ],
+
       metadata: {
         orderId: order.id,
+        paymentType,
       },
-      success_url: `${origin}/payment/success?orderId=${order.id}&session_id={CHECKOUT_SESSION_ID}`,
+
+      success_url: successUrl,
       cancel_url: `${origin}/client/orders/${order.id}`,
     });
 
-    await supabase
-      .from("orders")
-      .update({
-        stripe_session_id: session.id,
-        payment_status: "pending",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", order.id);
+    // =========================
+    // ENREGISTREMENT SESSION
+    // =========================
+    if (paymentType === "INITIAL") {
+      const { error: updateError } = await supabase
+        .from("orders")
+        .update({
+          stripe_session_id: session.id,
+          payment_status: "pending",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", order.id);
 
-    return Response.json({ url: session.url });
+      if (updateError) {
+        return Response.json(
+          { error: updateError.message },
+          { status: 500 }
+        );
+      }
+    } else {
+      const { error: updateError } = await supabase
+        .from("orders")
+        .update({
+          return_price_cents: amount,
+          return_stripe_session_id: session.id,
+          return_payment_status: "pending",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", order.id);
+
+      if (updateError) {
+        return Response.json(
+          { error: updateError.message },
+          { status: 500 }
+        );
+      }
+    }
+
+    return Response.json({
+      url: session.url,
+      paymentType,
+      amount,
+    });
   } catch (err) {
-    console.error("Erreur checkout:", err);
-    return Response.json({ error: "Erreur serveur" }, { status: 500 });
+    console.error("Erreur checkout HelpFlow:", err);
+
+    return Response.json(
+      { error: "Erreur serveur" },
+      { status: 500 }
+    );
   }
 }
