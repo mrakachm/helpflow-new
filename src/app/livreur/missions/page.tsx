@@ -38,6 +38,16 @@ type Order = {
   absence_reason?: string | null;
   absence_declared_at?: string | null;
   next_delivery_at?: string | null;
+  refusal_reason?: string | null;
+  refusal_comment?: string | null;
+  refusal_photo_url?: string | null;
+  refused_at?: string | null;
+  refused_by?: string | null;
+  return_payment_status?: string | null;
+  return_price_cents?: number | null;
+  return_courier_earnings_cents?: number | null;
+  return_started_at?: string | null;
+  return_completed_at?: string | null;
 };
 
 type CourierProfile = {
@@ -104,6 +114,13 @@ export default function MissionsPage() {
   const [absenceOpen, setAbsenceOpen] = useState<Record<string, boolean>>({});
   const [nextDeliveryOpen, setNextDeliveryOpen] = useState<Record<string, boolean>>({});
   const [pinByOrder, setPinByOrder] = useState<Record<string, string>>({});
+  const [refusalOpen, setRefusalOpen] = useState<Record<string, boolean>>({});
+  const [refusalReason, setRefusalReason] = useState<Record<string, string>>({});
+  const [refusalComment, setRefusalComment] = useState<Record<string, string>>({});
+  const [refusalPhoto, setRefusalPhoto] = useState<Record<string, File | null>>({});
+  const [refusalSubmitting, setRefusalSubmitting] = useState<Record<string, boolean>>({});
+  const [returnCompleting, setReturnCompleting] = useState<Record<string, boolean>>({});
+
   async function loadCourierProfile(uid: string) {
     const { data, error } = await supabase
       .from("profiles")
@@ -146,7 +163,13 @@ export default function MissionsPage() {
           .from("orders")
           .select("*")
           .eq("courier_id", currentUserId)
-          .in("status", ["ACCEPTED", "OUT_FOR_DELIVERY"])
+          .in("status", [
+            "ACCEPTED",
+            "OUT_FOR_DELIVERY",
+            "REFUSED_BY_RECIPIENT",
+            "RETURN_PAYMENT_PENDING",
+            "RETURN_TO_SENDER",
+          ])
           .order("created_at", { ascending: false });
 
         if (error) throw error;
@@ -307,6 +330,159 @@ export default function MissionsPage() {
 
     setMsg("✅ Distribution à venir enregistrée.");
     setNextDeliveryOpen((current) => ({ ...current, [order.id]: false }));
+    await loadOrders(userId, true);
+  }
+
+  async function uploadRefusalPhoto(orderId: string, file: File) {
+    if (!userId) throw new Error("Livreur non connecté.");
+
+    if (!file.type.startsWith("image/")) {
+      throw new Error("Le justificatif doit être une image.");
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      throw new Error("La photo ne doit pas dépasser 5 Mo.");
+    }
+
+    const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const safeExtension = extension.replace(/[^a-z0-9]/g, "") || "jpg";
+    const path = `refus/${userId}/${orderId}/${Date.now()}-${crypto.randomUUID()}.${safeExtension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("parcel-photos")
+      .upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type || "image/jpeg",
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage.from("parcel-photos").getPublicUrl(path);
+    return data.publicUrl;
+  }
+
+  async function confirmRecipientRefusal(order: Order) {
+    if (!userId) {
+      setMsg("Tu dois être connecté comme livreur.");
+      return;
+    }
+
+    if (cleanStatus(order.status) !== "OUT_FOR_DELIVERY") {
+      setMsg("Le refus ne peut être enregistré qu'au moment de la livraison.");
+      return;
+    }
+
+    const reason = (refusalReason[order.id] || "").trim();
+    const comment = (refusalComment[order.id] || "").trim();
+    const photo = refusalPhoto[order.id];
+
+    if (!reason) {
+      setMsg("Choisis le motif du refus.");
+      return;
+    }
+
+    if (!comment) {
+      setMsg("Écris une explication précise du refus.");
+      return;
+    }
+
+    if (comment.length < 10) {
+      setMsg("L'explication doit contenir au moins 10 caractères.");
+      return;
+    }
+
+    if (!photo) {
+      setMsg("Ajoute une photo justificative du colis.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Confirmer que le receveur refuse le colis ? La livraison ne sera pas validée et un retour payant devra être organisé."
+    );
+
+    if (!confirmed) return;
+
+    setRefusalSubmitting((current) => ({ ...current, [order.id]: true }));
+    setMsg(null);
+
+    try {
+      const photoUrl = await uploadRefusalPhoto(order.id, photo);
+      const now = new Date().toISOString();
+      const returnPriceCents = Math.max(50, Math.round((order.price_cents || 0) * 0.5));
+
+      const { error } = await supabase
+        .from("orders")
+        .update({
+          status: "REFUSED_BY_RECIPIENT",
+          refusal_reason: reason,
+          refusal_comment: comment,
+          refusal_photo_url: photoUrl,
+          refused_at: now,
+          refused_by: userId,
+          return_payment_status: "pending",
+          return_price_cents: returnPriceCents,
+          return_courier_earnings_cents: returnPriceCents,
+          updated_at: now,
+        })
+        .eq("id", order.id)
+        .eq("courier_id", userId)
+        .eq("status", "OUT_FOR_DELIVERY");
+
+      if (error) throw error;
+
+      setRefusalOpen((current) => ({ ...current, [order.id]: false }));
+      setRefusalReason((current) => ({ ...current, [order.id]: "" }));
+      setRefusalComment((current) => ({ ...current, [order.id]: "" }));
+      setRefusalPhoto((current) => ({ ...current, [order.id]: null }));
+      setPinByOrder((current) => ({ ...current, [order.id]: "" }));
+      setMsg(
+        `✅ Refus enregistré. Retour calculé à ${formatEuro(returnPriceCents)}. Attends la confirmation du paiement de l'expéditeur.`
+      );
+      await loadOrders(userId, true);
+    } catch (error: any) {
+      setMsg(error?.message || "Impossible d'enregistrer le refus du colis.");
+    } finally {
+      setRefusalSubmitting((current) => ({ ...current, [order.id]: false }));
+    }
+  }
+
+  async function completeReturnToSender(order: Order) {
+    if (!userId) return;
+
+    if (cleanStatus(order.status) !== "RETURN_TO_SENDER") {
+      setMsg("Le retour doit d'abord être payé et autorisé.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Confirmer que le colis a bien été remis à l'expéditeur ?"
+    );
+
+    if (!confirmed) return;
+
+    setReturnCompleting((current) => ({ ...current, [order.id]: true }));
+
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from("orders")
+      .update({
+        status: "RETURN_COMPLETED",
+        return_completed_at: now,
+        updated_at: now,
+      })
+      .eq("id", order.id)
+      .eq("courier_id", userId)
+      .eq("status", "RETURN_TO_SENDER");
+
+    setReturnCompleting((current) => ({ ...current, [order.id]: false }));
+
+    if (error) {
+      setMsg("Erreur confirmation du retour : " + error.message);
+      return;
+    }
+
+    setMsg("✅ Colis remis à l'expéditeur. Retour terminé.");
     await loadOrders(userId, true);
   }
 
@@ -660,6 +836,121 @@ setPinByOrder((current) => ({
           )}
 
           {type === "mine" && status === "OUT_FOR_DELIVERY" && (
+            <div className="space-y-3 rounded-2xl border border-red-200 bg-red-50 p-4">
+              <div>
+                <p className="font-bold text-red-900">Colis refusé par le receveur ?</p>
+                <p className="mt-1 text-sm text-red-800">
+                  À utiliser uniquement si le receveur refuse réellement le colis au moment de la remise.
+                  Le motif, le commentaire et la photo sont obligatoires.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setRefusalOpen((current) => ({
+                    ...current,
+                    [order.id]: !current[order.id],
+                  }))
+                }
+                className="w-full rounded-xl bg-red-700 px-4 py-3 font-bold text-white"
+              >
+                {refusalOpen[order.id]
+                  ? "Fermer le formulaire de refus"
+                  : "🚫 Colis refusé par le receveur"}
+              </button>
+
+              {refusalOpen[order.id] && (
+                <div className="space-y-3 rounded-2xl border border-red-200 bg-white p-4">
+                  <div>
+                    <label className="mb-1 block text-sm font-semibold text-gray-800">
+                      Motif du refus *
+                    </label>
+                    <select
+                      value={refusalReason[order.id] || ""}
+                      onChange={(e) =>
+                        setRefusalReason((current) => ({
+                          ...current,
+                          [order.id]: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-xl border border-red-200 bg-white px-4 py-3"
+                    >
+                      <option value="">Sélectionner un motif</option>
+                      <option value="COLIS_CASSE">Colis ou objet cassé</option>
+                      <option value="COLIS_ENDOMMAGE">Colis endommagé</option>
+                      <option value="COLIS_NON_CONFORME">Colis non conforme</option>
+                      <option value="COLIS_INCOMPLET">Colis incomplet</option>
+                      <option value="MAUVAIS_COLIS">Mauvais colis</option>
+                      <option value="EMBALLAGE_OUVERT">Emballage ouvert ou détérioré</option>
+                      <option value="AUTRE">Autre motif</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-semibold text-gray-800">
+                      Commentaire du livreur *
+                    </label>
+                    <textarea
+                      value={refusalComment[order.id] || ""}
+                      onChange={(e) =>
+                        setRefusalComment((current) => ({
+                          ...current,
+                          [order.id]: e.target.value,
+                        }))
+                      }
+                      maxLength={1000}
+                      placeholder="Décris précisément ce que le receveur a constaté et pourquoi il refuse le colis..."
+                      className="min-h-28 w-full rounded-xl border border-red-200 bg-white px-4 py-3"
+                    />
+                    <p className="mt-1 text-right text-xs text-gray-500">
+                      {(refusalComment[order.id] || "").length}/1000
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-semibold text-gray-800">
+                      Photo justificative *
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={(e) =>
+                        setRefusalPhoto((current) => ({
+                          ...current,
+                          [order.id]: e.target.files?.[0] || null,
+                        }))
+                      }
+                      className="w-full rounded-xl border border-red-200 bg-white px-3 py-3 text-sm"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Image obligatoire, 5 Mo maximum. Ne photographie pas de document d'identité.
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+                    Le retour sera calculé automatiquement à 50 % du prix initial : {formatEuro(
+                      Math.max(50, Math.round((order.price_cents || 0) * 0.5))
+                    )}. Il devra être payé par l'expéditeur avant le retour.
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={Boolean(refusalSubmitting[order.id])}
+                    onClick={() => confirmRecipientRefusal(order)}
+                    className="w-full rounded-xl bg-red-700 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-400"
+                  >
+                    {refusalSubmitting[order.id]
+                      ? "Enregistrement du refus..."
+                      : "Confirmer le refus et préparer le retour"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {type === "mine" && status === "OUT_FOR_DELIVERY" && (
             <div className="space-y-3 rounded-2xl border border-orange-200 bg-orange-50 p-4">
               <p className="font-bold text-orange-900">Client indisponible ?</p>
 
@@ -761,7 +1052,49 @@ setPinByOrder((current) => ({
             </div>
           )}
 
-          {type === "mine" && (
+          {type === "mine" &&
+            (status === "REFUSED_BY_RECIPIENT" || status === "RETURN_PAYMENT_PENDING") && (
+              <div className="space-y-3 rounded-2xl border border-amber-300 bg-amber-50 p-4">
+                <p className="font-bold text-amber-900">⏳ Retour en attente de paiement</p>
+                <p className="text-sm text-amber-800">
+                  Le refus a été enregistré. Conserve le colis en sécurité et attends la confirmation du paiement de l'expéditeur.
+                </p>
+                <p className="text-sm font-semibold text-amber-900">
+                  Montant du retour : {formatEuro(order.return_price_cents)}
+                </p>
+                {order.refusal_reason ? (
+                  <p className="text-sm text-amber-900">Motif : {order.refusal_reason}</p>
+                ) : null}
+              </div>
+            )}
+
+          {type === "mine" && status === "RETURN_TO_SENDER" && (
+            <div className="space-y-3 rounded-2xl border border-purple-300 bg-purple-50 p-4">
+              <p className="font-bold text-purple-900">↩️ Retour à l'expéditeur autorisé</p>
+              <p className="text-sm text-purple-800">
+                Le retour est payé. Rapporte maintenant le colis à l'adresse de retrait initiale.
+              </p>
+              <div className="rounded-xl bg-white p-3">
+                <p className="text-xs font-semibold uppercase text-gray-500">Adresse de retour</p>
+                <p className="font-semibold">
+                  {cleanAddressDisplay(order.pickup_address) || "-"} {order.pickup_city || ""}
+                </p>
+                <p className="text-sm text-gray-600">Expéditeur : {order.sender_name || "-"}</p>
+              </div>
+              <button
+                type="button"
+                disabled={Boolean(returnCompleting[order.id])}
+                onClick={() => completeReturnToSender(order)}
+                className="w-full rounded-xl bg-purple-700 px-4 py-3 font-bold text-white disabled:bg-gray-400"
+              >
+                {returnCompleting[order.id]
+                  ? "Confirmation..."
+                  : "Confirmer la remise à l'expéditeur"}
+              </button>
+            </div>
+          )}
+
+          {type === "mine" && ["ACCEPTED", "OUT_FOR_DELIVERY"].includes(status) && (
             <button
               type="button"
               onClick={() => cancelMission(order.id)}
