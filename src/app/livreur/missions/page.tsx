@@ -103,7 +103,7 @@ export default function MissionsPage() {
   const [nextDeliveryAt, setNextDeliveryAt] = useState<Record<string, string>>({});
   const [absenceOpen, setAbsenceOpen] = useState<Record<string, boolean>>({});
   const [nextDeliveryOpen, setNextDeliveryOpen] = useState<Record<string, boolean>>({});
-  const [pinByOrder, setPinByOrder] = useState<Record<string, string>>({});
+
   async function loadCourierProfile(uid: string) {
     const { data, error } = await supabase
       .from("profiles")
@@ -360,7 +360,11 @@ export default function MissionsPage() {
   }
 
   async function validateDelivery(order: Order) {
-  const enteredOtp = (pinByOrder[order.id] || "").trim();
+  const input = document.getElementById(
+    `otp-${order.id}`
+  ) as HTMLInputElement | null;
+
+  const enteredOtp = input?.value.trim();
 
   if (!enteredOtp || enteredOtp.length !== 4) {
     setMsg("Entre le Code PIN à 4 chiffres.");
@@ -394,10 +398,8 @@ export default function MissionsPage() {
   }
 
   setMsg("✅ Livraison terminée.");
-setPinByOrder((current) => ({
-  ...current,
-  [order.id]: "",
-}));
+
+  if (input) input.value = "";
 
   await loadOrders(userId, true);
 }
@@ -620,23 +622,18 @@ setPinByOrder((current) => ({
           {type === "mine" && status === "OUT_FOR_DELIVERY" && (
             <div className="space-y-3">
               <input
-  id={`otp-${order.id}`}
-  type="text"
-  inputMode="numeric"
-  autoComplete="one-time-code"
-  maxLength={4}
-  value={pinByOrder[order.id] || ""}
-  onChange={(e) => {
-    const value = e.target.value.replace(/\D/g, "").slice(0, 4);
-
-    setPinByOrder((current) => ({
-      ...current,
-      [order.id]: value,
-    }));
-  }}
-  placeholder="Code PIN à 4 chiffres"
-  className="w-full rounded-2xl border bg-white px-4 py-3 text-lg text-gray-900 tracking-widest"
-/>
+                id={`otp-${order.id}`}
+                type="tel"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={4}
+                onInput={(e) => {
+                  const input = e.currentTarget;
+                  input.value = input.value.replace(/\D/g, "").slice(0, 4);
+                }}
+                placeholder="Code PIN à 4 chiffres"
+                className="w-full rounded-2xl border px-4 py-3 text-lg tracking-widest"
+              />
 
               <button
                 type="button"
