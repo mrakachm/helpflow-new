@@ -48,6 +48,11 @@ type Order = {
   return_courier_earnings_cents?: number | null;
   return_started_at?: string | null;
   return_completed_at?: string | null;
+  return_pin_code?: string | null;
+  return_pin_verified_at?: string | null;
+  delivery_obstacle_reason?: string | null;
+  delivery_obstacle_comment?: string | null;
+  delivery_obstacle_at?: string | null;
 };
 
 type CourierProfile = {
@@ -120,6 +125,16 @@ export default function MissionsPage() {
   const [refusalPhoto, setRefusalPhoto] = useState<Record<string, File | null>>({});
   const [refusalSubmitting, setRefusalSubmitting] = useState<Record<string, boolean>>({});
   const [returnCompleting, setReturnCompleting] = useState<Record<string, boolean>>({});
+  const [pendingReturns, setPendingReturns] = useState<Order[]>([]);
+  const [paidReturns, setPaidReturns] = useState<Order[]>([]);
+  const [returnScheduleOpen, setReturnScheduleOpen] = useState<Record<string, boolean>>({});
+  const [returnScheduleAt, setReturnScheduleAt] = useState<Record<string, string>>({});
+  const [returnPinByOrder, setReturnPinByOrder] = useState<Record<string, string>>({});
+  const [presentOpen, setPresentOpen] = useState<Record<string, boolean>>({});
+  const [obstacleOpen, setObstacleOpen] = useState<Record<string, boolean>>({});
+  const [obstacleReason, setObstacleReason] = useState<Record<string, string>>({});
+  const [obstacleComment, setObstacleComment] = useState<Record<string, string>>({});
+  const [obstacleSaving, setObstacleSaving] = useState<Record<string, boolean>>({});
 
   async function loadCourierProfile(uid: string) {
     const { data, error } = await supabase
@@ -157,23 +172,39 @@ export default function MissionsPage() {
 
       let myData: Order[] = [];
       let historyData: Order[] = [];
+      let pendingReturnData: Order[] = [];
+      let paidReturnData: Order[] = [];
 
       if (currentUserId) {
         const { data, error } = await supabase
           .from("orders")
           .select("*")
           .eq("courier_id", currentUserId)
-          .in("status", [
-            "ACCEPTED",
-            "OUT_FOR_DELIVERY",
-            "REFUSED_BY_RECIPIENT",
-            "RETURN_PAYMENT_PENDING",
-            "RETURN_TO_SENDER",
-          ])
+          .in("status", ["ACCEPTED", "OUT_FOR_DELIVERY"])
           .order("created_at", { ascending: false });
 
         if (error) throw error;
         myData = (data as Order[]) || [];
+
+        const { data: pendingData, error: pendingError } = await supabase
+          .from("orders")
+          .select("*")
+          .eq("courier_id", currentUserId)
+          .in("status", ["REFUSED_BY_RECIPIENT", "RETURN_PAYMENT_PENDING"])
+          .order("updated_at", { ascending: false });
+
+        if (pendingError) throw pendingError;
+        pendingReturnData = (pendingData as Order[]) || [];
+
+        const { data: paidData, error: paidError } = await supabase
+          .from("orders")
+          .select("*")
+          .eq("courier_id", currentUserId)
+          .in("status", ["RETURN_TO_SENDER", "RETURN_SCHEDULED"])
+          .order("updated_at", { ascending: false });
+
+        if (paidError) throw paidError;
+        paidReturnData = (paidData as Order[]) || [];
 
         const { data: deliveredData, error: deliveredError } = await supabase
           .from("orders")
@@ -196,6 +227,8 @@ export default function MissionsPage() {
       );
 
       setMyMissions(myData);
+      setPendingReturns(pendingReturnData);
+      setPaidReturns(paidReturnData);
       setHistoryMissions(historyData);
     } catch (error: any) {
       setMsg(error?.message || "Impossible de charger les missions.");
@@ -258,6 +291,76 @@ export default function MissionsPage() {
     return Boolean(startedAt && Date.now() - startedAt >= 15000);
   }
 
+  async function recordDeliveryObstacle(order: Order) {
+    if (!userId) {
+      setMsg("Tu dois être connecté comme livreur.");
+      return;
+    }
+
+    if (cleanStatus(order.status) !== "OUT_FOR_DELIVERY") {
+      setMsg("Un obstacle ne peut être déclaré que pendant la livraison.");
+      return;
+    }
+
+    const reason = (obstacleReason[order.id] || "").trim();
+    const comment = (obstacleComment[order.id] || "").trim();
+
+    if (!reason) {
+      setMsg("Choisis le type d'obstacle.");
+      return;
+    }
+
+    if (!comment) {
+      setMsg("Ajoute une courte précision sur l'obstacle rencontré.");
+      return;
+    }
+
+    setObstacleSaving((current) => ({
+      ...current,
+      [order.id]: true,
+    }));
+
+    const now = new Date().toISOString();
+
+    const { error } = await supabase
+      .from("orders")
+      .update({
+        delivery_obstacle_reason: reason,
+        delivery_obstacle_comment: comment,
+        delivery_obstacle_at: now,
+        updated_at: now,
+      })
+      .eq("id", order.id)
+      .eq("courier_id", userId)
+      .eq("status", "OUT_FOR_DELIVERY");
+
+    setObstacleSaving((current) => ({
+      ...current,
+      [order.id]: false,
+    }));
+
+    if (error) {
+      setMsg("Erreur enregistrement obstacle : " + error.message);
+      return;
+    }
+
+    setMsg("✅ Obstacle enregistré. La mission reste ouverte.");
+    setObstacleOpen((current) => ({
+      ...current,
+      [order.id]: false,
+    }));
+    setObstacleReason((current) => ({
+      ...current,
+      [order.id]: "",
+    }));
+    setObstacleComment((current) => ({
+      ...current,
+      [order.id]: "",
+    }));
+
+    await loadOrders(userId, true);
+  }
+
   async function declareAbsent(order: Order) {
     if (!canDeclareAbsent(order.id)) {
       setMsg("Appelle d'abord le client et attends au moins 15 secondes.");
@@ -299,7 +402,7 @@ export default function MissionsPage() {
 
     const dateValue = nextDeliveryAt[order.id];
     if (!dateValue) {
-      setMsg("Choisis la date et l'heure de la prochaine distribution.");
+      setMsg("Choisis la date et l'heure de la prochain créneau.");
       return;
     }
 
@@ -328,7 +431,7 @@ export default function MissionsPage() {
       return;
     }
 
-    setMsg("✅ Distribution à venir enregistrée.");
+    setMsg("✅ Autre créneau enregistrée.");
     setNextDeliveryOpen((current) => ({ ...current, [order.id]: false }));
     await loadOrders(userId, true);
   }
@@ -409,18 +512,18 @@ export default function MissionsPage() {
     try {
       const photoUrl = await uploadRefusalPhoto(order.id, photo);
       const now = new Date().toISOString();
-      const returnPriceCents = Math.max(50, Math.round((order.price_cents || 0) * 0.5));
+      const returnPriceCents = Math.max(300, Math.round((order.price_cents || 0) * 0.5));
 
       const { error } = await supabase
         .from("orders")
         .update({
-          status: "REFUSED_BY_RECIPIENT",
+          status: "RETURN_PAYMENT_PENDING",
           refusal_reason: reason,
           refusal_comment: comment,
           refusal_photo_url: photoUrl,
           refused_at: now,
           refused_by: userId,
-          return_payment_status: "pending",
+          return_payment_status: "unpaid",
           return_price_cents: returnPriceCents,
           return_courier_earnings_cents: returnPriceCents,
           updated_at: now,
@@ -437,7 +540,7 @@ export default function MissionsPage() {
       setRefusalPhoto((current) => ({ ...current, [order.id]: null }));
       setPinByOrder((current) => ({ ...current, [order.id]: "" }));
       setMsg(
-        `✅ Refus enregistré. Retour calculé à ${formatEuro(returnPriceCents)}. Attends la confirmation du paiement de l'expéditeur.`
+        `✅ Refus enregistré. Première rémunération acquise. Retour calculé à ${formatEuro(returnPriceCents)}. Tu peux accepter une autre mission pendant l'attente.`
       );
       await loadOrders(userId, true);
     } catch (error: any) {
@@ -447,43 +550,138 @@ export default function MissionsPage() {
     }
   }
 
-  async function completeReturnToSender(order: Order) {
+  async function startReturnToday(order: Order) {
     if (!userId) return;
-
-    if (cleanStatus(order.status) !== "RETURN_TO_SENDER") {
-      setMsg("Le retour doit d'abord être payé et autorisé.");
-      return;
-    }
-
-    const confirmed = window.confirm(
-      "Confirmer que le colis a bien été remis à l'expéditeur ?"
-    );
-
-    if (!confirmed) return;
-
-    setReturnCompleting((current) => ({ ...current, [order.id]: true }));
 
     const now = new Date().toISOString();
     const { error } = await supabase
       .from("orders")
       .update({
-        status: "RETURN_COMPLETED",
-        return_completed_at: now,
+        status: "RETURN_TO_SENDER",
+        return_started_at: now,
         updated_at: now,
       })
       .eq("id", order.id)
       .eq("courier_id", userId)
-      .eq("status", "RETURN_TO_SENDER");
-
-    setReturnCompleting((current) => ({ ...current, [order.id]: false }));
+      .eq("return_payment_status", "paid");
 
     if (error) {
-      setMsg("Erreur confirmation du retour : " + error.message);
+      setMsg("Erreur démarrage du retour : " + error.message);
       return;
     }
 
-    setMsg("✅ Colis remis à l'expéditeur. Retour terminé.");
+    setMsg("✅ Retour vers l'expéditeur démarré.");
     await loadOrders(userId, true);
+  }
+
+  async function scheduleReturn(order: Order) {
+    if (!userId) return;
+
+    const value = returnScheduleAt[order.id];
+
+    if (!value) {
+      setMsg("Choisis la date et l'heure prévues pour le retour.");
+      return;
+    }
+
+    const scheduledDate = new Date(value);
+
+    if (Number.isNaN(scheduledDate.getTime()) || scheduledDate.getTime() <= Date.now()) {
+      setMsg("Choisis une date et une heure futures.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("orders")
+      .update({
+        status: "RETURN_SCHEDULED",
+        next_delivery_at: scheduledDate.toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", order.id)
+      .eq("courier_id", userId)
+      .eq("return_payment_status", "paid");
+
+    if (error) {
+      setMsg("Erreur programmation du retour : " + error.message);
+      return;
+    }
+
+    setReturnScheduleOpen((current) => ({ ...current, [order.id]: false }));
+    setMsg("✅ Retour programmé.");
+    await loadOrders(userId, true);
+  }
+
+  async function completeReturnToSender(order: Order) {
+    if (!userId) return;
+
+    if (!["RETURN_TO_SENDER", "RETURN_SCHEDULED"].includes(cleanStatus(order.status))) {
+      setMsg("Le retour doit d'abord être payé et autorisé.");
+      return;
+    }
+
+    const enteredPin = (returnPinByOrder[order.id] || "").trim();
+
+    if (!/^\d{4}$/.test(enteredPin)) {
+      setMsg("Entre le Code PIN retour à 4 chiffres donné par l'expéditeur.");
+      return;
+    }
+
+    setReturnCompleting((current) => ({ ...current, [order.id]: true }));
+
+    try {
+      const {
+  data: sessionData,
+} = await supabase.auth.getSession();
+
+const accessToken =
+  sessionData.session?.access_token;
+
+if (!accessToken) {
+  throw new Error(
+    "Session livreur introuvable."
+  );
+}
+
+const response =
+  await fetch(
+    "/api/verify-return-pin",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type":
+          "application/json",
+        Authorization:
+          `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        orderId: order.id,
+        pin: enteredPin,
+      }),
+    }
+  );
+       
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(result?.error || "Code PIN retour incorrect.");
+      }
+
+      setReturnPinByOrder((current) => ({
+        ...current,
+        [order.id]: "",
+      }));
+
+      setMsg("✅ Colis remis à l'expéditeur. Retour terminé et confirmé par Code PIN.");
+      await loadOrders(userId, true);
+    } catch (error: any) {
+      setMsg(error?.message || "Impossible de confirmer le retour.");
+    } finally {
+      setReturnCompleting((current) => ({
+        ...current,
+        [order.id]: false,
+      }));
+    }
   }
 
   async function acceptMission(orderId: string) {
@@ -805,6 +1003,177 @@ setPinByOrder((current) => ({
           )}
 
           {type === "mine" && status === "OUT_FOR_DELIVERY" && (
+            <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-center">
+                <p className="text-xl font-bold text-slate-900">Traitement</p>
+                <p className="mt-1 text-sm text-slate-600">
+                  Choisis l'événement correspondant à la remise du colis.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setPresentOpen((current) => ({
+                    ...current,
+                    [order.id]: !current[order.id],
+                  }))
+                }
+                className="w-full rounded-xl bg-green-600 px-4 py-4 text-lg font-black text-white shadow-sm"
+              >
+                PRÉSENT
+              </button>
+
+              {presentOpen[order.id] && (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      requestAnimationFrame(() => {
+                        document.getElementById(`otp-${order.id}`)?.focus();
+                      });
+                    }}
+                    className="w-full rounded-xl bg-green-500 px-4 py-3 font-bold text-white"
+                  >
+                    ACCEPTÉ
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setRefusalOpen((current) => ({
+                        ...current,
+                        [order.id]: true,
+                      }))
+                    }
+                    className="w-full rounded-xl bg-emerald-700 px-4 py-3 font-bold text-white"
+                  >
+                    REFUSÉ
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="button"
+                disabled={!canDeclareAbsent(order.id)}
+                onClick={() =>
+                  setAbsenceOpen((current) => ({
+                    ...current,
+                    [order.id]: true,
+                  }))
+                }
+                className="w-full rounded-xl bg-orange-500 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
+              >
+                ABSENT
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setObstacleOpen((current) => ({
+                    ...current,
+                    [order.id]: !current[order.id],
+                  }))
+                }
+                className="w-full rounded-xl bg-red-700 px-4 py-3 font-bold text-white"
+              >
+                OBSTACLE
+              </button>
+
+              <button
+                type="button"
+                disabled={!canDeclareAbsent(order.id)}
+                onClick={() =>
+                  setNextDeliveryOpen((current) => ({
+                    ...current,
+                    [order.id]: true,
+                  }))
+                }
+                className="w-full rounded-xl bg-blue-700 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
+              >
+                AUTRE CRÉNEAU
+              </button>
+
+              {!receiverCallStartedAt[order.id] ? (
+                <p className="text-center text-xs text-slate-500">
+                  Pour « Absent » ou « Autre créneau », appelle d'abord le receveur puis attends 15 secondes.
+                </p>
+              ) : (callSecondsLeft[order.id] ?? 0) > 0 ? (
+                <p className="text-center text-xs font-semibold text-orange-700">
+                  Encore {callSecondsLeft[order.id]} seconde(s) avant « Absent » ou « Autre créneau ».
+                </p>
+              ) : null}
+
+              {obstacleOpen[order.id] && (
+                <div className="space-y-3 rounded-2xl border border-red-200 bg-red-50 p-4">
+                  <div>
+                    <label className="mb-1 block text-sm font-semibold text-red-950">
+                      Type d'obstacle *
+                    </label>
+                    <select
+                      value={obstacleReason[order.id] || ""}
+                      onChange={(e) =>
+                        setObstacleReason((current) => ({
+                          ...current,
+                          [order.id]: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-xl border border-red-200 bg-white px-4 py-3"
+                    >
+                      <option value="">Sélectionner</option>
+                      <option value="MAUVAISE_ADRESSE">Mauvaise adresse</option>
+                      <option value="ADRESSE_INTROUVABLE">Adresse introuvable</option>
+                      <option value="DESTINATAIRE_INCONNU">
+                        Destinataire inconnu à l'adresse
+                      </option>
+                      <option value="ACCES_IMPOSSIBLE">
+                        Accès impossible / porte ou code
+                      </option>
+                      <option value="AUTRE">Autre</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-semibold text-red-950">
+                      Précision du livreur *
+                    </label>
+                    <textarea
+                      value={obstacleComment[order.id] || ""}
+                      maxLength={500}
+                      onChange={(e) =>
+                        setObstacleComment((current) => ({
+                          ...current,
+                          [order.id]: e.target.value,
+                        }))
+                      }
+                      placeholder="Ex. numéro inexistant, rue introuvable, nom absent, portail inaccessible..."
+                      className="min-h-24 w-full rounded-xl border border-red-200 bg-white px-4 py-3"
+                    />
+                    <p className="mt-1 text-right text-xs text-slate-500">
+                      {(obstacleComment[order.id] || "").length}/500
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={Boolean(obstacleSaving[order.id])}
+                    onClick={() => recordDeliveryObstacle(order)}
+                    className="w-full rounded-xl bg-red-800 px-4 py-3 font-bold text-white disabled:bg-gray-400"
+                  >
+                    {obstacleSaving[order.id]
+                      ? "Enregistrement..."
+                      : "Enregistrer l'obstacle"}
+                  </button>
+
+                  <p className="text-xs text-red-800">
+                    L'obstacle est enregistré mais la mission reste ouverte afin que le livreur puisse poursuivre si la situation est résolue.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {type === "mine" && status === "OUT_FOR_DELIVERY" && (
             <div className="space-y-3">
               <input
   id={`otp-${order.id}`}
@@ -931,7 +1300,7 @@ setPinByOrder((current) => ({
 
                   <div className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
                     Le retour sera calculé automatiquement à 50 % du prix initial : {formatEuro(
-                      Math.max(50, Math.round((order.price_cents || 0) * 0.5))
+                      Math.max(300, Math.round((order.price_cents || 0) * 0.5))
                     )}. Il devra être payé par l'expéditeur avant le retour.
                   </div>
 
@@ -952,12 +1321,12 @@ setPinByOrder((current) => ({
 
           {type === "mine" && status === "OUT_FOR_DELIVERY" && (
             <div className="space-y-3 rounded-2xl border border-orange-200 bg-orange-50 p-4">
-              <p className="font-bold text-orange-900">Client indisponible ?</p>
+              <p className="font-bold text-orange-900">Absence / autre créneau</p>
 
               {!receiverCallStartedAt[order.id] ? (
                 <p className="text-sm text-orange-800">
                   Appelle d'abord le receveur. Les actions « Client absent » et
-                  « Distribution à venir » seront disponibles après 15 secondes.
+                  « Autre créneau » seront disponibles après 15 secondes.
                 </p>
               ) : (callSecondsLeft[order.id] ?? 0) > 0 ? (
                 <p className="text-sm font-semibold text-orange-800">
@@ -995,7 +1364,7 @@ setPinByOrder((current) => ({
                   }
                   className="rounded-xl bg-blue-600 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
                 >
-                  Distribution à venir
+                  Autre créneau
                 </button>
               </div>
 
@@ -1045,52 +1414,10 @@ setPinByOrder((current) => ({
                     onClick={() => scheduleNextDelivery(order)}
                     className="w-full rounded-xl bg-blue-700 px-4 py-3 font-bold text-white"
                   >
-                    Enregistrer la distribution à venir
+                    Enregistrer la autre créneau
                   </button>
                 </div>
               )}
-            </div>
-          )}
-
-          {type === "mine" &&
-            (status === "REFUSED_BY_RECIPIENT" || status === "RETURN_PAYMENT_PENDING") && (
-              <div className="space-y-3 rounded-2xl border border-amber-300 bg-amber-50 p-4">
-                <p className="font-bold text-amber-900">⏳ Retour en attente de paiement</p>
-                <p className="text-sm text-amber-800">
-                  Le refus a été enregistré. Conserve le colis en sécurité et attends la confirmation du paiement de l'expéditeur.
-                </p>
-                <p className="text-sm font-semibold text-amber-900">
-                  Montant du retour : {formatEuro(order.return_price_cents)}
-                </p>
-                {order.refusal_reason ? (
-                  <p className="text-sm text-amber-900">Motif : {order.refusal_reason}</p>
-                ) : null}
-              </div>
-            )}
-
-          {type === "mine" && status === "RETURN_TO_SENDER" && (
-            <div className="space-y-3 rounded-2xl border border-purple-300 bg-purple-50 p-4">
-              <p className="font-bold text-purple-900">↩️ Retour à l'expéditeur autorisé</p>
-              <p className="text-sm text-purple-800">
-                Le retour est payé. Rapporte maintenant le colis à l'adresse de retrait initiale.
-              </p>
-              <div className="rounded-xl bg-white p-3">
-                <p className="text-xs font-semibold uppercase text-gray-500">Adresse de retour</p>
-                <p className="font-semibold">
-                  {cleanAddressDisplay(order.pickup_address) || "-"} {order.pickup_city || ""}
-                </p>
-                <p className="text-sm text-gray-600">Expéditeur : {order.sender_name || "-"}</p>
-              </div>
-              <button
-                type="button"
-                disabled={Boolean(returnCompleting[order.id])}
-                onClick={() => completeReturnToSender(order)}
-                className="w-full rounded-xl bg-purple-700 px-4 py-3 font-bold text-white disabled:bg-gray-400"
-              >
-                {returnCompleting[order.id]
-                  ? "Confirmation..."
-                  : "Confirmer la remise à l'expéditeur"}
-              </button>
             </div>
           )}
 
@@ -1104,6 +1431,164 @@ setPinByOrder((current) => ({
             </button>
           )}
         </div>
+      </div>
+    );
+  }
+
+  function ReturnCard({ order, paid }: { order: Order; paid: boolean }) {
+    const status = cleanStatus(order.status);
+
+    return (
+      <div
+        key={order.id}
+        className={`space-y-4 rounded-3xl border p-5 shadow-sm ${
+          paid ? "border-blue-300 bg-blue-50" : "border-amber-300 bg-amber-50"
+        }`}
+      >
+        <div>
+          <h3 className="text-xl font-bold">
+            {paid ? "🔄 Retour payé à effectuer" : "📦 Colis sous ma garde"}
+          </h3>
+          <p className={paid ? "text-blue-800" : "text-amber-800"}>
+            {paid
+              ? "Le retour peut être fait aujourd'hui ou sur un autre créneau."
+              : "Retour en attente du paiement de l'expéditeur. Cette commande ne bloque pas les nouvelles missions."}
+          </p>
+        </div>
+
+        <div className="grid gap-2 rounded-2xl bg-white p-4 text-sm">
+          <p><b>Expéditeur :</b> {order.sender_name || "-"}</p>
+          <p>
+            <b>Adresse de retour :</b>{" "}
+            {cleanAddressDisplay(order.pickup_address) || "-"} {order.pickup_city || ""}
+          </p>
+          <p><b>Motif :</b> {order.refusal_reason || "-"}</p>
+          <p><b>Commentaire :</b> {order.refusal_comment || "-"}</p>
+          <p>
+            <b>Première rémunération :</b>{" "}
+            {formatEuro(order.courier_earnings_cents)} — acquise
+          </p>
+          <p>
+            <b>Rémunération du retour :</b>{" "}
+            {formatEuro(order.return_courier_earnings_cents || order.return_price_cents)}
+          </p>
+          {order.refusal_photo_url ? (
+            <a
+              href={order.refusal_photo_url}
+              target="_blank"
+              rel="noreferrer"
+              className="font-semibold text-blue-700 underline"
+            >
+              Voir la photo du refus
+            </a>
+          ) : null}
+        </div>
+
+        {!paid ? (
+          <div className="rounded-xl bg-white p-3 text-sm font-semibold text-amber-800">
+            Paiement du retour en attente : {formatEuro(order.return_price_cents)}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => startReturnToday(order)}
+                className="rounded-xl bg-green-700 px-4 py-3 font-bold text-white"
+              >
+                Retour aujourd'hui
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setReturnScheduleOpen((current) => ({
+                    ...current,
+                    [order.id]: !current[order.id],
+                  }))
+                }
+                className="rounded-xl bg-blue-700 px-4 py-3 font-bold text-white"
+              >
+                Autre créneau
+              </button>
+            </div>
+
+            {returnScheduleOpen[order.id] ? (
+              <div className="space-y-2 rounded-2xl bg-white p-4">
+                <label className="block text-sm font-semibold">
+                  Date et heure prévues pour le retour
+                </label>
+                <input
+                  type="datetime-local"
+                  value={returnScheduleAt[order.id] || ""}
+                  onChange={(e) =>
+                    setReturnScheduleAt((current) => ({
+                      ...current,
+                      [order.id]: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-xl border px-4 py-3"
+                />
+                <button
+                  type="button"
+                  onClick={() => scheduleReturn(order)}
+                  className="w-full rounded-xl bg-blue-800 px-4 py-3 font-bold text-white"
+                >
+                  Enregistrer l’autre créneau
+                </button>
+              </div>
+            ) : null}
+
+            {status === "RETURN_SCHEDULED" && order.next_delivery_at ? (
+              <div className="rounded-xl bg-white p-3 text-sm text-blue-800">
+                Retour prévu le {new Date(order.next_delivery_at).toLocaleString("fr-FR")}
+              </div>
+            ) : null}
+
+            <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
+              <div>
+                <p className="font-bold text-slate-900">
+                  Confirmation par Code PIN retour
+                </p>
+                <p className="mt-1 text-sm text-slate-600">
+                  Demande à l'expéditeur le Code PIN retour reçu après le paiement.
+                </p>
+              </div>
+
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={4}
+                value={returnPinByOrder[order.id] || ""}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+
+                  setReturnPinByOrder((current) => ({
+                    ...current,
+                    [order.id]: value,
+                  }));
+                }}
+                placeholder="Code PIN retour à 4 chiffres"
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-center text-xl font-bold tracking-[0.35em] text-slate-900"
+              />
+
+              <button
+                type="button"
+                disabled={
+                  Boolean(returnCompleting[order.id]) ||
+                  (returnPinByOrder[order.id] || "").length !== 4
+                }
+                onClick={() => completeReturnToSender(order)}
+                className="w-full rounded-xl bg-slate-900 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-400"
+              >
+                {returnCompleting[order.id]
+                  ? "Vérification..."
+                  : "Valider le retour avec le Code PIN"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1315,6 +1800,48 @@ setPinByOrder((current) => ({
         </section>
 
         <section className="space-y-4">
+          <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4">
+            <h2 className="text-2xl font-bold text-amber-900">
+              Colis en attente de retour
+            </h2>
+            <p className="text-sm text-amber-800">
+              Ces colis restent visibles, mais ils ne bloquent pas les nouvelles missions.
+            </p>
+          </div>
+
+          {pendingReturns.length === 0 ? (
+            <div className="rounded-3xl bg-white p-6 text-center text-gray-600">
+              Aucun retour en attente de paiement
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {pendingReturns.map((order) => ReturnCard({ order, paid: false }))}
+            </div>
+          )}
+        </section>
+
+        <section className="space-y-4">
+          <div className="rounded-3xl border border-blue-200 bg-blue-50 p-4">
+            <h2 className="text-2xl font-bold text-blue-900">
+              Retours payés à effectuer
+            </h2>
+            <p className="text-sm text-blue-800">
+              Retourne le colis aujourd'hui ou utilise « Autre créneau ».
+            </p>
+          </div>
+
+          {paidReturns.length === 0 ? (
+            <div className="rounded-3xl bg-white p-6 text-center text-gray-600">
+              Aucun retour payé à effectuer
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {paidReturns.map((order) => ReturnCard({ order, paid: true }))}
+            </div>
+          )}
+        </section>
+
+        <section className="space-y-4">
           <div>
             <h2 className="text-2xl font-bold">Missions disponibles</h2>
             <p className="text-gray-500">
@@ -1322,7 +1849,7 @@ setPinByOrder((current) => ({
             </p>
             {myMissions.length > 0 ? (
               <p className="mt-2 rounded-2xl bg-yellow-50 p-3 text-sm font-semibold text-yellow-800">
-                Tu as déjà une mission en cours. Termine-la avant d'en accepter une autre.
+                Tu as déjà une livraison normale en cours. Termine-la avant d'en accepter une autre. Les retours en attente ne te bloquent pas.
               </p>
             ) : null}
           </div>

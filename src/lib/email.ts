@@ -10,7 +10,7 @@ export async function sendOtpEmail({
   orderId,
 }: SendOtpEmailParams) {
   if (!to || !otp || !orderId) {
-    throw new Error("Email, OTP ou ID commande manquant.");
+    throw new Error("Email, Code PIN ou ID commande manquant.");
   }
 
   const apiKey = process.env.RESEND_API_KEY;
@@ -71,7 +71,114 @@ export async function sendOtpEmail({
     throw new Error(
       data?.message ||
         data?.error ||
-        "Erreur lors de l'envoi de l'email OTP."
+        "Erreur lors de l'envoi de l'email Code PIN."
+    );
+  }
+
+  return data;
+}
+export async function sendReturnPinEmail({
+  to,
+  pin,
+  orderId,
+  amountCents,
+}: {
+  to: string;
+  pin: string;
+  orderId: string;
+  amountCents?: number;
+}) {
+  if (!to || !pin || !orderId) {
+    throw new Error(
+      "Email, Code PIN retour ou ID commande manquant."
+    );
+  }
+
+  const apiKey = process.env.RESEND_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("RESEND_API_KEY manquante.");
+  }
+
+  const amount =
+    typeof amountCents === "number"
+      ? (amountCents / 100).toLocaleString("fr-FR", {
+          style: "currency",
+          currency: "EUR",
+        })
+      : null;
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: "HelpFlow <noreply@helpflow.fr>",
+      to,
+      subject: "Votre Code PIN de retour HelpFlow",
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
+          <h2>Retour de votre colis HelpFlow</h2>
+
+          <p>
+            Le retour de votre colis a été payé et peut maintenant être effectué.
+          </p>
+
+          <p>
+            <strong>Numéro de commande :</strong> ${orderId}
+          </p>
+
+          ${
+            amount
+              ? `<p><strong>Montant du retour :</strong> ${amount}</p>`
+              : ""
+          }
+
+          <div style="margin: 24px 0; padding: 18px; background: #f3f4f6; border-radius: 12px;">
+            <p style="margin: 0 0 8px; font-size: 14px; color: #6b7280;">
+              Code PIN de retour
+            </p>
+
+            <p style="margin: 0; font-size: 34px; font-weight: 700; letter-spacing: 5px;">
+              ${pin}
+            </p>
+          </div>
+
+          <p>
+            Communiquez ce Code PIN au livreur uniquement lorsque le colis
+            vous a bien été remis.
+          </p>
+
+          <p style="font-size: 13px; color: #6b7280;">
+            Ne communiquez pas ce Code PIN avant d'avoir récupéré votre colis.
+          </p>
+
+          <p style="margin-top: 24px;">
+            Merci,<br />
+            L'équipe HelpFlow
+          </p>
+        </div>
+      `,
+    }),
+  });
+
+  let data: any = null;
+
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    console.error("RESEND RETURN EMAIL ERROR:", data);
+
+    throw new Error(
+      data?.message ||
+        data?.error ||
+        "Erreur lors de l'envoi de l'email Code PIN retour."
     );
   }
 

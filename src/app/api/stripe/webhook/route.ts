@@ -5,9 +5,11 @@ const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
 const supabaseUrl =
-  process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  process.env.SUPABASE_URL ||
+  process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const serviceRoleKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!stripeSecretKey) {
   throw new Error("STRIPE_SECRET_KEY manquante");
@@ -23,25 +25,38 @@ if (!supabaseUrl || !serviceRoleKey) {
 
 const stripe = new Stripe(stripeSecretKey);
 
-const supabase = createClient(supabaseUrl, serviceRoleKey);
+const supabase = createClient(
+  supabaseUrl,
+  serviceRoleKey
+);
 
 function generatePin(): string {
-  return Math.floor(1000 + Math.random() * 9000).toString();
+  return Math.floor(
+    1000 + Math.random() * 9000
+  ).toString();
 }
 
 function getSiteUrl(req: Request): string {
   const configuredUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL;
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.SITE_URL;
 
   if (configuredUrl) {
     return configuredUrl.replace(/\/$/, "");
   }
 
-  const forwardedHost = req.headers.get("x-forwarded-host");
-  const host = forwardedHost || req.headers.get("host");
+  const forwardedHost =
+    req.headers.get("x-forwarded-host");
 
-  const forwardedProto = req.headers.get("x-forwarded-proto");
-  const protocol = forwardedProto || "https";
+  const host =
+    forwardedHost ||
+    req.headers.get("host");
+
+  const forwardedProto =
+    req.headers.get("x-forwarded-proto");
+
+  const protocol =
+    forwardedProto || "https";
 
   if (host) {
     return `${protocol}://${host}`;
@@ -50,15 +65,29 @@ function getSiteUrl(req: Request): string {
   return "http://localhost:3000";
 }
 
+/* =========================================================
+   PAIEMENT INITIAL
+   ========================================================= */
+
 async function processInitialPayment(
   req: Request,
   session: Stripe.Checkout.Session,
   orderId: string
 ): Promise<void> {
-  const { data: order, error: orderError } = await supabase
+  const {
+    data: order,
+    error: orderError,
+  } = await supabase
     .from("orders")
     .select(
-      "id,payment_status,status,recipient_email,otp_code,delivery_otp"
+      `
+      id,
+      payment_status,
+      status,
+      recipient_email,
+      otp_code,
+      delivery_otp
+      `
     )
     .eq("id", orderId)
     .maybeSingle();
@@ -68,187 +97,477 @@ async function processInitialPayment(
   }
 
   if (!order) {
-    throw new Error(`Commande ${orderId} introuvable`);
+    throw new Error(
+      `Commande ${orderId} introuvable`
+    );
   }
 
   const alreadyPaid =
-    String(order.payment_status || "").toLowerCase() === "paid";
+    String(
+      order.payment_status || ""
+    ).toLowerCase() === "paid";
 
   if (alreadyPaid) {
     return;
   }
 
   const codePin =
-    String(order.otp_code || order.delivery_otp || "").trim() ||
-    generatePin();
+    String(
+      order.otp_code ||
+      order.delivery_otp ||
+      ""
+    ).trim() || generatePin();
 
-  const now = new Date().toISOString();
+  const now =
+    new Date().toISOString();
 
-  const { error: updateError } = await supabase
-    .from("orders")
-    .update({
-      payment_status: "paid",
-      status: "PUBLISHED",
-      otp_code: codePin,
-      stripe_session_id: session.id,
-      paid_at: now,
-      updated_at: now,
-    })
-    .eq("id", orderId);
+  const { error: updateError } =
+    await supabase
+      .from("orders")
+      .update({
+        payment_status: "paid",
+        status: "PUBLISHED",
+
+        // PIN de livraison pour le RECEVEUR
+        otp_code: codePin,
+
+        stripe_session_id: session.id,
+        paid_at: now,
+        updated_at: now,
+      })
+      .eq("id", orderId);
 
   if (updateError) {
-    throw new Error(updateError.message);
+    throw new Error(
+      updateError.message
+    );
   }
 
   if (!order.recipient_email) {
     return;
   }
 
-  const siteUrl = getSiteUrl(req);
+  const siteUrl =
+    getSiteUrl(req);
 
   try {
-    const emailResponse = await fetch(`${siteUrl}/api/send-otp-email`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        to: order.recipient_email,
-        otp: codePin,
-        orderId,
-      }),
-    });
+    const emailResponse =
+      await fetch(
+        `${siteUrl}/api/send-otp-email`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            to: order.recipient_email,
+            otp: codePin,
+            orderId,
+          }),
+        }
+      );
 
     if (!emailResponse.ok) {
-      const emailResult = await emailResponse.json().catch(() => ({}));
+      const emailResult =
+        await emailResponse
+          .json()
+          .catch(() => ({}));
 
-      console.error("Erreur envoi Code PIN :", emailResult);
+      console.error(
+        "Erreur envoi Code PIN livraison :",
+        emailResult
+      );
     }
   } catch (emailError) {
-    console.error("Erreur appel API email Code PIN :", emailError);
+    console.error(
+      "Erreur appel API email Code PIN livraison :",
+      emailError
+    );
   }
 }
 
+/* =========================================================
+   RETROUVER L'EMAIL DE L'EXPÉDITEUR
+   ========================================================= */
+
+async function getSenderEmail(
+  clientId: string | null
+): Promise<string | null> {
+  if (!clientId) {
+    return null;
+  }
+
+  const {
+    data,
+    error,
+  } =
+    await supabase.auth.admin.getUserById(
+      clientId
+    );
+
+  if (error) {
+    console.error(
+      "Impossible de récupérer l'expéditeur :",
+      error.message
+    );
+
+    return null;
+  }
+
+  return (
+    data.user?.email || null
+  );
+}
+
+/* =========================================================
+   PAIEMENT DU RETOUR
+   ========================================================= */
+
 async function processReturnPayment(
+  req: Request,
   session: Stripe.Checkout.Session,
   orderId: string
 ): Promise<void> {
-  const { data: order, error: orderError } = await supabase
+  const {
+    data: order,
+    error: orderError,
+  } = await supabase
     .from("orders")
-    .select("id,status,return_payment_status,return_price_cents")
+    .select(
+      `
+      id,
+      client_id,
+      status,
+      return_payment_status,
+      return_price_cents,
+      return_pin_code
+      `
+    )
     .eq("id", orderId)
     .maybeSingle();
 
   if (orderError) {
-    throw new Error(orderError.message);
+    throw new Error(
+      orderError.message
+    );
   }
 
   if (!order) {
-    throw new Error(`Commande ${orderId} introuvable`);
+    throw new Error(
+      `Commande ${orderId} introuvable`
+    );
   }
 
   const alreadyPaid =
-    String(order.return_payment_status || "").toLowerCase() === "paid";
+    String(
+      order.return_payment_status || ""
+    ).toLowerCase() === "paid";
 
+  /*
+   * Important :
+   * si Stripe renvoie le webhook,
+   * on ne génère PAS un nouveau PIN.
+   */
   if (alreadyPaid) {
     return;
   }
 
   const amountPaid =
-    session.amount_total || Number(order.return_price_cents || 0);
+    session.amount_total ||
+    Number(
+      order.return_price_cents || 0
+    );
 
   if (amountPaid <= 0) {
-    throw new Error("Montant du retour invalide");
+    throw new Error(
+      "Montant du retour invalide"
+    );
   }
 
-  const now = new Date().toISOString();
+  /*
+   * Deuxième PIN :
+   * uniquement pour le retour
+   * à l'expéditeur.
+   */
+  const returnPin =
+    String(
+      order.return_pin_code || ""
+    ).trim() || generatePin();
 
-  const { error: updateError } = await supabase
+  const now =
+    new Date().toISOString();
+
+  const {
+    error: updateError,
+  } = await supabase
     .from("orders")
     .update({
+      /*
+       * Le retour a été payé.
+       * Le livreur peut maintenant
+       * le rendre aujourd'hui
+       * ou choisir un autre créneau.
+       */
       status: "RETURN_TO_SENDER",
+
       return_payment_status: "paid",
       return_price_cents: amountPaid,
-      return_courier_earnings_cents: amountPaid,
-      return_stripe_session_id: session.id,
+
+      /*
+       * Pour l'instant :
+       * tout le prix du retour
+       * revient au livreur.
+       */
+      return_courier_earnings_cents:
+        amountPaid,
+
+      return_stripe_session_id:
+        session.id,
+
       return_paid_at: now,
+
+      /*
+       * Deuxième PIN.
+       * NE PAS réutiliser otp_code.
+       */
+      return_pin_code: returnPin,
+
+      /*
+       * Il n'a pas encore été vérifié.
+       */
+      return_pin_verified_at: null,
+
       updated_at: now,
     })
     .eq("id", orderId);
 
   if (updateError) {
-    throw new Error(updateError.message);
+    throw new Error(
+      updateError.message
+    );
+  }
+
+  /*
+   * On récupère l'email
+   * du CLIENT / EXPÉDITEUR
+   * directement depuis Supabase Auth.
+   *
+   * Pas besoin d'ajouter sender_email
+   * dans orders.
+   */
+  const senderEmail =
+    await getSenderEmail(
+      order.client_id
+    );
+
+  if (!senderEmail) {
+    console.error(
+      `PIN retour généré pour ${orderId}, mais email expéditeur introuvable`
+    );
+
+    return;
+  }
+
+  const siteUrl =
+    getSiteUrl(req);
+
+  try {
+    const response =
+      await fetch(
+        `${siteUrl}/api/send-return-pin-email`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            to: senderEmail,
+            pin: returnPin,
+            orderId,
+            amountCents:
+              amountPaid,
+          }),
+        }
+      );
+
+    if (!response.ok) {
+      const result =
+        await response
+          .json()
+          .catch(() => ({}));
+
+      console.error(
+        "Erreur envoi PIN retour :",
+        result
+      );
+    }
+  } catch (emailError) {
+    console.error(
+      "Erreur appel email PIN retour :",
+      emailError
+    );
   }
 }
 
-export async function POST(req: Request) {
-  const signature = req.headers.get("stripe-signature");
+/* =========================================================
+   WEBHOOK STRIPE
+   ========================================================= */
+
+export async function POST(
+  req: Request
+) {
+  const signature =
+    req.headers.get(
+      "stripe-signature"
+    );
 
   if (!signature) {
     return Response.json(
-      { error: "Signature Stripe manquante" },
-      { status: 400 }
+      {
+        error:
+          "Signature Stripe manquante",
+      },
+      {
+        status: 400,
+      }
     );
   }
 
   let event: Stripe.Event;
 
   try {
-    const rawBody = await req.text();
+    /*
+     * IMPORTANT :
+     * Stripe exige le corps brut
+     * pour vérifier la signature.
+     */
+    const rawBody =
+      await req.text();
 
-    event = stripe.webhooks.constructEvent(
-      rawBody,
-      signature,
-      stripeWebhookSecret!
-    );
+    event =
+      stripe.webhooks.constructEvent(
+        rawBody,
+        signature,
+        stripeWebhookSecret!
+      );
   } catch (error: unknown) {
     const message =
-      error instanceof Error ? error.message : "Erreur Stripe inconnue";
+      error instanceof Error
+        ? error.message
+        : "Erreur Stripe inconnue";
 
-    console.error("Signature webhook Stripe invalide :", message);
+    console.error(
+      "Signature webhook Stripe invalide :",
+      message
+    );
 
     return Response.json(
-      { error: "Signature webhook invalide" },
-      { status: 400 }
+      {
+        error:
+          "Signature webhook invalide",
+      },
+      {
+        status: 400,
+      }
     );
   }
 
   try {
-    if (event.type === "checkout.session.completed") {
-      const session = event.data.object as Stripe.Checkout.Session;
+    if (
+      event.type ===
+      "checkout.session.completed"
+    ) {
+      const session =
+        event.data
+          .object as Stripe.Checkout.Session;
 
-      if (session.payment_status !== "paid") {
-        return Response.json({ received: true });
+      /*
+       * On ne traite qu'un paiement
+       * réellement confirmé.
+       */
+      if (
+        session.payment_status !==
+        "paid"
+      ) {
+        return Response.json({
+          received: true,
+        });
       }
 
-      const orderId = String(session.metadata?.orderId || "").trim();
+      /*
+       * Ces métadonnées viennent
+       * de /api/checkout
+       * ou /api/checkout-return.
+       */
+      const orderId =
+        String(
+          session.metadata
+            ?.orderId || ""
+        ).trim();
 
-      const paymentType = String(
-        session.metadata?.paymentType || "INITIAL"
-      )
-        .trim()
-        .toUpperCase();
+      const paymentType =
+        String(
+          session.metadata
+            ?.paymentType ||
+            "INITIAL"
+        )
+          .trim()
+          .toUpperCase();
 
       if (!orderId) {
-        throw new Error("orderId absent des métadonnées Stripe");
+        throw new Error(
+          "orderId absent des métadonnées Stripe"
+        );
       }
 
-      if (paymentType === "RETURN") {
-        await processReturnPayment(session, orderId);
-      } else {
-        await processInitialPayment(req, session, orderId);
+      /*
+       * RETOUR
+       */
+      if (
+        paymentType === "RETURN"
+      ) {
+        await processReturnPayment(
+          req,
+          session,
+          orderId
+        );
+      }
+
+      /*
+       * PAIEMENT INITIAL
+       */
+      else {
+        await processInitialPayment(
+          req,
+          session,
+          orderId
+        );
       }
     }
 
-    return Response.json({ received: true });
+    return Response.json({
+      received: true,
+    });
   } catch (error: unknown) {
     const message =
       error instanceof Error
         ? error.message
         : "Erreur traitement webhook Stripe";
 
-    console.error("Erreur traitement webhook Stripe :", error);
+    console.error(
+      "Erreur traitement webhook Stripe :",
+      error
+    );
 
-    return Response.json({ error: message }, { status: 500 });
+    return Response.json(
+      {
+        error: message,
+      },
+      {
+        status: 500,
+      }
+    );
   }
 }
