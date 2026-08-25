@@ -26,26 +26,21 @@ export default function NewOrderPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const PARCEL_TYPES = [
-    "Documents",
-    "Électronique",
-    "Téléphone",
-    "Ordinateur portable",
-    "Tablette",
-    "Télévision",
-    "Gâteau / alimentaire fragile",
-    "Courses",
-    "Fragile (verre/vaisselle)",
-    "Électroménager",
-    "Cafetière",
-    "Imprimante",
+    "Courses / alimentation",
+    "Repas / nourriture",
     "Vêtements",
-    "Garde-robe",
-    "Armoire",
+    "Pressing / linge",
+    "Achats / shopping",
+    "Fleurs / cadeau",
+    "Produits de beauté",
+    "Produits de pharmacie",
+    "Café / boissons",
+    "Petit équipement maison",
+    "Électroménager",
     "Petit mobilier",
     "Matériel professionnel",
     "Pièces détachées",
     "Moteur / pièce mécanique",
-    "Clés",
     "Autre",
   ];
 
@@ -54,8 +49,9 @@ export default function NewOrderPage() {
     "Tablette",
     "Ordinateur portable",
     "Lunettes",
-    "Documents",
+    "Documents importants",
     "Clés",
+    "Montre / bijoux",
     "Électronique",
     "Objet fragile",
     "Autre",
@@ -618,9 +614,32 @@ export default function NewOrderPage() {
                         </option>
                       ))}
                     </select>
-                    <p className="mt-2 text-xs text-gray-600">
-                      Téléphone, tablette, lunettes, documents et autres objets à manipuler avec une attention particulière.
-                    </p>
+                    <div className="mt-3 space-y-2 rounded-xl border border-amber-200 bg-white p-3">
+                      <p className="text-sm font-semibold text-gray-900">
+                        🔒 Confidentialité du contenu
+                      </p>
+                      <p className="text-xs leading-5 text-gray-700">
+                        Avant l’acceptation de la mission, le livreur voit uniquement
+                        la mention « Colis important ». Le détail précis de votre colis
+                        devient accessible seulement après qu’un livreur a accepté la
+                        mission.
+                      </p>
+
+                      <p className="pt-1 text-sm font-semibold text-gray-900">
+                        🪪 Vérification du livreur au retrait
+                      </p>
+                      <p className="text-xs leading-5 text-gray-700">
+                        Avant de remettre votre colis, vous pouvez vérifier que la
+                        personne présente correspond bien au profil du livreur affiché
+                        dans HelpFlow. Vous pouvez lui demander de présenter une pièce
+                        d’identité afin de vérifier son identité.
+                      </p>
+
+                      <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-gray-800">
+                        ✓ Conseil sécurité : ne remettez le colis qu’après avoir vérifié
+                        que le livreur correspond au profil affiché dans l’application.
+                      </div>
+                    </div>
                   </div>
                 ) : null}
               </div>
@@ -630,7 +649,7 @@ export default function NewOrderPage() {
                 onChange={(e) => setParcelType(e.target.value)}
                 className="w-full rounded-xl border border-gray-200 bg-white p-3"
               >
-                <option value="">Choisir…</option>
+                <option value="">Type de colis courant…</option>
                 {PARCEL_TYPES.map((t) => (
                   <option key={t} value={t}>
                     {t}
