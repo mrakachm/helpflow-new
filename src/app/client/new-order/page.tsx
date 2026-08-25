@@ -49,6 +49,18 @@ export default function NewOrderPage() {
     "Autre",
   ];
 
+  const IMPORTANT_PARCEL_TYPES = [
+    "Téléphone",
+    "Tablette",
+    "Ordinateur portable",
+    "Lunettes",
+    "Documents",
+    "Clés",
+    "Électronique",
+    "Objet fragile",
+    "Autre",
+  ];
+
   const FLOOR_OPTIONS = [
     "Maison / RDC",
     "Garage",
@@ -83,6 +95,8 @@ export default function NewOrderPage() {
   }
 
   const [parcelType, setParcelType] = useState("");
+  const [isImportantParcel, setIsImportantParcel] = useState(false);
+  const [importantParcelType, setImportantParcelType] = useState("");
   const [parcelNote, setParcelNote] = useState("");
   const [parcelPhoto, setParcelPhoto] = useState<File | null>(null);
   const [parcelPhotoPreview, setParcelPhotoPreview] = useState<string | null>(
@@ -168,6 +182,8 @@ export default function NewOrderPage() {
     if (!bagCount) return "Nombre de sacs / colis manquant.";
     if (!vehicleRequired)
       return "Choisis le véhicule requis pour cette livraison.";
+    if (isImportantParcel && !importantParcelType)
+      return "Choisis le type de colis important.";
 
     return null;
   }
@@ -283,6 +299,8 @@ export default function NewOrderPage() {
         distance_km: 1,
         scheduled_at: scheduledAt || null,
         parcel_type: parcelType || null,
+        is_important_parcel: isImportantParcel,
+        important_parcel_type: isImportantParcel ? importantParcelType || null : null,
         parcel_note: parcelNote || null,
         parcel_photo_url: parcelPhotoUrl,
         vehicle_required: vehicleRequired || null,
@@ -564,6 +582,48 @@ export default function NewOrderPage() {
 
             <div className="mt-3 rounded-2xl border border-gray-200 bg-white p-4 space-y-3">
               <h3 className="text-lg font-semibold">Description du colis</h3>
+
+              <div className="rounded-xl border border-amber-200 bg-amber-50">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsImportantParcel((current) => {
+                      if (current) setImportantParcelType("");
+                      return !current;
+                    });
+                  }}
+                  className="flex w-full items-center justify-between px-3 py-3 text-left font-semibold"
+                  aria-expanded={isImportantParcel}
+                >
+                  <span>Colis important</span>
+                  <span aria-hidden="true" className="text-lg">
+                    {isImportantParcel ? "▾" : "›"}
+                  </span>
+                </button>
+
+                {isImportantParcel ? (
+                  <div className="border-t border-amber-200 p-3">
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      Type de colis important
+                    </label>
+                    <select
+                      value={importantParcelType}
+                      onChange={(e) => setImportantParcelType(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-white p-3"
+                    >
+                      <option value="">Choisir…</option>
+                      {IMPORTANT_PARCEL_TYPES.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-2 text-xs text-gray-600">
+                      Téléphone, tablette, lunettes, documents et autres objets à manipuler avec une attention particulière.
+                    </p>
+                  </div>
+                ) : null}
+              </div>
 
               <select
                 value={parcelType}
