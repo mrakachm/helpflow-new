@@ -24,6 +24,8 @@ type Order = {
   parcel_type?: string | null;
   parcel_note?: string | null;
   parcel_size?: string | null;
+  is_important_parcel?: boolean | null;
+  important_parcel_type?: string | null;
   required_vehicle?: string | null;
   vehicle_required?: string | null;
   service_zone?: string | null;
@@ -822,6 +824,8 @@ setPinByOrder((current) => ({
     const status = cleanStatus(order.status);
     const vehicleRequired =
       order.vehicle_required || order.required_vehicle || "Non précisé";
+    const isImportantParcel = order.is_important_parcel === true;
+    const hideImportantDetails = type === "available" && isImportantParcel;
 
     return (
       <div
@@ -846,7 +850,7 @@ setPinByOrder((current) => ({
           </div>
         ) : null}
 
-        {order.parcel_photo_url ? (
+        {order.parcel_photo_url && !hideImportantDetails ? (
           <img
             src={order.parcel_photo_url}
             alt="Photo du colis"
@@ -942,7 +946,23 @@ setPinByOrder((current) => ({
 
             <div className="rounded-xl bg-gray-50 p-3">
               <p className="text-gray-500">Type colis</p>
-              <p className="font-semibold">{order.parcel_type || "-"}</p>
+              {hideImportantDetails ? (
+                <div>
+                  <p className="font-bold text-amber-800">🔒 Colis important</p>
+                  <p className="mt-1 text-xs leading-5 text-gray-600">
+                    Le contenu détaillé devient visible après l’acceptation de la mission.
+                  </p>
+                </div>
+              ) : isImportantParcel ? (
+                <div>
+                  <p className="font-bold text-amber-800">🔓 Colis important</p>
+                  <p className="mt-1 font-semibold text-gray-900">
+                    {order.important_parcel_type || order.parcel_type || "-"}
+                  </p>
+                </div>
+              ) : (
+                <p className="font-semibold">{order.parcel_type || "-"}</p>
+              )}
             </div>
 
             <div className="rounded-xl bg-gray-50 p-3">
@@ -956,7 +976,7 @@ setPinByOrder((current) => ({
             </div>
           </div>
 
-          {order.parcel_note ? (
+          {order.parcel_note && !hideImportantDetails ? (
             <div className="rounded-2xl bg-yellow-50 p-3 text-sm text-yellow-900">
               {order.parcel_note}
             </div>
@@ -974,6 +994,46 @@ setPinByOrder((current) => ({
             dropoffAddress={cleanAddressDisplay(order.dropoff_address)}
             dropoffCity={order.dropoff_city}
           />
+
+          {type === "available" && isImportantParcel ? (
+            <details className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              <summary className="cursor-pointer list-none font-bold text-amber-950">
+                <span className="flex items-center justify-between gap-3">
+                  <span>🪪 Sécurité du retrait</span>
+                  <span className="text-sm font-medium text-amber-700">Voir ▾</span>
+                </span>
+              </summary>
+              <div className="mt-3 space-y-2 text-sm leading-6 text-amber-950">
+                <p>
+                  Cette mission contient un <strong>colis important</strong>.
+                  Le détail du contenu reste confidentiel jusqu’à l’acceptation.
+                </p>
+                <p>
+                  Au retrait, l’expéditeur peut vous demander de présenter une pièce
+                  d’identité afin de vérifier que vous correspondez bien au profil
+                  livreur HelpFlow.
+                </p>
+                <p className="font-semibold">
+                  Présentez uniquement votre pièce d’identité à l’expéditeur.
+                  Aucune photo ni copie du document ne doit être réalisée.
+                </p>
+              </div>
+            </details>
+          ) : null}
+
+          {type === "mine" && isImportantParcel ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+              <p className="font-bold">🪪 Retrait sécurisé — colis important</p>
+              <p className="mt-1">
+                L’expéditeur peut vérifier que votre identité correspond au profil
+                HelpFlow avant de vous remettre le colis.
+              </p>
+              <p className="mt-1 font-semibold">
+                Le détail du colis est maintenant visible :{" "}
+                {order.important_parcel_type || order.parcel_type || "-"}.
+              </p>
+            </div>
+          ) : null}
 
           {type === "available" && (
             <button
