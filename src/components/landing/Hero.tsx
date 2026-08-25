@@ -46,7 +46,7 @@ export default function Hero() {
 
           <div className="relative min-h-[340px] overflow-hidden rounded-[1.5rem] bg-slate-100">
             <img
-              src="/helpflow-hero.jpg"
+              src="/helpflow-hero.jpg.png"
               alt="Livreuse de proximité HelpFlow"
               className="absolute inset-0 h-full w-full object-cover"
             />
