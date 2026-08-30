@@ -473,6 +473,48 @@ export default function MissionsPage() {
     return Boolean(startedAt && Date.now() - startedAt >= 15000);
   }
 
+  function openDeliveryPanel(
+    orderId: string,
+    panel: "accepted" | "refusal" | "absence" | "obstacle" | "next"
+  ) {
+    setDeliveryAcceptedOpen((current) => ({
+      ...current,
+      [orderId]: panel === "accepted",
+    }));
+    setRefusalOpen((current) => ({
+      ...current,
+      [orderId]: panel === "refusal",
+    }));
+    setAbsenceOpen((current) => ({
+      ...current,
+      [orderId]: panel === "absence",
+    }));
+    setObstacleOpen((current) => ({
+      ...current,
+      [orderId]: panel === "obstacle",
+    }));
+    setNextDeliveryOpen((current) => ({
+      ...current,
+      [orderId]: panel === "next",
+    }));
+
+    const targetId =
+      panel === "accepted"
+        ? `accepted-${orderId}`
+        : panel === "refusal"
+          ? `refusal-${orderId}`
+          : panel === "obstacle"
+            ? `obstacle-${orderId}`
+            : `absence-${orderId}`;
+
+    window.setTimeout(() => {
+      document.getElementById(targetId)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 100);
+  }
+
   async function recordDeliveryObstacle(order: Order) {
     if (!userId) {
       setMsg("Tu dois être connecté comme livreur.");
@@ -558,7 +600,7 @@ export default function MissionsPage() {
     const { error } = await supabase
       .from("orders")
       .update({
-        status: "ABSENT",
+        status: "OUT_FOR_DELIVERY",
         absence_reason: reason,
         absence_declared_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -571,7 +613,9 @@ export default function MissionsPage() {
       return;
     }
 
-    setMsg("✅ Client déclaré absent. Le motif a été enregistré.");
+    setMsg(
+      "✅ Absence enregistrée. La mission reste ouverte jusqu'à la remise du colis ou au choix d'un autre créneau."
+    );
     setAbsenceOpen((current) => ({ ...current, [order.id]: false }));
     await loadOrders(userId, true);
   }
@@ -599,7 +643,7 @@ export default function MissionsPage() {
     const { error } = await supabase
       .from("orders")
       .update({
-        status: "DISTRIBUTION_A_VENIR",
+        status: "OUT_FOR_DELIVERY",
         next_delivery_at: nextDate.toISOString(),
         absence_reason: reason || null,
         absence_declared_at: new Date().toISOString(),
@@ -613,8 +657,11 @@ export default function MissionsPage() {
       return;
     }
 
-    setMsg("✅ Autre créneau enregistré.");
+    setMsg(
+      `✅ Autre créneau enregistré pour le ${nextDate.toLocaleString("fr-FR")}. La mission reste dans tes livraisons en cours.`
+    );
     setNextDeliveryOpen((current) => ({ ...current, [order.id]: false }));
+    setAbsenceOpen((current) => ({ ...current, [order.id]: false }));
     await loadOrders(userId, true);
   }
 
@@ -1360,6 +1407,20 @@ setPinByOrder((current) => ({
             </div>
           ) : null}
 
+          {type === "mine" &&
+          status === "OUT_FOR_DELIVERY" &&
+          order.next_delivery_at ? (
+            <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+              <p className="font-bold">🗓️ Prochain créneau enregistré</p>
+              <p className="mt-1">
+                {new Date(order.next_delivery_at).toLocaleString("fr-FR")}
+              </p>
+              <p className="mt-1 text-xs text-blue-700">
+                La mission reste active jusqu'à la remise du colis.
+              </p>
+            </div>
+          ) : null}
+
           {type === "available" && (
             <button
               type="button"
@@ -1400,12 +1461,7 @@ setPinByOrder((current) => ({
 
               <button
                 type="button"
-                onClick={() =>
-                  setDeliveryAcceptedOpen((current) => ({
-                    ...current,
-                    [order.id]: !current[order.id],
-                  }))
-                }
+                onClick={() => openDeliveryPanel(order.id, "accepted")}
                 className="w-full rounded-xl bg-green-600 px-4 py-4 text-lg font-black text-white shadow-sm"
               >
                 ACCEPTÉ
@@ -1413,12 +1469,7 @@ setPinByOrder((current) => ({
 
               <button
                 type="button"
-                onClick={() =>
-                  setRefusalOpen((current) => ({
-                    ...current,
-                    [order.id]: !current[order.id],
-                  }))
-                }
+                onClick={() => openDeliveryPanel(order.id, "refusal")}
                 className="w-full rounded-xl bg-emerald-800 px-4 py-3 font-bold text-white"
               >
                 REFUSÉ
@@ -1427,12 +1478,7 @@ setPinByOrder((current) => ({
               <button
                 type="button"
                 disabled={!canDeclareAbsent(order.id)}
-                onClick={() =>
-                  setAbsenceOpen((current) => ({
-                    ...current,
-                    [order.id]: !current[order.id],
-                  }))
-                }
+                onClick={() => openDeliveryPanel(order.id, "absence")}
                 className="w-full rounded-xl bg-orange-500 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
               >
                 ABSENT
@@ -1440,12 +1486,7 @@ setPinByOrder((current) => ({
 
               <button
                 type="button"
-                onClick={() =>
-                  setObstacleOpen((current) => ({
-                    ...current,
-                    [order.id]: !current[order.id],
-                  }))
-                }
+                onClick={() => openDeliveryPanel(order.id, "obstacle")}
                 className="w-full rounded-xl bg-red-700 px-4 py-3 font-bold text-white"
               >
                 OBSTACLE
@@ -1454,12 +1495,7 @@ setPinByOrder((current) => ({
               <button
                 type="button"
                 disabled={!canDeclareAbsent(order.id)}
-                onClick={() =>
-                  setNextDeliveryOpen((current) => ({
-                    ...current,
-                    [order.id]: !current[order.id],
-                  }))
-                }
+                onClick={() => openDeliveryPanel(order.id, "next")}
                 className="w-full rounded-xl bg-blue-700 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
               >
                 AUTRE CRÉNEAU
@@ -1476,7 +1512,23 @@ setPinByOrder((current) => ({
               ) : null}
 
               {obstacleOpen[order.id] && (
-                <div className="space-y-3 rounded-2xl border border-red-200 bg-red-50 p-4">
+                <div
+                  id={`obstacle-${order.id}`}
+                  className="space-y-3 rounded-2xl border border-red-200 bg-red-50 p-4"
+                >
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setObstacleOpen((current) => ({
+                        ...current,
+                        [order.id]: false,
+                      }))
+                    }
+                    className="w-full rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700"
+                  >
+                    Fermer
+                  </button>
+
                   <div>
                     <label className="mb-1 block text-sm font-semibold text-red-950">
                       Type d’obstacle *
@@ -1540,7 +1592,23 @@ setPinByOrder((current) => ({
           )}
 
           {type === "mine" && status === "OUT_FOR_DELIVERY" && deliveryAcceptedOpen[order.id] && (
-            <div className="space-y-3 rounded-2xl border border-green-200 bg-green-50 p-4">
+            <div
+              id={`accepted-${order.id}`}
+              className="space-y-3 rounded-2xl border border-green-200 bg-green-50 p-4"
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  setDeliveryAcceptedOpen((current) => ({
+                    ...current,
+                    [order.id]: false,
+                  }))
+                }
+                className="w-full rounded-xl border border-green-200 bg-white px-4 py-2 text-sm font-semibold text-green-800"
+              >
+                Fermer
+              </button>
+
               <div>
                 <p className="font-bold text-green-900">Confirmation par Code PIN</p>
                 <p className="mt-1 text-sm text-green-800">
