@@ -37,6 +37,8 @@ type Order = {
   status?: string | null;
   payment_status?: string | null;
   courier_id?: string | null;
+  accepted_at?: string | null;
+  scheduled_at?: string | null;
   absence_reason?: string | null;
   absence_declared_at?: string | null;
   next_delivery_at?: string | null;
@@ -78,6 +80,34 @@ function formatEuro(cents?: number | null) {
 
 function cleanStatus(status?: string | null) {
   return String(status || "").trim().toUpperCase();
+}
+
+function getReturnDeadline(order: Order) {
+  if (!order.return_started_at) return null;
+
+  const startedAt = new Date(order.return_started_at);
+  if (Number.isNaN(startedAt.getTime())) return null;
+
+  return new Date(startedAt.getTime() + 24 * 60 * 60 * 1000);
+}
+
+function isReturnOverdue(order: Order, now = Date.now()) {
+  const deadline = getReturnDeadline(order);
+  return Boolean(deadline && deadline.getTime() < now);
+}
+
+function getMissionCancellationDeadline(order: Order) {
+  if (!order.scheduled_at) return null;
+
+  const scheduledAt = new Date(order.scheduled_at);
+  if (Number.isNaN(scheduledAt.getTime())) return null;
+
+  return new Date(scheduledAt.getTime() - 60 * 60 * 1000);
+}
+
+function canCancelMissionBeforeDeadline(order: Order, now = Date.now()) {
+  const deadline = getMissionCancellationDeadline(order);
+  return !deadline || now <= deadline.getTime();
 }
 
 function cleanAddressDisplay(text?: string | null) {
@@ -147,6 +177,7 @@ export default function MissionsPage() {
     "unknown" | "granted" | "denied" | "unsupported"
   >("unknown");
   const [pushNotificationsKey, setPushNotificationsKey] = useState(0);
+  const [returnClock, setReturnClock] = useState(() => Date.now());
 
   async function loadCourierProfile(uid: string) {
     const { data, error } = await supabase
@@ -212,7 +243,11 @@ export default function MissionsPage() {
           .from("orders")
           .select("*")
           .eq("courier_id", currentUserId)
-          .in("status", ["RETURN_TO_SENDER", "RETURN_SCHEDULED"])
+          .in("status", [
+  "RETURN_WAITING_COURIER",
+  "RETURN_TO_SENDER",
+  "RETURN_SCHEDULED",
+])
           .order("updated_at", { ascending: false });
 
         if (paidError) throw paidError;
@@ -292,6 +327,14 @@ export default function MissionsPage() {
       return Math.min(current, available.length - 1);
     });
   }, [available.length]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setReturnClock(Date.now());
+    }, 60_000);
+
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -541,7 +584,7 @@ export default function MissionsPage() {
 
     const dateValue = nextDeliveryAt[order.id];
     if (!dateValue) {
-      setMsg("Choisis la date et l'heure de la prochain créneau.");
+      setMsg("Choisis la date et l'heure du prochain créneau.");
       return;
     }
 
@@ -570,7 +613,7 @@ export default function MissionsPage() {
       return;
     }
 
-    setMsg("✅ Autre créneau enregistrée.");
+    setMsg("✅ Autre créneau enregistré.");
     setNextDeliveryOpen((current) => ({ ...current, [order.id]: false }));
     await loadOrders(userId, true);
   }
@@ -689,32 +732,63 @@ export default function MissionsPage() {
     }
   }
 
+  function hasAnotherActiveReturn(orderId: string) {
+    return paidReturns.some(
+      (item) =>
+        item.id !== orderId &&
+        Boolean(item.return_started_at) &&
+        ["RETURN_TO_SENDER", "RETURN_SCHEDULED"].includes(
+          cleanStatus(item.status)
+        )
+    );
+  }
+
   async function startReturnToday(order: Order) {
     if (!userId) return;
 
+    if (hasAnotherActiveReturn(order.id)) {
+      setMsg(
+        "Tu as déjà un retour en cours. Termine-le avant d'en prendre un autre."
+      );
+      return;
+    }
+
     const now = new Date().toISOString();
+    const startedAt = order.return_started_at || now;
+
     const { error } = await supabase
       .from("orders")
       .update({
         status: "RETURN_TO_SENDER",
-        return_started_at: now,
+        return_started_at: startedAt,
         updated_at: now,
       })
       .eq("id", order.id)
       .eq("courier_id", userId)
-      .eq("return_payment_status", "paid");
+      .eq("return_payment_status", "paid")
+      .in("status", ["RETURN_WAITING_COURIER", "RETURN_SCHEDULED"]);
 
     if (error) {
       setMsg("Erreur démarrage du retour : " + error.message);
       return;
     }
 
-    setMsg("✅ Retour vers l'expéditeur démarré.");
+    setMsg(
+      "✅ Retour accepté. Tu disposes maintenant de 24 heures maximum pour remettre le colis à l'expéditeur."
+    );
+
     await loadOrders(userId, true);
   }
 
   async function scheduleReturn(order: Order) {
     if (!userId) return;
+
+    if (hasAnotherActiveReturn(order.id)) {
+      setMsg(
+        "Tu as déjà un retour en cours. Termine-le avant d'en prendre un autre."
+      );
+      return;
+    }
 
     const value = returnScheduleAt[order.id];
 
@@ -724,9 +798,30 @@ export default function MissionsPage() {
     }
 
     const scheduledDate = new Date(value);
+    const now = new Date();
 
-    if (Number.isNaN(scheduledDate.getTime()) || scheduledDate.getTime() <= Date.now()) {
+    if (
+      Number.isNaN(scheduledDate.getTime()) ||
+      scheduledDate.getTime() <= now.getTime()
+    ) {
       setMsg("Choisis une date et une heure futures.");
+      return;
+    }
+
+    // Programmer un retour en attente vaut aussi validation de prise en charge.
+    // Le délai maximum de 24 h commence donc ici si le retour n'était pas déjà actif.
+    const startedAt = order.return_started_at
+      ? new Date(order.return_started_at)
+      : now;
+
+    const deadline = new Date(
+      startedAt.getTime() + 24 * 60 * 60 * 1000
+    );
+
+    if (scheduledDate.getTime() > deadline.getTime()) {
+      setMsg(
+        "Le retour doit être effectué dans les 24 heures suivant sa prise en charge."
+      );
       return;
     }
 
@@ -734,20 +829,33 @@ export default function MissionsPage() {
       .from("orders")
       .update({
         status: "RETURN_SCHEDULED",
+        return_started_at: startedAt.toISOString(),
         next_delivery_at: scheduledDate.toISOString(),
-        updated_at: new Date().toISOString(),
+        updated_at: now.toISOString(),
       })
       .eq("id", order.id)
       .eq("courier_id", userId)
-      .eq("return_payment_status", "paid");
+      .eq("return_payment_status", "paid")
+      .in("status", [
+        "RETURN_WAITING_COURIER",
+        "RETURN_TO_SENDER",
+        "RETURN_SCHEDULED",
+      ]);
 
     if (error) {
       setMsg("Erreur programmation du retour : " + error.message);
       return;
     }
 
-    setReturnScheduleOpen((current) => ({ ...current, [order.id]: false }));
-    setMsg("✅ Retour programmé.");
+    setReturnScheduleOpen((current) => ({
+      ...current,
+      [order.id]: false,
+    }));
+
+    setMsg(
+      "✅ Retour accepté et programmé. Il devra être remis à l'expéditeur dans les 24 heures."
+    );
+
     await loadOrders(userId, true);
   }
 
@@ -756,6 +864,11 @@ export default function MissionsPage() {
 
     if (!["RETURN_TO_SENDER", "RETURN_SCHEDULED"].includes(cleanStatus(order.status))) {
       setMsg("Le retour doit d'abord être payé et autorisé.");
+      return;
+    }
+
+    if (!order.return_started_at) {
+      setMsg("Prends d'abord en charge le retour avant de le valider.");
       return;
     }
 
@@ -830,7 +943,19 @@ const response =
     }
 
     if (myMissions.length > 0) {
-      setMsg("Tu dois terminer ta mission actuelle avant d'en accepter une autre.");
+      setMsg("Tu dois terminer ta mission normale actuelle avant d'en accepter une autre.");
+      return;
+    }
+
+    const overdueReturn = paidReturns.find(
+      (returnOrder) =>
+        Boolean(returnOrder.return_started_at) && isReturnOverdue(returnOrder)
+    );
+
+    if (overdueReturn) {
+      setMsg(
+        "Un retour pris en charge a dépassé le délai de 24 heures. Termine ce retour avant d'accepter une nouvelle mission."
+      );
       return;
     }
 
@@ -926,23 +1051,52 @@ setPinByOrder((current) => ({
 }
 
   async function cancelMission(orderId: string) {
+    if (!userId) return;
+
+    const order = myMissions.find((mission) => mission.id === orderId);
+
+    if (!order || cleanStatus(order.status) !== "ACCEPTED") {
+      setMsg(
+        "La mission ne peut plus être annulée après le démarrage de la livraison. Utilise les options de remise ou d'obstacle."
+      );
+      return;
+    }
+
+    if (!canCancelMissionBeforeDeadline(order)) {
+      const cancellationDeadline = getMissionCancellationDeadline(order);
+      setMsg(
+        cancellationDeadline
+          ? `Cette mission ne peut plus être annulée : l'annulation devait être faite au moins 1 heure avant la livraison, soit avant ${cancellationDeadline.toLocaleString("fr-FR")}.`
+          : "Cette mission ne peut plus être annulée."
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Annuler cette mission ? Elle redeviendra immédiatement disponible pour un autre livreur."
+    );
+
+    if (!confirmed) return;
+
     const { error } = await supabase
       .from("orders")
       .update({
         courier_id: null,
+        status: "PUBLISHED",
         accepted_at: null,
         started_at: null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", orderId)
-      .eq("courier_id", userId);
+      .eq("courier_id", userId)
+      .eq("status", "ACCEPTED");
 
     if (error) {
       setMsg(error.message);
       return;
     }
 
-    setMsg("Mission annulée.");
+    setMsg("✅ Mission annulée. Elle est de nouveau disponible pour les autres livreurs.");
     await loadOrders(userId, true);
   }
 
@@ -963,6 +1117,8 @@ setPinByOrder((current) => ({
       order.vehicle_required || order.required_vehicle || "Non précisé";
     const isImportantParcel = order.is_important_parcel === true;
     const hideImportantDetails = type === "available" && isImportantParcel;
+    const cancellationDeadline = getMissionCancellationDeadline(order);
+    const cancellationAllowed = canCancelMissionBeforeDeadline(order);
 
     return (
       <div
@@ -1207,17 +1363,19 @@ setPinByOrder((current) => ({
           {type === "available" && (
             <button
               type="button"
-              disabled={myMissions.length > 0}
+              disabled={myMissions.length > 0 || hasOverdueReturn}
               onClick={() => acceptMission(order.id)}
               className={`w-full rounded-2xl px-4 py-3 font-semibold text-white ${
-                myMissions.length > 0
+                myMissions.length > 0 || hasOverdueReturn
                   ? "cursor-not-allowed bg-gray-400"
                   : "bg-blue-600"
               }`}
             >
-              {myMissions.length > 0
-                ? "Mission en cours"
-                : "Accepter cette mission"}
+              {hasOverdueReturn
+                ? "Retour en retard"
+                : myMissions.length > 0
+                  ? "Mission en cours"
+                  : "Accepter cette mission"}
             </button>
           )}
 
@@ -1374,7 +1532,7 @@ setPinByOrder((current) => ({
                   </button>
 
                   <p className="text-xs text-red-800">
-                    Le problème est enregistré mais la mission reste ouverte si la situation peut être résolue.
+                    L’obstacle est enregistré, mais la mission reste ouverte si la situation peut être résolue.
                   </p>
                 </div>
               )}
@@ -1607,21 +1765,39 @@ setPinByOrder((current) => ({
                     onClick={() => scheduleNextDelivery(order)}
                     className="w-full rounded-xl bg-blue-700 px-4 py-3 font-bold text-white"
                   >
-                    Enregistrer la autre créneau
+                    Enregistrer l'autre créneau
                   </button>
                 </div>
               )}
             </div>
           )}
 
-          {type === "mine" && ["ACCEPTED", "OUT_FOR_DELIVERY"].includes(status) && (
-            <button
-              type="button"
-              onClick={() => cancelMission(order.id)}
-              className="w-full rounded-2xl px-4 py-3 font-medium text-red-600"
-            >
-              Annuler la mission
-            </button>
+          {type === "mine" && status === "ACCEPTED" && (
+            <div className="space-y-1">
+              <button
+                type="button"
+                disabled={!cancellationAllowed}
+                onClick={() => cancelMission(order.id)}
+                className={`w-full rounded-2xl px-4 py-3 font-medium ${
+                  cancellationAllowed
+                    ? "text-red-600"
+                    : "cursor-not-allowed text-gray-400"
+                }`}
+              >
+                {cancellationAllowed
+                  ? "Annuler la mission"
+                  : "Annulation indisponible"}
+              </button>
+
+              {order.scheduled_at ? (
+                <p className="text-center text-xs text-slate-500">
+                  Annulation possible jusqu'à 1 heure avant la livraison
+                  {cancellationDeadline
+                    ? ` — ${cancellationDeadline.toLocaleString("fr-FR")}`
+                    : ""}.
+                </p>
+              ) : null}
+            </div>
           )}
         </div>
       </div>
@@ -1630,22 +1806,55 @@ setPinByOrder((current) => ({
 
   function ReturnCard({ order, paid }: { order: Order; paid: boolean }) {
     const status = cleanStatus(order.status);
+    const waitingForCourier = paid && !order.return_started_at;
+    const deadline = getReturnDeadline(order);
+    const overdue =
+      paid &&
+      Boolean(order.return_started_at) &&
+      isReturnOverdue(order, returnClock);
 
     return (
       <div
         key={order.id}
         className={`space-y-4 rounded-3xl border p-5 shadow-sm ${
-          paid ? "border-blue-300 bg-blue-50" : "border-amber-300 bg-amber-50"
+          !paid
+            ? "border-amber-300 bg-amber-50"
+            : overdue
+              ? "border-red-300 bg-red-50"
+              : waitingForCourier
+                ? "border-violet-300 bg-violet-50"
+                : "border-blue-300 bg-blue-50"
         }`}
       >
         <div>
           <h3 className="text-xl font-bold">
-            {paid ? "🔄 Retour payé à effectuer" : "📦 Colis sous ma garde"}
+            {!paid
+              ? "Colis bloqué"
+              : waitingForCourier
+                ? "Retour payé — en attente de validation"
+                : overdue
+                  ? "Retour en retard"
+                  : "Retour en cours"}
           </h3>
-          <p className={paid ? "text-blue-800" : "text-amber-800"}>
-            {paid
-              ? "Le retour peut être fait aujourd'hui ou sur un autre créneau."
-              : "Retour en attente du paiement de l'expéditeur. Cette commande ne bloque pas les nouvelles missions."}
+
+          <p
+            className={
+              !paid
+                ? "text-amber-800"
+                : overdue
+                  ? "text-red-800"
+                  : waitingForCourier
+                    ? "text-violet-800"
+                    : "text-blue-800"
+            }
+          >
+            {!paid
+              ? "Retour en attente du paiement de l'expéditeur. Ce colis ne bloque pas les nouvelles missions."
+              : waitingForCourier
+                ? "L'expéditeur a payé le retour. Valide sa prise en charge lorsque tu es disponible. Le délai de 24 heures commencera au moment de la prise en charge."
+                : overdue
+                  ? "Le délai de 24 heures est dépassé. Termine ce retour avant d'accepter une nouvelle mission normale."
+                  : "Retour pris en charge. Tu peux conserver une mission normale en parallèle. Le colis doit être remis à l'expéditeur avant l'échéance indiquée."}
           </p>
         </div>
 
@@ -1665,6 +1874,20 @@ setPinByOrder((current) => ({
             <b>Rémunération du retour :</b>{" "}
             {formatEuro(order.return_courier_earnings_cents || order.return_price_cents)}
           </p>
+
+          {paid && order.return_started_at ? (
+            <>
+              <p>
+                <b>Retour pris en charge :</b>{" "}
+                {new Date(order.return_started_at).toLocaleString("fr-FR")}
+              </p>
+              <p className={overdue ? "font-bold text-red-700" : "font-semibold text-blue-800"}>
+                <b>À remettre avant :</b>{" "}
+                {deadline ? deadline.toLocaleString("fr-FR") : "-"}
+              </p>
+            </>
+          ) : null}
+
           {order.refusal_photo_url ? (
             <a
               href={order.refusal_photo_url}
@@ -1675,36 +1898,50 @@ setPinByOrder((current) => ({
               Voir la photo du refus
             </a>
           ) : null}
+
+          {order.sender_phone ? (
+            <button
+              type="button"
+              onClick={() => callPhone(order.sender_phone)}
+              className="mt-1 w-fit rounded-xl border border-slate-200 px-3 py-2 font-semibold text-slate-700"
+            >
+              Appeler l'expéditeur
+            </button>
+          ) : null}
         </div>
 
         {!paid ? (
           <div className="rounded-xl bg-white p-3 text-sm font-semibold text-amber-800">
             Paiement du retour en attente : {formatEuro(order.return_price_cents)}
           </div>
+        ) : waitingForCourier ? (
+          <button
+            type="button"
+            onClick={() => startReturnToday(order)}
+            className="w-full rounded-xl bg-violet-700 px-4 py-3 font-bold text-white"
+          >
+            Prendre en charge le retour
+          </button>
         ) : (
           <div className="space-y-3">
-            <div className="grid gap-2 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => startReturnToday(order)}
-                className="rounded-xl bg-green-700 px-4 py-3 font-bold text-white"
-              >
-                Retour aujourd'hui
-              </button>
+            {overdue ? (
+              <div className="rounded-xl border border-red-200 bg-white p-3 text-sm font-bold text-red-700">
+                Délai dépassé : termine ce retour en priorité.
+              </div>
+            ) : null}
 
-              <button
-                type="button"
-                onClick={() =>
-                  setReturnScheduleOpen((current) => ({
-                    ...current,
-                    [order.id]: !current[order.id],
-                  }))
-                }
-                className="rounded-xl bg-blue-700 px-4 py-3 font-bold text-white"
-              >
-                Autre créneau
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() =>
+                setReturnScheduleOpen((current) => ({
+                  ...current,
+                  [order.id]: !current[order.id],
+                }))
+              }
+              className="w-full rounded-xl bg-blue-700 px-4 py-3 font-bold text-white"
+            >
+              Choisir l'heure du retour
+            </button>
 
             {returnScheduleOpen[order.id] ? (
               <div className="space-y-2 rounded-2xl bg-white p-4">
@@ -1722,12 +1959,15 @@ setPinByOrder((current) => ({
                   }
                   className="w-full rounded-xl border px-4 py-3"
                 />
+                <p className="text-xs text-slate-500">
+                  Le créneau doit rester dans les 24 heures suivant la prise en charge du retour.
+                </p>
                 <button
                   type="button"
                   onClick={() => scheduleReturn(order)}
                   className="w-full rounded-xl bg-blue-800 px-4 py-3 font-bold text-white"
                 >
-                  Enregistrer l’autre créneau
+                  Enregistrer le créneau
                 </button>
               </div>
             ) : null}
@@ -1740,9 +1980,7 @@ setPinByOrder((current) => ({
 
             <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
               <div>
-                <p className="font-bold text-slate-900">
-                  Confirmation par Code PIN retour
-                </p>
+                <p className="font-bold text-slate-900">Confirmation par Code PIN retour</p>
                 <p className="mt-1 text-sm text-slate-600">
                   Demande à l'expéditeur le Code PIN retour reçu après le paiement.
                 </p>
@@ -1808,7 +2046,12 @@ setPinByOrder((current) => ({
       .filter(Boolean)
       .join(" · ") || "Véhicule non renseigné";
 
-      
+  const activeReturns = paidReturns.filter((order) => Boolean(order.return_started_at));
+  const currentMissionCount = myMissions.length + activeReturns.length;
+  const blockedParcelCount = pendingReturns.length;
+  const hasOverdueReturn = activeReturns.some((order) =>
+    isReturnOverdue(order, returnClock)
+  );
 
   return (
     
@@ -1979,37 +2222,27 @@ setPinByOrder((current) => ({
             </button>
           </div>
 
-          <div className="mt-6 grid grid-cols-2 gap-3">
-            <div className="rounded-2xl bg-white/15 p-4">
-              <p className="text-4xl font-bold">{available.length}</p>
-              <p className="text-blue-100">missions disponibles</p>
+          <div className="mt-6 grid grid-cols-3 gap-3">
+            <div className="rounded-2xl border border-white/20 bg-white/10 p-3">
+              <p className="text-3xl font-bold">{available.length}</p>
+              <p className="mt-2 text-sm font-semibold text-blue-100">À prendre</p>
+              <p className="mt-1 text-[11px] text-blue-100/80">Missions disponibles</p>
             </div>
 
-            <div className="rounded-2xl bg-white/15 p-4">
-              <p className="text-4xl font-bold">{myMissions.length}</p>
-              <p className="text-blue-100">missions en cours</p>
+            <div className="rounded-2xl border border-white/20 bg-white/10 p-3">
+              <p className="text-3xl font-bold">{currentMissionCount}</p>
+              <p className="mt-2 text-sm font-semibold text-blue-100">En cours</p>
+              <p className="mt-1 text-[11px] text-blue-100/80">Mission + retour actif</p>
+            </div>
+
+            <div className="rounded-2xl border border-white/20 bg-white/10 p-3">
+              <p className="text-3xl font-bold">{blockedParcelCount}</p>
+              <p className="mt-2 text-sm font-semibold text-blue-100">Colis bloqués</p>
+              <p className="mt-1 text-[11px] text-blue-100/80">En attente de paiement</p>
             </div>
           </div>
 
-         <div className="mt-6 grid grid-cols-2 gap-3">
-  <div className="rounded-2xl border border-white/20 bg-white/10 p-4">
-    <div className="flex items-center justify-between">
-      <span className="text-2xl">🔎</span>
-      <p className="text-4xl font-bold">{available.length}</p>
-    </div>
-    <p className="mt-3 text-sm font-semibold text-blue-100">À prendre</p>
-    <p className="text-xs text-blue-100/80">Missions disponibles</p>
-  </div>
-
-  <div className="rounded-2xl border border-white/20 bg-white/10 p-4">
-    <div className="flex items-center justify-between">
-      <p className="text-4xl font-bold">{myMissions.length}</p>
-    </div>
-    <p className="mt-3 text-sm font-semibold text-blue-100">En cours</p>
-    <p className="text-xs text-blue-100/80">Mes livraisons</p>
-  </div>
-</div>
-<div className="mt-4 rounded-2xl bg-white p-4 text-gray-900">
+          <div className="mt-4 rounded-2xl bg-white p-4 text-gray-900">
   <div className="flex items-center gap-4">
     {courierProfile?.avatar_url ? (
       <img
@@ -2075,7 +2308,13 @@ setPinByOrder((current) => ({
             </p>
             {myMissions.length > 0 ? (
               <p className="mt-2 rounded-2xl bg-yellow-50 p-3 text-sm font-semibold text-yellow-800">
-                Tu as déjà une livraison normale en cours. Termine-la avant d'en accepter une autre. Les retours en attente ne te bloquent pas.
+                Tu as déjà une livraison normale en cours. Termine-la avant d'en accepter une autre. Un retour payé pris en charge peut rester en parallèle.
+              </p>
+            ) : null}
+
+            {hasOverdueReturn ? (
+              <p className="mt-2 rounded-2xl bg-red-50 p-3 text-sm font-semibold text-red-800">
+                Un retour pris en charge a dépassé 24 heures. Termine ce retour avant d'accepter une nouvelle mission normale.
               </p>
             ) : null}
           </div>
@@ -2142,7 +2381,7 @@ setPinByOrder((current) => ({
               Ma mission en cours
             </h2>
             <p className="text-sm text-green-700">
-              Une seule mission peut être prise à la fois.
+              Une seule mission normale à la fois. Un retour payé pris en charge peut rester en parallèle.
             </p>
           </div>
 
@@ -2162,16 +2401,16 @@ setPinByOrder((current) => ({
         <section className="space-y-4">
           <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4">
             <h2 className="text-2xl font-bold text-amber-900">
-              Colis en attente de retour
+              Colis bloqués
             </h2>
             <p className="text-sm text-amber-800">
-              Ces colis restent visibles, mais ils ne bloquent pas les nouvelles missions.
+              Retour en attente du paiement de l'expéditeur. Ces colis ne bloquent pas les nouvelles missions.
             </p>
           </div>
 
           {pendingReturns.length === 0 ? (
             <div className="rounded-3xl bg-white p-6 text-center text-gray-600">
-              Aucun retour en attente de paiement
+              Aucun colis bloqué
             </div>
           ) : (
             <div className="space-y-4">
@@ -2183,10 +2422,10 @@ setPinByOrder((current) => ({
         <section className="space-y-4">
           <div className="rounded-3xl border border-blue-200 bg-blue-50 p-4">
             <h2 className="text-2xl font-bold text-blue-900">
-              Retours payés à effectuer
+              Retours payés
             </h2>
             <p className="text-sm text-blue-800">
-              Retourne le colis aujourd'hui ou utilise « Autre créneau ».
+              Après paiement, prends le retour en charge quand tu es disponible. Le délai de 24 heures commence à ce moment-là.
             </p>
           </div>
 
