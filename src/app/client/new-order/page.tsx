@@ -170,8 +170,7 @@ export default function NewOrderPage() {
 
     if (!receiverName.trim()) return "Nom receveur manquant.";
     if (!receiverPhone.trim()) return "Téléphone receveur manquant.";
-    if (!recipientEmail.trim())
-      return "Email du receveur manquant pour envoyer le code PIN.";
+
     if (!receiverAddress.trim() || !receiverCity.trim())
       return "Adresse receveur incomplète.";
     if (!dropoffHasElevator)

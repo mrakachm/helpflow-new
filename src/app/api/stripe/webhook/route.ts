@@ -1,5 +1,6 @@
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
+import { sendSms } from "@/lib/sms";
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -85,6 +86,7 @@ async function processInitialPayment(
       payment_status,
       status,
       recipient_email,
+      receiver_phone,
       otp_code,
       delivery_otp
       `
@@ -143,22 +145,17 @@ async function processInitialPayment(
     );
   }
 
-  if (!order.recipient_email) {
-    return;
-  }
+  const siteUrl = getSiteUrl(req);
 
-  const siteUrl =
-    getSiteUrl(req);
-
-  try {
-    const emailResponse =
-      await fetch(
+  // L'e-mail est facultatif : on l'envoie uniquement s'il est renseigné.
+  if (order.recipient_email) {
+    try {
+      const emailResponse = await fetch(
         `${siteUrl}/api/send-otp-email`,
         {
           method: "POST",
           headers: {
-            "Content-Type":
-              "application/json",
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             to: order.recipient_email,
@@ -168,21 +165,48 @@ async function processInitialPayment(
         }
       );
 
-    if (!emailResponse.ok) {
-      const emailResult =
-        await emailResponse
+      if (!emailResponse.ok) {
+        const emailResult = await emailResponse
           .json()
           .catch(() => ({}));
 
+        console.error(
+          "Erreur envoi Code PIN livraison :",
+          emailResult
+        );
+      }
+    } catch (emailError) {
       console.error(
-        "Erreur envoi Code PIN livraison :",
-        emailResult
+        "Erreur appel API email Code PIN livraison :",
+        emailError
       );
     }
-  } catch (emailError) {
+  }
+
+  // Le SMS est le moyen principal d'envoi du Code PIN au receveur.
+  if (!order.receiver_phone) {
     console.error(
-      "Erreur appel API email Code PIN livraison :",
-      emailError
+      `Code PIN généré pour ${orderId}, mais téléphone receveur introuvable`
+    );
+    return;
+  }
+
+  try {
+    const smsResult = await sendSms(
+      order.receiver_phone,
+      `HelpFlow - Votre Code PIN de livraison est ${codePin}. Communiquez-le au livreur uniquement lors de la remise du colis.`
+    );
+
+    if (!smsResult.ok) {
+      console.error(
+        "Erreur envoi SMS Code PIN livraison :",
+        smsResult.error
+      );
+    }
+  } catch (smsError) {
+    console.error(
+      "Erreur appel SMS Code PIN livraison :",
+      smsError
     );
   }
 }
