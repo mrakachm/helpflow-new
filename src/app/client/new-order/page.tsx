@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 function formatEuro(cents: number) {
-  return (cents / 100).toFixed(2) + " €";
+  return `${(cents / 100).toLocaleString("fr-FR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })} €`;
 }
 
 function cleanSimpleAddress(text: string) {
@@ -157,29 +160,29 @@ export default function NewOrderPage() {
   }, [clientProposedPrice]);
 
   function validate(): string | null {
-    if (!userId) return "Tu dois être connecté pour créer une commande.";
+    if (!userId) return "Vous devez être connecté pour créer une commande.";
     if (!senderName.trim()) return "Nom expéditeur manquant.";
     if (!senderPhone.trim()) return "Téléphone expéditeur manquant.";
     if (!senderAddress.trim() || !senderCity.trim())
       return "Adresse expéditeur incomplète.";
-    if (!pickupHasElevator) return "Indique si le retrait possède un ascenseur.";
+    if (!pickupHasElevator) return "Veuillez indiquer si le retrait possède un ascenseur.";
     if (!pickupFloor) return "Étage de retrait manquant.";
 
     if (!receiverName.trim()) return "Nom receveur manquant.";
     if (!receiverPhone.trim()) return "Téléphone receveur manquant.";
     if (!recipientEmail.trim())
-      return "Email du receveur manquant pour envoyer le code OTP.";
+      return "Email du receveur manquant pour envoyer le code PIN.";
     if (!receiverAddress.trim() || !receiverCity.trim())
       return "Adresse receveur incomplète.";
     if (!dropoffHasElevator)
-      return "Indique si la livraison possède un ascenseur.";
+      return "Veuillez indiquer si la livraison possède un ascenseur.";
     if (!dropoffFloor) return "Étage de livraison manquant.";
 
     if (!bagCount) return "Nombre de sacs / colis manquant.";
     if (!vehicleRequired)
-      return "Choisis le véhicule requis pour cette livraison.";
+      return "Veuillez choisir le véhicule requis pour cette livraison.";
     if (isImportantParcel && !importantParcelType)
-      return "Choisis le type de colis important.";
+      return "Veuillez choisir le type de colis important.";
 
     return null;
   }
@@ -263,8 +266,19 @@ export default function NewOrderPage() {
       return;
     }
 
-    if (clientProposedPrice && Number(clientProposedPrice) < 5) {
-      setMsg("Le prix minimum est 5 €.");
+    const proposedPrice = Number(clientProposedPrice);
+
+    if (
+      !clientProposedPrice ||
+      Number.isNaN(proposedPrice) ||
+      proposedPrice < 5
+    ) {
+      setMsg("Le tarif minimum est de 5 €.");
+      return;
+    }
+
+    if (!Number.isInteger(proposedPrice)) {
+      setMsg("Le tarif doit être un montant entier en euros : 5 €, 6 €, 7 €, 8 €...");
       return;
     }
 
@@ -325,7 +339,7 @@ export default function NewOrderPage() {
       if (error || !data?.id) {
         console.error("CREATE ORDER ERROR =>", error);
         setMsg(
-          "Impossible de créer la commande. Vérifie les informations puis réessaie."
+          "Impossible de créer la commande. Vérifiez les informations puis réessayez."
         );
         setLoading(false);
         return;
@@ -701,14 +715,7 @@ export default function NewOrderPage() {
               </div>
             </div>
 
-            <div className="mt-3 text-sm text-gray-600">
-              Prix :{" "}
-              <span className="font-semibold">
-                {formatEuro(pricingView.finalPriceCents)}
-              </span>
-            </div>
-
-            <div className="mt-3">
+            <div className="mt-4">
               <label className="mb-2 block text-sm font-semibold text-gray-700">
                 Date et heure souhaitées pour la livraison
               </label>
@@ -721,22 +728,84 @@ export default function NewOrderPage() {
               />
 
               <p className="mt-1 text-xs text-gray-500">
-                Optionnel : laisse vide si la livraison peut être faite dès
+                Optionnel : laissez vide si la livraison peut être effectuée dès
                 qu’un livreur est disponible.
               </p>
             </div>
-          </section>
 
-          <input
-            type="number"
-            inputMode="decimal"
-            min="5"
-            step="0.5"
-            value={clientProposedPrice}
-            onChange={(e) => setClientProposedPrice(e.target.value)}
-            placeholder="Prix proposé utilisateur, minimum 5 €"
-            className="w-full rounded-xl border border-gray-200 px-3 py-2"
-          />
+            <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900">
+                    Proposez votre tarif
+                  </h3>
+                  <p className="mt-1 text-xs leading-5 text-gray-600">
+                    Choisissez librement votre tarif pour cette livraison.
+                  </p>
+                </div>
+
+                <span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-100">
+                  Minimum {formatEuro(MIN_PRICE_CENTS)}
+                </span>
+              </div>
+
+              <div className="mt-4 flex items-stretch gap-2">
+                <button
+                  type="button"
+                  aria-label="Diminuer le tarif de 1 euro"
+                  disabled={Number(clientProposedPrice || 5) <= 5}
+                  onClick={() => {
+                    const current = Number(clientProposedPrice || 5);
+                    const next = Math.max(
+                      5,
+                      (Number.isFinite(current) ? Math.floor(current) : 5) - 1
+                    );
+                    setClientProposedPrice(String(next));
+                  }}
+                  className="h-12 w-12 shrink-0 rounded-xl border border-gray-200 bg-white text-2xl font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  −
+                </button>
+
+                <div className="relative min-w-0 flex-1">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min="5"
+                    step="1"
+                    required
+                    value={clientProposedPrice}
+                    onChange={(e) => setClientProposedPrice(e.target.value)}
+                    aria-label="Tarif proposé en euros"
+                    aria-describedby="price-help"
+                    className="h-12 w-full rounded-xl border border-gray-300 bg-white px-12 text-center text-lg font-semibold text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-500">
+                    €
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  aria-label="Augmenter le tarif de 1 euro"
+                  onClick={() => {
+                    const current = Number(clientProposedPrice || 5);
+                    const next =
+                      (Number.isFinite(current) ? Math.floor(current) : 5) + 1;
+                    setClientProposedPrice(String(Math.max(5, next)));
+                  }}
+                  className="h-12 w-12 shrink-0 rounded-xl border border-gray-200 bg-white text-2xl font-medium text-gray-700"
+                >
+                  +
+                </button>
+              </div>
+
+              <p id="price-help" className="mt-3 text-xs leading-5 text-gray-600">
+                Un tarif plus élevé peut rendre votre demande plus attractive
+                pour un livreur. Le montant choisi sera confirmé avant le paiement.
+              </p>
+            </div>
+          </section>
 
           <button
             type="submit"

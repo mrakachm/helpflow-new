@@ -1,7 +1,7 @@
 "use client";
 
 import PushNotifications from "@/components/PushNotifications";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type TouchEvent } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import MissionRoutePreview from "@/components/MissionRoutePreview";
 import Link from "next/link";
@@ -132,11 +132,21 @@ export default function MissionsPage() {
   const [returnScheduleOpen, setReturnScheduleOpen] = useState<Record<string, boolean>>({});
   const [returnScheduleAt, setReturnScheduleAt] = useState<Record<string, string>>({});
   const [returnPinByOrder, setReturnPinByOrder] = useState<Record<string, string>>({});
-  const [presentOpen, setPresentOpen] = useState<Record<string, boolean>>({});
+  const [deliveryAcceptedOpen, setDeliveryAcceptedOpen] = useState<Record<string, boolean>>({});
   const [obstacleOpen, setObstacleOpen] = useState<Record<string, boolean>>({});
   const [obstacleReason, setObstacleReason] = useState<Record<string, string>>({});
   const [obstacleComment, setObstacleComment] = useState<Record<string, string>>({});
   const [obstacleSaving, setObstacleSaving] = useState<Record<string, boolean>>({});
+  const [availableIndex, setAvailableIndex] = useState(0);
+  const [availableTouchStartX, setAvailableTouchStartX] = useState<number | null>(null);
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
+  const [locationPermission, setLocationPermission] = useState<
+    "unknown" | "granted" | "denied"
+  >("unknown");
+  const [notificationPermission, setNotificationPermission] = useState<
+    "unknown" | "granted" | "denied" | "unsupported"
+  >("unknown");
+  const [pushNotificationsKey, setPushNotificationsKey] = useState(0);
 
   async function loadCourierProfile(uid: string) {
     const { data, error } = await supabase
@@ -275,6 +285,133 @@ export default function MissionsPage() {
 
     return () => window.clearInterval(timer);
   }, [receiverCallStartedAt]);
+
+  useEffect(() => {
+    setAvailableIndex((current) => {
+      if (available.length === 0) return 0;
+      return Math.min(current, available.length - 1);
+    });
+  }, [available.length]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const onboardingSeen = window.localStorage.getItem(
+      "helpflow_courier_permissions_seen"
+    );
+
+    if (!onboardingSeen) {
+      setPermissionsOpen(true);
+    }
+
+    if ("Notification" in window) {
+      setNotificationPermission(
+        Notification.permission === "default"
+          ? "unknown"
+          : Notification.permission
+      );
+    } else {
+      setNotificationPermission("unsupported");
+    }
+
+    if ("permissions" in navigator && navigator.permissions?.query) {
+      navigator.permissions
+        .query({ name: "geolocation" })
+        .then((result) => {
+          setLocationPermission(
+            result.state === "granted"
+              ? "granted"
+              : result.state === "denied"
+                ? "denied"
+                : "unknown"
+          );
+        })
+        .catch(() => undefined);
+    }
+  }, []);
+
+  function changeAvailableMission(direction: -1 | 1) {
+    if (available.length <= 1) return;
+
+    setAvailableIndex((current) => {
+      const next = current + direction;
+      if (next < 0) return available.length - 1;
+      if (next >= available.length) return 0;
+      return next;
+    });
+  }
+
+  function handleAvailableTouchStart(event: TouchEvent<HTMLDivElement>) {
+    setAvailableTouchStartX(event.touches[0]?.clientX ?? null);
+  }
+
+  function handleAvailableTouchEnd(event: TouchEvent<HTMLDivElement>) {
+    if (availableTouchStartX === null) return;
+
+    const endX = event.changedTouches[0]?.clientX ?? availableTouchStartX;
+    const delta = endX - availableTouchStartX;
+
+    if (Math.abs(delta) >= 55) {
+      changeAvailableMission(delta < 0 ? 1 : -1);
+    }
+
+    setAvailableTouchStartX(null);
+  }
+
+  function requestLocationPermission() {
+    if (!navigator.geolocation) {
+      setMsg("La localisation n'est pas disponible sur cet appareil.");
+      setLocationPermission("denied");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      () => {
+        setLocationPermission("granted");
+        setMsg("✅ Localisation autorisée pour les missions de proximité.");
+      },
+      (error) => {
+        setLocationPermission("denied");
+        setMsg(
+          error.code === error.PERMISSION_DENIED
+            ? "Localisation refusée. Tu pourras l'autoriser plus tard dans les réglages du téléphone."
+            : "Impossible de récupérer la position pour le moment."
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000,
+      }
+    );
+  }
+
+  async function requestNotificationPermission() {
+    if (!("Notification" in window)) {
+      setNotificationPermission("unsupported");
+      setMsg("Les notifications ne sont pas disponibles sur cet appareil.");
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(
+      permission === "default" ? "unknown" : permission
+    );
+
+    if (permission === "granted") {
+      setPushNotificationsKey((current) => current + 1);
+      setMsg("✅ Notifications autorisées.");
+    } else if (permission === "denied") {
+      setMsg(
+        "Notifications refusées. Tu pourras les autoriser plus tard dans les réglages du navigateur ou du téléphone."
+      );
+    }
+  }
+
+  function closePermissionsPanel() {
+    window.localStorage.setItem("helpflow_courier_permissions_seen", "1");
+    setPermissionsOpen(false);
+  }
 
   function callReceiver(order: Order) {
     if (!order.receiver_phone) {
@@ -878,17 +1015,25 @@ setPinByOrder((current) => ({
                 {cleanAddressDisplay(order.pickup_address) || "-"} {order.pickup_city || ""}
               </p>
 
-              <p className="text-sm text-gray-600">
-                Expéditeur : {order.sender_name || "-"}
-              </p>
+              {type !== "available" ? (
+                <>
+                  <p className="text-sm text-gray-600">
+                    Expéditeur : {order.sender_name || "-"}
+                  </p>
 
-              <p className="text-sm text-gray-600">
-                Étage retrait : {order.pickup_floor || "-"}
-              </p>
+                  <p className="text-sm text-gray-600">
+                    Étage retrait : {order.pickup_floor || "-"}
+                  </p>
 
-              <p className="text-sm text-gray-600">
-                Ascenseur retrait : {elevatorLabel(order.pickup_has_elevator)}
-              </p>
+                  <p className="text-sm text-gray-600">
+                    Ascenseur retrait : {elevatorLabel(order.pickup_has_elevator)}
+                  </p>
+                </>
+              ) : (
+                <p className="mt-1 text-xs text-gray-500">
+                  Les coordonnées détaillées de l'expéditeur sont visibles après acceptation.
+                </p>
+              )}
 
               {type === "mine" && order.sender_phone ? (
                 <button
@@ -908,17 +1053,25 @@ setPinByOrder((current) => ({
                 {cleanAddressDisplay(order.dropoff_address) || "-"} {order.dropoff_city || ""}
               </p>
 
-              <p className="text-sm text-gray-600">
-                Receveur : {order.receiver_name || "-"}
-              </p>
+              {type !== "available" ? (
+                <>
+                  <p className="text-sm text-gray-600">
+                    Receveur : {order.receiver_name || "-"}
+                  </p>
 
-              <p className="text-sm text-gray-600">
-                Étage livraison : {order.dropoff_floor || "-"}
-              </p>
+                  <p className="text-sm text-gray-600">
+                    Étage livraison : {order.dropoff_floor || "-"}
+                  </p>
 
-              <p className="text-sm text-gray-600">
-                Ascenseur livraison : {elevatorLabel(order.dropoff_has_elevator)}
-              </p>
+                  <p className="text-sm text-gray-600">
+                    Ascenseur livraison : {elevatorLabel(order.dropoff_has_elevator)}
+                  </p>
+                </>
+              ) : (
+                <p className="mt-1 text-xs text-gray-500">
+                  Les coordonnées détaillées du receveur sont visibles après acceptation.
+                </p>
+              )}
 
               {type === "mine" && order.receiver_phone ? (
                 <button
@@ -995,6 +1148,22 @@ setPinByOrder((current) => ({
             dropoffCity={order.dropoff_city}
           />
 
+          {type === "available" ? (
+            <div className="grid grid-cols-2 gap-2 rounded-2xl border border-blue-100 bg-blue-50 p-3 text-sm">
+              <div>
+                <p className="text-xs font-semibold uppercase text-blue-700">Distance</p>
+                <p className="mt-1 font-bold text-slate-900">À activer</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase text-blue-700">Temps estimé</p>
+                <p className="mt-1 font-bold text-slate-900">À activer</p>
+              </div>
+              <p className="col-span-2 text-xs leading-5 text-blue-800">
+                L'emplacement est prêt. La distance et la durée réelles seront affichées dès l'activation du calcul d'itinéraire.
+              </p>
+            </div>
+          ) : null}
+
           {type === "available" && isImportantParcel ? (
             <details className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
               <summary className="cursor-pointer list-none font-bold text-amber-950">
@@ -1065,53 +1234,37 @@ setPinByOrder((current) => ({
           {type === "mine" && status === "OUT_FOR_DELIVERY" && (
             <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="text-center">
-                <p className="text-xl font-bold text-slate-900">Traitement</p>
+                <p className="text-xl font-bold text-slate-900">Remise du colis</p>
                 <p className="mt-1 text-sm text-slate-600">
-                  Choisis l'événement correspondant à la remise du colis.
+                  Choisis uniquement la situation correspondant à la remise.
                 </p>
               </div>
 
               <button
                 type="button"
                 onClick={() =>
-                  setPresentOpen((current) => ({
+                  setDeliveryAcceptedOpen((current) => ({
                     ...current,
                     [order.id]: !current[order.id],
                   }))
                 }
                 className="w-full rounded-xl bg-green-600 px-4 py-4 text-lg font-black text-white shadow-sm"
               >
-                PRÉSENT
+                ACCEPTÉ
               </button>
 
-              {presentOpen[order.id] && (
-                <div className="space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      requestAnimationFrame(() => {
-                        document.getElementById(`otp-${order.id}`)?.focus();
-                      });
-                    }}
-                    className="w-full rounded-xl bg-green-500 px-4 py-3 font-bold text-white"
-                  >
-                    ACCEPTÉ
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setRefusalOpen((current) => ({
-                        ...current,
-                        [order.id]: true,
-                      }))
-                    }
-                    className="w-full rounded-xl bg-emerald-700 px-4 py-3 font-bold text-white"
-                  >
-                    REFUSÉ
-                  </button>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={() =>
+                  setRefusalOpen((current) => ({
+                    ...current,
+                    [order.id]: !current[order.id],
+                  }))
+                }
+                className="w-full rounded-xl bg-emerald-800 px-4 py-3 font-bold text-white"
+              >
+                REFUSÉ
+              </button>
 
               <button
                 type="button"
@@ -1119,7 +1272,7 @@ setPinByOrder((current) => ({
                 onClick={() =>
                   setAbsenceOpen((current) => ({
                     ...current,
-                    [order.id]: true,
+                    [order.id]: !current[order.id],
                   }))
                 }
                 className="w-full rounded-xl bg-orange-500 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
@@ -1137,7 +1290,7 @@ setPinByOrder((current) => ({
                 }
                 className="w-full rounded-xl bg-red-700 px-4 py-3 font-bold text-white"
               >
-                OBSTACLE
+                PROBLÈME / OBSTACLE
               </button>
 
               <button
@@ -1146,7 +1299,7 @@ setPinByOrder((current) => ({
                 onClick={() =>
                   setNextDeliveryOpen((current) => ({
                     ...current,
-                    [order.id]: true,
+                    [order.id]: !current[order.id],
                   }))
                 }
                 className="w-full rounded-xl bg-blue-700 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
@@ -1168,7 +1321,7 @@ setPinByOrder((current) => ({
                 <div className="space-y-3 rounded-2xl border border-red-200 bg-red-50 p-4">
                   <div>
                     <label className="mb-1 block text-sm font-semibold text-red-950">
-                      Type d'obstacle *
+                      Type de problème *
                     </label>
                     <select
                       value={obstacleReason[order.id] || ""}
@@ -1222,19 +1375,25 @@ setPinByOrder((current) => ({
                   >
                     {obstacleSaving[order.id]
                       ? "Enregistrement..."
-                      : "Enregistrer l'obstacle"}
+                      : "Enregistrer le problème"}
                   </button>
 
                   <p className="text-xs text-red-800">
-                    L'obstacle est enregistré mais la mission reste ouverte afin que le livreur puisse poursuivre si la situation est résolue.
+                    Le problème est enregistré mais la mission reste ouverte si la situation peut être résolue.
                   </p>
                 </div>
               )}
             </div>
           )}
 
-          {type === "mine" && status === "OUT_FOR_DELIVERY" && (
-            <div className="space-y-3">
+          {type === "mine" && status === "OUT_FOR_DELIVERY" && deliveryAcceptedOpen[order.id] && (
+            <div className="space-y-3 rounded-2xl border border-green-200 bg-green-50 p-4">
+              <div>
+                <p className="font-bold text-green-900">Confirmation par Code PIN</p>
+                <p className="mt-1 text-sm text-green-800">
+                  Demande au receveur le Code PIN à 4 chiffres reçu pour confirmer la remise.
+                </p>
+              </div>
               <input
   id={`otp-${order.id}`}
   type="text"
@@ -1264,8 +1423,8 @@ setPinByOrder((current) => ({
             </div>
           )}
 
-          {type === "mine" && status === "OUT_FOR_DELIVERY" && (
-            <div className="space-y-3 rounded-2xl border border-red-200 bg-red-50 p-4">
+          {type === "mine" && status === "OUT_FOR_DELIVERY" && refusalOpen[order.id] && (
+            <div id={`refusal-${order.id}`} className="space-y-3 rounded-2xl border border-red-200 bg-red-50 p-4">
               <div>
                 <p className="font-bold text-red-900">Colis refusé par le receveur ?</p>
                 <p className="mt-1 text-sm text-red-800">
@@ -1279,18 +1438,15 @@ setPinByOrder((current) => ({
                 onClick={() =>
                   setRefusalOpen((current) => ({
                     ...current,
-                    [order.id]: !current[order.id],
+                    [order.id]: false,
                   }))
                 }
-                className="w-full rounded-xl bg-red-700 px-4 py-3 font-bold text-white"
+                className="w-full rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700"
               >
-                {refusalOpen[order.id]
-                  ? "Fermer le formulaire de refus"
-                  : "🚫 Colis refusé par le receveur"}
+                Fermer le formulaire de refus
               </button>
 
-              {refusalOpen[order.id] && (
-                <div className="space-y-3 rounded-2xl border border-red-200 bg-white p-4">
+              <div className="space-y-3 rounded-2xl border border-red-200 bg-white p-4">
                   <div>
                     <label className="mb-1 block text-sm font-semibold text-gray-800">
                       Motif du refus *
@@ -1375,12 +1531,13 @@ setPinByOrder((current) => ({
                       : "Confirmer le refus et préparer le retour"}
                   </button>
                 </div>
-              )}
             </div>
           )}
 
-          {type === "mine" && status === "OUT_FOR_DELIVERY" && (
-            <div className="space-y-3 rounded-2xl border border-orange-200 bg-orange-50 p-4">
+          {type === "mine" &&
+            status === "OUT_FOR_DELIVERY" &&
+            (absenceOpen[order.id] || nextDeliveryOpen[order.id]) && (
+            <div id={`absence-${order.id}`} className="space-y-3 rounded-2xl border border-orange-200 bg-orange-50 p-4">
               <p className="font-bold text-orange-900">Absence / autre créneau</p>
 
               {!receiverCallStartedAt[order.id] ? (
@@ -1398,35 +1555,16 @@ setPinByOrder((current) => ({
                 </p>
               )}
 
-              <div className="grid gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  disabled={!canDeclareAbsent(order.id)}
-                  onClick={() =>
-                    setAbsenceOpen((current) => ({
-                      ...current,
-                      [order.id]: !current[order.id],
-                    }))
-                  }
-                  className="rounded-xl bg-orange-600 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
-                >
-                  Client absent
-                </button>
-
-                <button
-                  type="button"
-                  disabled={!canDeclareAbsent(order.id)}
-                  onClick={() =>
-                    setNextDeliveryOpen((current) => ({
-                      ...current,
-                      [order.id]: !current[order.id],
-                    }))
-                  }
-                  className="rounded-xl bg-blue-600 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
-                >
-                  Autre créneau
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setAbsenceOpen((current) => ({ ...current, [order.id]: false }));
+                  setNextDeliveryOpen((current) => ({ ...current, [order.id]: false }));
+                }}
+                className="w-full rounded-xl border border-orange-200 bg-white px-4 py-2 text-sm font-semibold text-orange-800"
+              >
+                Fermer
+              </button>
 
               {(absenceOpen[order.id] || nextDeliveryOpen[order.id]) && (
                 <textarea
@@ -1656,7 +1794,7 @@ setPinByOrder((current) => ({
   if (loading) {
     return (
   <main className="min-h-screen bg-gray-50 p-4">
-    <PushNotifications />
+    <PushNotifications key={pushNotificationsKey} />
 
     <div className="mx-auto max-w-3xl space-y-6">
           Chargement des missions...
@@ -1679,7 +1817,80 @@ setPinByOrder((current) => ({
 
   return (
     
-    <main className="min-h-screen bg-gray-50 p-4">
+    <main className="min-h-screen bg-gray-50 p-4 pb-24 sm:pb-4">
+      {permissionsOpen ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-3 sm:items-center">
+          <div className="w-full max-w-lg rounded-[2rem] bg-white p-6 shadow-2xl">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-2xl">
+              📍
+            </div>
+            <h2 className="mt-4 text-center text-2xl font-black text-slate-900">
+              Préparer HelpFlow pour tes missions
+            </h2>
+            <p className="mt-2 text-center text-sm leading-6 text-slate-600">
+              La position sert à proposer des missions de proximité. Les notifications servent à t'informer des nouvelles missions et des changements importants.
+            </p>
+
+            <div className="mt-5 space-y-3">
+              <button
+                type="button"
+                onClick={requestLocationPermission}
+                className="flex w-full items-center justify-between rounded-2xl border border-slate-200 px-4 py-4 text-left"
+              >
+                <span>
+                  <span className="block font-bold text-slate-900">Localisation</span>
+                  <span className="text-sm text-slate-500">
+                    {locationPermission === "granted"
+                      ? "Autorisée"
+                      : locationPermission === "denied"
+                        ? "Refusée"
+                        : "À autoriser"}
+                  </span>
+                </span>
+                <span className="text-xl">
+                  {locationPermission === "granted" ? "✅" : "📍"}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={requestNotificationPermission}
+                disabled={notificationPermission === "unsupported"}
+                className="flex w-full items-center justify-between rounded-2xl border border-slate-200 px-4 py-4 text-left disabled:opacity-50"
+              >
+                <span>
+                  <span className="block font-bold text-slate-900">Notifications</span>
+                  <span className="text-sm text-slate-500">
+                    {notificationPermission === "granted"
+                      ? "Autorisées"
+                      : notificationPermission === "denied"
+                        ? "Refusées"
+                        : notificationPermission === "unsupported"
+                          ? "Non disponibles"
+                          : "À autoriser"}
+                  </span>
+                </span>
+                <span className="text-xl">
+                  {notificationPermission === "granted" ? "✅" : "🔔"}
+                </span>
+              </button>
+            </div>
+
+            <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-xs leading-5 text-slate-600">
+              HelpFlow ne demande pas ici l'autorisation de suivre ton activité sur d'autres applications ou sites. Une telle demande ne sera ajoutée que si elle devient réellement nécessaire.
+            </div>
+
+            <button
+              type="button"
+              onClick={closePermissionsPanel}
+              className="mt-5 w-full rounded-2xl bg-blue-600 px-4 py-3 font-bold text-white"
+            >
+              Continuer
+            </button>
+          </div>
+        </div>
+      ) : null}
+
     <button
   type="button"
   onClick={() => {
@@ -1710,7 +1921,14 @@ setPinByOrder((current) => ({
     <span className="h-5 w-5 rounded-full bg-white shadow" />
   </span>
 </button>
-      <nav className="mx-auto mb-4 grid max-w-3xl grid-cols-2 gap-2 sm:grid-cols-4">
+      <button
+        type="button"
+        onClick={() => setPermissionsOpen(true)}
+        className="mt-2 flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm"
+      >
+        ⚙️ Autorisations
+      </button>
+      <nav className="mx-auto mb-4 hidden max-w-3xl grid-cols-2 gap-2 sm:grid sm:grid-cols-4">
   <Link
     href="/livreur/missions"
     className="rounded-2xl bg-blue-600 px-4 py-3 text-center text-sm font-bold text-white"
@@ -1836,6 +2054,75 @@ setPinByOrder((current) => ({
           </div>
         )}
 
+        <section className="space-y-4">
+          <div>
+            <h2 className="text-2xl font-bold">Missions disponibles</h2>
+            <p className="text-gray-500">
+              Les étoiles indiquent les missions simples à prendre.
+            </p>
+            {myMissions.length > 0 ? (
+              <p className="mt-2 rounded-2xl bg-yellow-50 p-3 text-sm font-semibold text-yellow-800">
+                Tu as déjà une livraison normale en cours. Termine-la avant d'en accepter une autre. Les retours en attente ne te bloquent pas.
+              </p>
+            ) : null}
+          </div>
+
+          {available.length === 0 ? (
+            <div className="rounded-3xl bg-white p-6 text-center text-gray-600">
+              <p className="font-semibold">Aucune mission disponible</p>
+              <p className="text-sm">
+                Revenez dans quelques minutes ou rafraîchissez la page.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between rounded-2xl bg-white px-3 py-2 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => changeAvailableMission(-1)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-xl font-bold text-slate-700"
+                  aria-label="Mission précédente"
+                >
+                  ‹
+                </button>
+
+                <div className="text-center">
+                  <p className="font-bold text-slate-900">Livraisons disponibles</p>
+                  <p className="text-sm text-slate-500">
+                    {availableIndex + 1} / {available.length}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => changeAvailableMission(1)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-xl font-bold text-slate-700"
+                  aria-label="Mission suivante"
+                >
+                  ›
+                </button>
+              </div>
+
+              <div
+                onTouchStart={handleAvailableTouchStart}
+                onTouchEnd={handleAvailableTouchEnd}
+                className="touch-pan-y"
+              >
+                {OrderCard({
+                  order: available[availableIndex],
+                  type: "available",
+                })}
+              </div>
+
+              {available.length > 1 ? (
+                <p className="text-center text-xs text-slate-500">
+                  Balaye la mission vers la gauche ou la droite pour voir les autres propositions.
+                </p>
+              ) : null}
+            </div>
+          )}
+        </section>
+
         <section id="mes-missions" className="space-y-4 scroll-mt-6">
           <div className="rounded-3xl border border-green-200 bg-green-50 p-4">
             <h2 className="text-2xl font-bold text-green-800">
@@ -1901,36 +2188,48 @@ setPinByOrder((current) => ({
           )}
         </section>
 
-        <section className="space-y-4">
-          <div>
-            <h2 className="text-2xl font-bold">Missions disponibles</h2>
-            <p className="text-gray-500">
-              Les étoiles indiquent les missions simples à prendre.
-            </p>
-            {myMissions.length > 0 ? (
-              <p className="mt-2 rounded-2xl bg-yellow-50 p-3 text-sm font-semibold text-yellow-800">
-                Tu as déjà une livraison normale en cours. Termine-la avant d'en accepter une autre. Les retours en attente ne te bloquent pas.
-              </p>
-            ) : null}
-          </div>
-
-          {available.length === 0 ? (
-            <div className="rounded-3xl bg-white p-6 text-center text-gray-600">
-              <p className="font-semibold">Aucune mission disponible</p>
-              <p className="text-sm">
-                Revenez dans quelques minutes ou rafraîchissez la page.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {available.map((order) =>
-                OrderCard({ order, type: "available" })
-              )}
-            </div>
-          )}
-        </section>
 
       </div>
+
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 py-2 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur sm:hidden">
+        <div className="mx-auto grid max-w-lg grid-cols-5 gap-1">
+          <Link
+            href="/livreur/missions"
+            className="rounded-xl bg-blue-50 px-1 py-2 text-center text-xs font-bold text-blue-700"
+          >
+            <span className="block text-lg">🔎</span>
+            Missions
+          </Link>
+          <Link
+            href="/livreur/historique"
+            className="rounded-xl px-1 py-2 text-center text-xs font-semibold text-slate-600"
+          >
+            <span className="block text-lg">📦</span>
+            Livraisons
+          </Link>
+          <Link
+            href="/livreur/portefeuille"
+            className="rounded-xl px-1 py-2 text-center text-xs font-semibold text-slate-600"
+          >
+            <span className="block text-lg">€</span>
+            Cagnotte
+          </Link>
+          <Link
+            href="/aide"
+            className="rounded-xl px-1 py-2 text-center text-xs font-semibold text-slate-600"
+          >
+            <span className="block text-lg">💬</span>
+            Aide
+          </Link>
+          <Link
+            href="/profile"
+            className="rounded-xl px-1 py-2 text-center text-xs font-semibold text-slate-600"
+          >
+            <span className="block text-lg">👤</span>
+            Profil
+          </Link>
+        </div>
+      </nav>
     </main>
   );
 }

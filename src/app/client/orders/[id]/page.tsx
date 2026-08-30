@@ -43,6 +43,23 @@ type OrderRow = {
 
   vehicle_required?: string | null;
   parcel_size?: string | null;
+
+  is_important_parcel?: boolean | null;
+  important_parcel_type?: string | null;
+
+  refusal_reason?: string | null;
+  refusal_comment?: string | null;
+  refusal_photo_url?: string | null;
+  refused_at?: string | null;
+
+  return_payment_status?: string | null;
+  return_price_cents?: number | null;
+  return_paid_at?: string | null;
+  return_started_at?: string | null;
+  return_completed_at?: string | null;
+  return_pin_code?: string | null;
+  return_pin_verified_at?: string | null;
+  next_delivery_at?: string | null;
 };
 
 function formatEURFromCents(cents?: number | null) {
@@ -119,6 +136,14 @@ function statusLabel(status?: string | null) {
 
   if (s === "return_to_sender") {
     return "↩️ Retour à l’expéditeur";
+  }
+
+  if (s === "return_scheduled") {
+    return "📅 Retour programmé";
+  }
+
+  if (s === "return_completed") {
+    return "✅ Retour terminé";
   }
 
   return status || "--";
@@ -305,8 +330,22 @@ export default function ClientOrderDetailPage() {
     normalizedPaymentStatus === "unpaid" ||
     normalizedPaymentStatus === "failed";
 
-  const verificationCode =
-    order?.delivery_otp || order?.otp_code || null;
+  const normalizedReturnPaymentStatus = cleanValue(
+    order?.return_payment_status
+  );
+
+  const returnPaymentConfirmed =
+    normalizedReturnPaymentStatus === "paid" ||
+    normalizedReturnPaymentStatus === "payé" ||
+    normalizedReturnPaymentStatus === "paye";
+
+  const returnInProgress =
+    normalizedStatus === "return_to_sender" ||
+    normalizedStatus === "return_scheduled";
+
+  const returnCompleted =
+    normalizedStatus === "return_completed" ||
+    Boolean(order?.return_completed_at);
 
   return (
     <main className="max-w-3xl mx-auto p-4 space-y-4">
@@ -498,6 +537,15 @@ export default function ClientOrderDetailPage() {
               {order.parcel_type || "--"}
             </div>
 
+            {order.is_important_parcel && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
+                <strong>⭐ Colis important</strong>
+                {order.important_parcel_type
+                  ? ` — ${order.important_parcel_type}`
+                  : ""}
+              </div>
+            )}
+
             <div>
               <strong>Description :</strong>{" "}
               {order.parcel_note || "--"}
@@ -519,23 +567,125 @@ export default function ClientOrderDetailPage() {
           </div>
 
           {paymentConfirmed &&
-            verificationCode &&
-            !order.delivered_at && (
+            !order.delivered_at &&
+            normalizedStatus !== "refused_by_recipient" &&
+            normalizedStatus !== "return_payment_pending" &&
+            !returnInProgress &&
+            !returnCompleted && (
               <div className="mt-4 rounded-xl border bg-gray-50 p-3">
                 <div className="font-semibold">
-                  Code PIN de livraison :
+                  Code PIN de livraison
                 </div>
 
-                <div className="text-3xl font-bold tracking-widest">
-                  {verificationCode}
-                </div>
-
-                <p className="text-sm text-gray-600">
-                  Communique ce code au livreur uniquement lorsque
-                  la livraison est bien effectuée.
+                <p className="mt-1 text-sm text-gray-600">
+                  Le Code PIN de livraison est réservé au destinataire.
+                  Il doit être communiqué au livreur uniquement au moment
+                  de la remise du colis.
                 </p>
               </div>
             )}
+
+          {(normalizedStatus === "refused_by_recipient" ||
+            normalizedStatus === "return_payment_pending" ||
+            returnInProgress ||
+            returnCompleted) && (
+            <div className="space-y-3 rounded-2xl border border-orange-200 bg-orange-50 p-4">
+              <div>
+                <h2 className="font-bold text-orange-900">
+                  Retour du colis
+                </h2>
+
+                {order.refused_at && (
+                  <p className="mt-1 text-sm text-orange-900">
+                    Refus enregistré le{" "}
+                    {new Date(order.refused_at).toLocaleString("fr-FR")}
+                  </p>
+                )}
+              </div>
+
+              {order.refusal_reason && (
+                <div>
+                  <strong>Motif du refus :</strong>{" "}
+                  {order.refusal_reason}
+                </div>
+              )}
+
+              {order.refusal_comment && (
+                <div>
+                  <strong>Commentaire :</strong>{" "}
+                  {order.refusal_comment}
+                </div>
+              )}
+
+              {order.refusal_photo_url && (
+                <div>
+                  <div className="mb-2 font-semibold">
+                    Photo justificative :
+                  </div>
+
+                  <img
+                    src={order.refusal_photo_url}
+                    alt="Photo justificative du refus"
+                    className="max-h-80 w-full rounded-2xl border object-cover"
+                  />
+                </div>
+              )}
+
+              {order.return_price_cents != null && (
+                <div>
+                  <strong>Tarif du retour :</strong>{" "}
+                  {formatEURFromCents(order.return_price_cents)}
+                </div>
+              )}
+
+              {order.return_payment_status && (
+                <div>
+                  <strong>Paiement du retour :</strong>{" "}
+                  {paymentLabel(order.return_payment_status)}
+                </div>
+              )}
+
+              {order.next_delivery_at && !returnCompleted && (
+                <div>
+                  <strong>Retour prévu :</strong>{" "}
+                  {new Date(order.next_delivery_at).toLocaleString(
+                    "fr-FR"
+                  )}
+                </div>
+              )}
+
+              {returnPaymentConfirmed &&
+                returnInProgress &&
+                order.return_pin_code &&
+                !order.return_pin_verified_at && (
+                  <div className="rounded-xl border border-blue-200 bg-white p-3">
+                    <div className="font-semibold text-blue-900">
+                      Code PIN retour
+                    </div>
+
+                    <div className="mt-1 text-3xl font-bold tracking-widest text-blue-900">
+                      {order.return_pin_code}
+                    </div>
+
+                    <p className="mt-1 text-sm text-gray-600">
+                      Donne ce Code PIN au livreur uniquement lorsque
+                      le colis t’est réellement remis.
+                    </p>
+                  </div>
+                )}
+
+              {returnCompleted && (
+                <div className="rounded-xl bg-green-100 p-3 text-green-700">
+                  ✅ Retour terminé
+                  {order.return_completed_at
+                    ? ` le ${new Date(
+                        order.return_completed_at
+                      ).toLocaleString("fr-FR")}`
+                    : ""}
+                </div>
+              )}
+            </div>
+          )}
 
           {order.delivered_at && (
             <div className="mt-4 rounded-xl bg-green-100 p-3 text-green-700">

@@ -135,27 +135,65 @@ export default function ProfileEditPage() {
       return;
     }
 
-    setUploading(true);
-    setMsg(null);
-
-    const ext = file.name.split(".").pop() || "jpg";
-    const path = `${userId}/avatar-${Date.now()}.${ext}`;
-
-    const { error } = await supabase.storage
-      .from("avatars")
-      .upload(path, file, { upsert: true });
-
-    if (error) {
-      setMsg(error.message);
-      setUploading(false);
+    if (!file.type.startsWith("image/")) {
+      setMsg("Choisis une image valide pour la photo de profil.");
       return;
     }
 
-    const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+    if (file.size > 5 * 1024 * 1024) {
+      setMsg("La photo doit faire 5 MB maximum.");
+      return;
+    }
 
-    updateField("avatar_url", data.publicUrl);
-    setUploading(false);
-    setMsg("Photo ajoutée. Clique sur Enregistrer mon profil.");
+    setUploading(true);
+    setMsg(null);
+
+    try {
+      const rawExt = file.name.split(".").pop() || "jpg";
+      const ext = rawExt.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+      const path = `${userId}/avatar-${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(path, file, {
+          upsert: true,
+          cacheControl: "3600",
+          contentType: file.type || undefined,
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+      const publicUrl = data.publicUrl;
+
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert(
+          {
+            id: userId,
+            avatar_url: publicUrl,
+            role: "livreur",
+          },
+          { onConflict: "id" }
+        );
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      updateField("avatar_url", publicUrl);
+      setMsg("Photo de profil enregistrée.");
+    } catch (error: any) {
+      setMsg(error?.message || "Impossible d'enregistrer la photo de profil.");
+    } finally {
+      setUploading(false);
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
   }
 
   async function uploadIdentityDocument(file: File) {
