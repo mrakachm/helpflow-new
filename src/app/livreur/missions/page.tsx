@@ -1290,7 +1290,7 @@ setPinByOrder((current) => ({
                 }
                 className="w-full rounded-xl bg-red-700 px-4 py-3 font-bold text-white"
               >
-                PROBLÈME / OBSTACLE
+                OBSTACLE
               </button>
 
               <button
@@ -1321,7 +1321,7 @@ setPinByOrder((current) => ({
                 <div className="space-y-3 rounded-2xl border border-red-200 bg-red-50 p-4">
                   <div>
                     <label className="mb-1 block text-sm font-semibold text-red-950">
-                      Type de problème *
+                      Type d’obstacle *
                     </label>
                     <select
                       value={obstacleReason[order.id] || ""}
@@ -1336,12 +1336,7 @@ setPinByOrder((current) => ({
                       <option value="">Sélectionner</option>
                       <option value="MAUVAISE_ADRESSE">Mauvaise adresse</option>
                       <option value="ADRESSE_INTROUVABLE">Adresse introuvable</option>
-                      <option value="DESTINATAIRE_INCONNU">
-                        Destinataire inconnu à l'adresse
-                      </option>
-                      <option value="ACCES_IMPOSSIBLE">
-                        Accès impossible / porte ou code
-                      </option>
+                    
                       <option value="AUTRE">Autre</option>
                     </select>
                   </div>
@@ -1375,7 +1370,7 @@ setPinByOrder((current) => ({
                   >
                     {obstacleSaving[order.id]
                       ? "Enregistrement..."
-                      : "Enregistrer le problème"}
+                      : "Enregistrer l’obstacle"}
                   </button>
 
                   <p className="text-xs text-red-800">
