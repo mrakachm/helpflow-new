@@ -2008,7 +2008,6 @@ setPinByOrder((current) => ({
 
   <div className="rounded-2xl border border-white/20 bg-white/10 p-4">
     <div className="flex items-center justify-between">
-      <span className="text-2xl">🚚</span>
       <p className="text-4xl font-bold">{myMissions.length}</p>
     </div>
     <p className="mt-3 text-sm font-semibold text-blue-100">En cours</p>
