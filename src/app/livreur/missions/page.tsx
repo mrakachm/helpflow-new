@@ -1996,15 +1996,34 @@ setPinByOrder((current) => ({
             </div>
           </div>
 
-          <div className="mt-4 rounded-2xl bg-white p-4 text-gray-900">
-            <div className="flex items-center gap-4">
-              {courierProfile?.avatar_url ? (
-                <img
-                  src={courierProfile.avatar_url}
-                  alt="Photo du livreur"
-                  className="h-16 w-16 rounded-full object-cover"
-                />
-              ) : (
+         <div className="mt-6 grid grid-cols-2 gap-3">
+  <div className="rounded-2xl border border-white/20 bg-white/10 p-4">
+    <div className="flex items-center justify-between">
+      <span className="text-2xl">🔎</span>
+      <p className="text-4xl font-bold">{available.length}</p>
+    </div>
+    <p className="mt-3 text-sm font-semibold text-blue-100">À prendre</p>
+    <p className="text-xs text-blue-100/80">Missions disponibles</p>
+  </div>
+
+  <div className="rounded-2xl border border-white/20 bg-white/10 p-4">
+    <div className="flex items-center justify-between">
+      <span className="text-2xl">🚚</span>
+      <p className="text-4xl font-bold">{myMissions.length}</p>
+    </div>
+    <p className="mt-3 text-sm font-semibold text-blue-100">En cours</p>
+    <p className="text-xs text-blue-100/80">Mes livraisons</p>
+  </div>
+</div>
+<div className="mt-4 rounded-2xl bg-white p-4 text-gray-900">
+  <div className="flex items-center gap-4">
+    {courierProfile?.avatar_url ? (
+      <img
+        src={courierProfile.avatar_url}
+        alt="Photo du livreur"
+        className="h-16 w-16 rounded-full object-cover"
+      />
+    ) : (
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-2xl">
                   👤
                 </div>
@@ -2212,7 +2231,7 @@ setPinByOrder((current) => ({
             className="rounded-xl px-1 py-2 text-center text-xs font-semibold text-slate-600"
           >
             <span className="block text-lg">€</span>
-            Cagnotte
+            Mes gains
           </Link>
           <Link
             href="/aide"
