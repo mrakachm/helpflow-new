@@ -72,6 +72,8 @@ type CourierProfile = {
   city?: string | null;
   service_area?: string | null;
   rating_average?: number | null;
+  courier_availability?: string | null;
+  courier_availability_updated_at?: string | null;
 };
 
 function formatEuro(cents?: number | null) {
@@ -178,6 +180,8 @@ export default function MissionsPage() {
   >("unknown");
   const [pushNotificationsKey, setPushNotificationsKey] = useState(0);
   const [returnClock, setReturnClock] = useState(() => Date.now());
+  const [courierAvailability, setCourierAvailability] = useState<"ONLINE" | "PAUSED">("ONLINE");
+  const [courierAvailabilitySaving, setCourierAvailabilitySaving] = useState(false);
 
   async function loadCourierProfile(uid: string) {
     const { data, error } = await supabase
@@ -187,11 +191,60 @@ export default function MissionsPage() {
       .maybeSingle();
 
     if (!error && data) {
-      setCourierProfile(data as CourierProfile);
+      const profile = data as CourierProfile;
+      setCourierProfile(profile);
+      setCourierAvailability(
+        cleanStatus(profile.courier_availability) === "PAUSED" ? "PAUSED" : "ONLINE"
+      );
       return;
     }
 
     setCourierProfile(null);
+  }
+
+  async function toggleCourierAvailability() {
+    if (!userId || courierAvailabilitySaving) return;
+
+    const nextAvailability =
+      courierAvailability === "ONLINE" ? "PAUSED" : "ONLINE";
+
+    setCourierAvailabilitySaving(true);
+    setMsg(null);
+
+    const now = new Date().toISOString();
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        courier_availability: nextAvailability,
+        courier_availability_updated_at: now,
+      })
+      .eq("id", userId);
+
+    if (error) {
+      setMsg("Impossible de modifier ton statut livreur : " + error.message);
+      setCourierAvailabilitySaving(false);
+      return;
+    }
+
+    setCourierAvailability(nextAvailability);
+    setCourierProfile((current) =>
+      current
+        ? {
+            ...current,
+            courier_availability: nextAvailability,
+            courier_availability_updated_at: now,
+          }
+        : current
+    );
+
+    setMsg(
+      nextAvailability === "ONLINE"
+        ? "✅ Tu es en ligne. Tu peux accepter de nouvelles missions."
+        : "⏸️ Tu es en pause. Tes missions déjà prises restent actives."
+    );
+
+    setCourierAvailabilitySaving(false);
   }
 
   async function loadOrders(uid?: string | null, silent = false) {
@@ -244,10 +297,10 @@ export default function MissionsPage() {
           .select("*")
           .eq("courier_id", currentUserId)
           .in("status", [
-  "RETURN_WAITING_COURIER",
-  "RETURN_TO_SENDER",
-  "RETURN_SCHEDULED",
-])
+            "RETURN_WAITING_COURIER",
+            "RETURN_TO_SENDER",
+            "RETURN_SCHEDULED",
+          ])
           .order("updated_at", { ascending: false });
 
         if (paidError) throw paidError;
@@ -855,8 +908,6 @@ export default function MissionsPage() {
       return;
     }
 
-    // Programmer un retour en attente vaut aussi validation de prise en charge.
-    // Le délai maximum de 24 h commence donc ici si le retour n'était pas déjà actif.
     const startedAt = order.return_started_at
       ? new Date(order.return_started_at)
       : now;
@@ -929,37 +980,26 @@ export default function MissionsPage() {
     setReturnCompleting((current) => ({ ...current, [order.id]: true }));
 
     try {
-      const {
-  data: sessionData,
-} = await supabase.auth.getSession();
+      const { data: sessionData } = await supabase.auth.getSession();
 
-const accessToken =
-  sessionData.session?.access_token;
+      const accessToken = sessionData.session?.access_token;
 
-if (!accessToken) {
-  throw new Error(
-    "Session livreur introuvable."
-  );
-}
+      if (!accessToken) {
+        throw new Error("Session livreur introuvable.");
+      }
 
-const response =
-  await fetch(
-    "/api/verify-return-pin",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type":
-          "application/json",
-        Authorization:
-          `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        orderId: order.id,
-        pin: enteredPin,
-      }),
-    }
-  );
-       
+      const response = await fetch("/api/verify-return-pin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          orderId: order.id,
+          pin: enteredPin,
+        }),
+      });
+
       const result = await response.json().catch(() => ({}));
 
       if (!response.ok) {
@@ -986,6 +1026,11 @@ const response =
   async function acceptMission(orderId: string) {
     if (!userId) {
       setMsg("Tu dois être connecté comme livreur.");
+      return;
+    }
+
+    if (courierAvailability !== "ONLINE") {
+      setMsg("Tu es en pause. Passe en ligne pour accepter une nouvelle mission.");
       return;
     }
 
@@ -1055,47 +1100,47 @@ const response =
   }
 
   async function validateDelivery(order: Order) {
-  const enteredOtp = (pinByOrder[order.id] || "").trim();
+    const enteredOtp = (pinByOrder[order.id] || "").trim();
 
-  if (!enteredOtp || enteredOtp.length !== 4) {
-    setMsg("Entre le Code PIN à 4 chiffres.");
-    return;
+    if (!enteredOtp || enteredOtp.length !== 4) {
+      setMsg("Entre le Code PIN à 4 chiffres.");
+      return;
+    }
+
+    const res = await fetch("/api/verify-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId: order.id, otp: enteredOtp }),
+    });
+
+    const result = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      setMsg(result?.error || "Code PIN incorrect.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("orders")
+      .update({
+        status: "delivered",
+        delivered_at: new Date().toISOString(),
+      })
+      .eq("id", order.id);
+
+    if (error) {
+      setMsg("Erreur validation livraison : " + error.message);
+      return;
+    }
+
+    setMsg("✅ Livraison terminée.");
+    setPinByOrder((current) => ({
+      ...current,
+      [order.id]: "",
+    }));
+
+    await loadOrders(userId, true);
   }
-
-  const res = await fetch("/api/verify-otp", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ orderId: order.id, otp: enteredOtp }),
-  });
-
-  const result = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    setMsg(result?.error || "Code PIN incorrect.");
-    return;
-  }
-
-  const { error } = await supabase
-    .from("orders")
-    .update({
-      status: "delivered",
-      delivered_at: new Date().toISOString(),
-    })
-    .eq("id", order.id);
-
-  if (error) {
-    setMsg("Erreur validation livraison : " + error.message);
-    return;
-  }
-
-  setMsg("✅ Livraison terminée.");
-setPinByOrder((current) => ({
-  ...current,
-  [order.id]: "",
-}));
-
-  await loadOrders(userId, true);
-}
 
   async function cancelMission(orderId: string) {
     if (!userId) return;
@@ -1401,7 +1446,7 @@ setPinByOrder((current) => ({
                 HelpFlow avant de vous remettre le colis.
               </p>
               <p className="mt-1 font-semibold">
-                Le détail du colis est maintenant visible :{" "}
+                Le détail du colis est maintenant visible:{" "}
                 {order.important_parcel_type || order.parcel_type || "-"}.
               </p>
             </div>
@@ -1424,19 +1469,27 @@ setPinByOrder((current) => ({
           {type === "available" && (
             <button
               type="button"
-              disabled={myMissions.length > 0 || hasOverdueReturn}
+              disabled={
+                courierAvailability !== "ONLINE" ||
+                myMissions.length > 0 ||
+                hasOverdueReturn
+              }
               onClick={() => acceptMission(order.id)}
               className={`w-full rounded-2xl px-4 py-3 font-semibold text-white ${
-                myMissions.length > 0 || hasOverdueReturn
+                courierAvailability !== "ONLINE" ||
+                myMissions.length > 0 ||
+                hasOverdueReturn
                   ? "cursor-not-allowed bg-gray-400"
                   : "bg-blue-600"
               }`}
             >
-              {hasOverdueReturn
-                ? "Retour en retard"
-                : myMissions.length > 0
-                  ? "Mission en cours"
-                  : "Accepter cette mission"}
+              {courierAvailability === "PAUSED"
+                ? "En pause"
+                : hasOverdueReturn
+                  ? "Retour en retard"
+                  : myMissions.length > 0
+                    ? "Mission en cours"
+                    : "Accepter cette mission"}
             </button>
           )}
 
@@ -1546,7 +1599,6 @@ setPinByOrder((current) => ({
                       <option value="">Sélectionner</option>
                       <option value="MAUVAISE_ADRESSE">Mauvaise adresse</option>
                       <option value="ADRESSE_INTROUVABLE">Adresse introuvable</option>
-                    
                       <option value="AUTRE">Autre</option>
                     </select>
                   </div>
@@ -1616,23 +1668,23 @@ setPinByOrder((current) => ({
                 </p>
               </div>
               <input
-  id={`otp-${order.id}`}
-  type="text"
-  inputMode="numeric"
-  autoComplete="one-time-code"
-  maxLength={4}
-  value={pinByOrder[order.id] || ""}
-  onChange={(e) => {
-    const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+                id={`otp-${order.id}`}
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={4}
+                value={pinByOrder[order.id] || ""}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/\D/g, "").slice(0, 4);
 
-    setPinByOrder((current) => ({
-      ...current,
-      [order.id]: value,
-    }));
-  }}
-  placeholder="Code PIN à 4 chiffres"
-  className="w-full rounded-2xl border bg-white px-4 py-3 text-lg text-gray-900 tracking-widest"
-/>
+                  setPinByOrder((current) => ({
+                    ...current,
+                    [order.id]: value,
+                  }));
+                }}
+                placeholder="Code PIN à 4 chiffres"
+                className="w-full rounded-2xl border bg-white px-4 py-3 text-lg text-gray-900 tracking-widest"
+              />
 
               <button
                 type="button"
@@ -1668,90 +1720,90 @@ setPinByOrder((current) => ({
               </button>
 
               <div className="space-y-3 rounded-2xl border border-red-200 bg-white p-4">
-                  <div>
-                    <label className="mb-1 block text-sm font-semibold text-gray-800">
-                      Motif du refus *
-                    </label>
-                    <select
-                      value={refusalReason[order.id] || ""}
-                      onChange={(e) =>
-                        setRefusalReason((current) => ({
-                          ...current,
-                          [order.id]: e.target.value,
-                        }))
-                      }
-                      className="w-full rounded-xl border border-red-200 bg-white px-4 py-3"
-                    >
-                      <option value="">Sélectionner un motif</option>
-                      <option value="COLIS_CASSE">Colis ou objet cassé</option>
-                      <option value="COLIS_ENDOMMAGE">Colis endommagé</option>
-                      <option value="COLIS_NON_CONFORME">Colis non conforme</option>
-                      <option value="COLIS_INCOMPLET">Colis incomplet</option>
-                      <option value="MAUVAIS_COLIS">Mauvais colis</option>
-                      <option value="EMBALLAGE_OUVERT">Emballage ouvert ou détérioré</option>
-                      <option value="AUTRE">Autre motif</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-sm font-semibold text-gray-800">
-                      Commentaire du livreur *
-                    </label>
-                    <textarea
-                      value={refusalComment[order.id] || ""}
-                      onChange={(e) =>
-                        setRefusalComment((current) => ({
-                          ...current,
-                          [order.id]: e.target.value,
-                        }))
-                      }
-                      maxLength={1000}
-                      placeholder="Décris précisément ce que le receveur a constaté et pourquoi il refuse le colis..."
-                      className="min-h-28 w-full rounded-xl border border-red-200 bg-white px-4 py-3"
-                    />
-                    <p className="mt-1 text-right text-xs text-gray-500">
-                      {(refusalComment[order.id] || "").length}/1000
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-sm font-semibold text-gray-800">
-                      Photo justificative *
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={(e) =>
-                        setRefusalPhoto((current) => ({
-                          ...current,
-                          [order.id]: e.target.files?.[0] || null,
-                        }))
-                      }
-                      className="w-full rounded-xl border border-red-200 bg-white px-3 py-3 text-sm"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Image obligatoire, 5 Mo maximum. Ne photographie pas de document d'identité.
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
-                    Le retour sera calculé automatiquement à 50 % du prix initial : {formatEuro(
-                      Math.max(300, Math.round((order.price_cents || 0) * 0.5))
-                    )}. Il devra être payé par l'expéditeur avant le retour.
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={Boolean(refusalSubmitting[order.id])}
-                    onClick={() => confirmRecipientRefusal(order)}
-                    className="w-full rounded-xl bg-red-700 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-400"
+                <div>
+                  <label className="mb-1 block text-sm font-semibold text-gray-800">
+                    Motif du refus *
+                  </label>
+                  <select
+                    value={refusalReason[order.id] || ""}
+                    onChange={(e) =>
+                      setRefusalReason((current) => ({
+                        ...current,
+                        [order.id]: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-xl border border-red-200 bg-white px-4 py-3"
                   >
-                    {refusalSubmitting[order.id]
-                      ? "Enregistrement du refus..."
-                      : "Confirmer le refus et préparer le retour"}
-                  </button>
+                    <option value="">Sélectionner un motif</option>
+                    <option value="COLIS_CASSE">Colis ou objet cassé</option>
+                    <option value="COLIS_ENDOMMAGE">Colis endommagé</option>
+                    <option value="COLIS_NON_CONFORME">Colis non conforme</option>
+                    <option value="COLIS_INCOMPLET">Colis incomplet</option>
+                    <option value="MAUVAIS_COLIS">Mauvais colis</option>
+                    <option value="EMBALLAGE_OUVERT">Emballage ouvert ou détérioré</option>
+                    <option value="AUTRE">Autre motif</option>
+                  </select>
                 </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-semibold text-gray-800">
+                    Commentaire du livreur *
+                  </label>
+                  <textarea
+                    value={refusalComment[order.id] || ""}
+                    onChange={(e) =>
+                      setRefusalComment((current) => ({
+                        ...current,
+                        [order.id]: e.target.value,
+                      }))
+                    }
+                    maxLength={1000}
+                    placeholder="Décris précisément ce que le receveur a constaté et pourquoi il refuse le colis..."
+                    className="min-h-28 w-full rounded-xl border border-red-200 bg-white px-4 py-3"
+                  />
+                  <p className="mt-1 text-right text-xs text-gray-500">
+                    {(refusalComment[order.id] || "").length}/1000
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-semibold text-gray-800">
+                    Photo justificative *
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(e) =>
+                      setRefusalPhoto((current) => ({
+                        ...current,
+                        [order.id]: e.target.files?.[0] || null,
+                      }))
+                    }
+                    className="w-full rounded-xl border border-red-200 bg-white px-3 py-3 text-sm"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Image obligatoire, 5 Mo maximum. Ne photographie pas de document d'identité.
+                  </p>
+                </div>
+
+                <div className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+                  Le retour sera calculé automatiquement à 50 % du prix initial : {formatEuro(
+                    Math.max(300, Math.round((order.price_cents || 0) * 0.5))
+                  )}. Il devra être payé par l'expéditeur avant le retour.
+                </div>
+
+                <button
+                  type="button"
+                  disabled={Boolean(refusalSubmitting[order.id])}
+                  onClick={() => confirmRecipientRefusal(order)}
+                  className="w-full rounded-xl bg-red-700 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-400"
+                >
+                  {refusalSubmitting[order.id]
+                    ? "Enregistrement du refus..."
+                    : "Confirmer le refus et préparer le retour"}
+                </button>
+              </div>
             </div>
           )}
 
@@ -2094,10 +2146,10 @@ setPinByOrder((current) => ({
 
   if (loading) {
     return (
-  <main className="min-h-screen bg-gray-50 p-4">
-    <PushNotifications key={pushNotificationsKey} />
+      <main className="min-h-screen bg-gray-50 p-4">
+        <PushNotifications key={pushNotificationsKey} />
 
-    <div className="mx-auto max-w-3xl space-y-6">
+        <div className="mx-auto max-w-3xl space-y-6">
           Chargement des missions...
         </div>
       </main>
@@ -2122,7 +2174,6 @@ setPinByOrder((current) => ({
   );
 
   return (
-    
     <main className="min-h-screen bg-gray-50 p-4 pb-24 sm:pb-4">
       {permissionsOpen ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-3 sm:items-center">
@@ -2197,36 +2248,31 @@ setPinByOrder((current) => ({
         </div>
       ) : null}
 
-    <button
-  type="button"
-  onClick={() => {
-    const pause = localStorage.getItem("pause_livreur");
-    localStorage.setItem(
-      "pause_livreur",
-      pause === "1" ? "0" : "1"
-    );
-    window.location.reload();
-  }}
-  className="flex items-center gap-3 rounded-full bg-white px-4 py-2 font-bold shadow"
->
-  <span>
-    {typeof window !== "undefined" &&
-    localStorage.getItem("pause_livreur") === "1"
-      ? "Pause"
-      : "En ligne"}
-  </span>
+      <button
+        type="button"
+        onClick={toggleCourierAvailability}
+        disabled={!userId || courierAvailabilitySaving}
+        className="flex items-center gap-3 rounded-full bg-white px-4 py-2 font-bold shadow disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <span>
+          {courierAvailabilitySaving
+            ? "Mise à jour..."
+            : courierAvailability === "PAUSED"
+              ? "Pause"
+              : "En ligne"}
+        </span>
 
-  <span
-    className={`flex h-7 w-14 items-center rounded-full p-1 ${
-      typeof window !== "undefined" &&
-      localStorage.getItem("pause_livreur") === "1"
-        ? "bg-orange-400 justify-end"
-        : "bg-green-500 justify-start"
-    }`}
-  >
-    <span className="h-5 w-5 rounded-full bg-white shadow" />
-  </span>
-</button>
+        <span
+          className={`flex h-7 w-14 items-center rounded-full p-1 transition-all ${
+            courierAvailability === "PAUSED"
+              ? "justify-end bg-orange-400"
+              : "justify-start bg-green-500"
+          }`}
+        >
+          <span className="h-5 w-5 rounded-full bg-white shadow" />
+        </span>
+      </button>
+
       <button
         type="button"
         onClick={() => setPermissionsOpen(true)}
@@ -2234,35 +2280,37 @@ setPinByOrder((current) => ({
       >
         ⚙️ Autorisations
       </button>
+
       <nav className="mx-auto mb-4 hidden max-w-3xl grid-cols-2 gap-2 sm:grid sm:grid-cols-4">
-  <Link
-    href="/livreur/missions"
-    className="rounded-2xl bg-blue-600 px-4 py-3 text-center text-sm font-bold text-white"
-  >
-    Missions
-  </Link>
+        <Link
+          href="/livreur/missions"
+          className="rounded-2xl bg-blue-600 px-4 py-3 text-center text-sm font-bold text-white"
+        >
+          Missions
+        </Link>
 
-  <Link
-    href="/livreur/historique"
-    className="rounded-2xl bg-white px-4 py-3 text-center text-sm font-bold text-gray-800 shadow-sm"
-  >
-    Historique
-  </Link>
+        <Link
+          href="/livreur/historique"
+          className="rounded-2xl bg-white px-4 py-3 text-center text-sm font-bold text-gray-800 shadow-sm"
+        >
+          Historique
+        </Link>
 
-  <Link
-    href="/livreur/portefeuille"
-    className="rounded-2xl bg-white px-4 py-3 text-center text-sm font-bold text-gray-800 shadow-sm"
-  >
-    Portefeuille
-  </Link>
+        <Link
+          href="/livreur/portefeuille"
+          className="rounded-2xl bg-white px-4 py-3 text-center text-sm font-bold text-gray-800 shadow-sm"
+        >
+          Portefeuille
+        </Link>
 
-  <Link
-   href="/aide"
-    className="rounded-2xl bg-white px-4 py-3 text-center text-sm font-bold text-gray-800 shadow-sm"
-  >
-    Aide
-  </Link>
-</nav>
+        <Link
+          href="/aide"
+          className="rounded-2xl bg-white px-4 py-3 text-center text-sm font-bold text-gray-800 shadow-sm"
+        >
+          Aide
+        </Link>
+      </nav>
+
       <div className="mx-auto max-w-3xl space-y-6">
         <section className="rounded-3xl bg-blue-600 p-6 text-white shadow-lg">
           <div className="flex items-start justify-between gap-4">
@@ -2311,14 +2359,14 @@ setPinByOrder((current) => ({
           </div>
 
           <div className="mt-4 rounded-2xl bg-white p-4 text-gray-900">
-  <div className="flex items-center gap-4">
-    {courierProfile?.avatar_url ? (
-      <img
-        src={courierProfile.avatar_url}
-        alt="Photo du livreur"
-        className="h-16 w-16 rounded-full object-cover"
-      />
-    ) : (
+            <div className="flex items-center gap-4">
+              {courierProfile?.avatar_url ? (
+                <img
+                  src={courierProfile.avatar_url}
+                  alt="Photo du livreur"
+                  className="h-16 w-16 rounded-full object-cover"
+                />
+              ) : (
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-2xl">
                   👤
                 </div>
@@ -2374,6 +2422,13 @@ setPinByOrder((current) => ({
             <p className="text-gray-500">
               Les étoiles indiquent les missions simples à prendre.
             </p>
+
+            {courierAvailability === "PAUSED" ? (
+              <p className="mt-2 rounded-2xl bg-orange-50 p-3 text-sm font-semibold text-orange-800">
+                Tu es en pause. Tu ne peux pas accepter de nouvelle mission, mais tes missions déjà prises restent actives.
+              </p>
+            ) : null}
+
             {myMissions.length > 0 ? (
               <p className="mt-2 rounded-2xl bg-yellow-50 p-3 text-sm font-semibold text-yellow-800">
                 Tu as déjà une livraison normale en cours. Termine-la avant d'en accepter une autre. Un retour payé pris en charge peut rester en parallèle.
@@ -2507,8 +2562,6 @@ setPinByOrder((current) => ({
             </div>
           )}
         </section>
-
-
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 py-2 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur sm:hidden">

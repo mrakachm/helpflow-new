@@ -333,7 +333,7 @@ async function processReturnPayment(
        * le rendre aujourd'hui
        * ou choisir un autre créneau.
        */
-      status: "RETURN_TO_SENDER",
+      status: "RETURN_WAITING_COURIER",
 
       return_payment_status: "paid",
       return_price_cents: amountPaid,
