@@ -1545,22 +1545,14 @@ export default function MissionsPage() {
                 OBSTACLE
               </button>
 
-              <button
-                type="button"
-                disabled={!canDeclareAbsent(order.id)}
-                onClick={() => openDeliveryPanel(order.id, "next")}
-                className="w-full rounded-xl bg-blue-700 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
-              >
-                AUTRE CRÉNEAU
-              </button>
 
               {!receiverCallStartedAt[order.id] ? (
                 <p className="text-center text-xs text-slate-500">
-                  Pour « Absent » ou « Autre créneau », appelle d'abord le receveur puis attends 15 secondes.
+                 Pour « Absent », appelle d'abord le receveur puis attends 15 secondes.
                 </p>
               ) : (callSecondsLeft[order.id] ?? 0) > 0 ? (
                 <p className="text-center text-xs font-semibold text-orange-700">
-                  Encore {callSecondsLeft[order.id]} seconde(s) avant « Absent » ou « Autre créneau ».
+                  Encore {callSecondsLeft[order.id]} seconde(s) avant « Absent ».
                 </p>
               ) : null}
 
