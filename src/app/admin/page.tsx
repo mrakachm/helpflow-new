@@ -79,15 +79,17 @@ export default function AdminPage() {
     checkAdmin();
   }, [supabase]);
 
-  const couriers = profiles.filter((p) => p.role === "livreur");
-  const users = profiles.filter((p) => p.role !== "livreur");
+  const visibleProfiles = profiles.filter((p) => p.role !== "admin");
+
+  const couriers = visibleProfiles.filter((p) => p.role === "livreur");
+  const users = visibleProfiles.filter((p) => p.role !== "livreur");
 
   const filteredCouriers = filterProfiles(couriers, search, cityFilter);
   const filteredUsers = filterProfiles(users, search, cityFilter);
 
   const allCities = Array.from(
-    new Set(profiles.map((p) => p.city || "Ville inconnue"))
-  ).sort();
+    new Set(visibleProfiles.map((p) => normalizeCity(p.city)))
+  ).sort(sortCities);
 
   const courierCities = groupByCity(couriers);
   const userCities = groupByCity(users);
@@ -121,6 +123,9 @@ export default function AdminPage() {
           <h1 className="text-3xl font-bold">Administration HelpFlow</h1>
           <p className="mt-2 text-slate-300">
             Gestion des livreurs, utilisateurs, villes, documents et validations.
+          </p>
+          <p className="mt-3 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white">
+            Zone de lancement prioritaire : Reims
           </p>
         </div>
 
@@ -197,9 +202,11 @@ export default function AdminPage() {
           <h2 className="mb-4 text-2xl font-bold">Livreurs par ville</h2>
 
           <div className="grid gap-4 md:grid-cols-3">
-            {Object.entries(courierCities).map(([city, stats]) => (
-              <CityCard key={city} city={city} stats={stats} type="livreur" />
-            ))}
+            {Object.entries(courierCities)
+              .sort(([cityA], [cityB]) => sortCities(cityA, cityB))
+              .map(([city, stats]) => (
+                <CityCard key={city} city={city} stats={stats} type="livreur" />
+              ))}
           </div>
         </section>
 
@@ -207,9 +214,11 @@ export default function AdminPage() {
           <h2 className="mb-4 text-2xl font-bold">Utilisateurs par ville</h2>
 
           <div className="grid gap-4 md:grid-cols-3">
-            {Object.entries(userCities).map(([city, stats]) => (
-              <CityCard key={city} city={city} stats={stats} type="utilisateur" />
-            ))}
+            {Object.entries(userCities)
+              .sort(([cityA], [cityB]) => sortCities(cityA, cityB))
+              .map(([city, stats]) => (
+                <CityCard key={city} city={city} stats={stats} type="utilisateur" />
+              ))}
           </div>
         </section>
 
@@ -251,7 +260,7 @@ export default function AdminPage() {
                       <td className="p-3">{p.full_name || "-"}</td>
                       <td className="p-3">{p.email || "-"}</td>
                       <td className="p-3">{p.phone || "-"}</td>
-                      <td className="p-3">{p.city || "Ville inconnue"}</td>
+                      <td className="p-3">{normalizeCity(p.city)}</td>
                       <td className="p-3">{p.vehicle_type || p.vehicle_details || "-"}</td>
                       <td className="p-3">
                         {p.intervention_radius ? `${p.intervention_radius} km` : "-"}
@@ -264,6 +273,7 @@ export default function AdminPage() {
                           <a
                             href={p.identity_document_path}
                             target="_blank"
+                            rel="noreferrer"
                             className="font-semibold text-blue-600 underline"
                           >
                             Voir
@@ -342,7 +352,7 @@ export default function AdminPage() {
                       <td className="p-3">{p.full_name || "-"}</td>
                       <td className="p-3">{p.email || "-"}</td>
                       <td className="p-3">{p.phone || "-"}</td>
-                      <td className="p-3">{p.city || "Ville inconnue"}</td>
+                      <td className="p-3">{normalizeCity(p.city)}</td>
                       <td className="p-3">{formatDate(p.created_at)}</td>
                     </tr>
                   ))}
@@ -360,18 +370,40 @@ export default function AdminPage() {
   );
 }
 
+function normalizeCity(city: string | null) {
+  const value = city?.trim();
+
+  if (!value) return "Ville non renseignée";
+
+  return value
+    .toLocaleLowerCase("fr-FR")
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toLocaleUpperCase("fr-FR") + word.slice(1))
+    .join(" ");
+}
+
+function sortCities(a: string, b: string) {
+  if (a === "Reims" && b !== "Reims") return -1;
+  if (b === "Reims" && a !== "Reims") return 1;
+
+  if (a === "Ville non renseignée" && b !== "Ville non renseignée") return 1;
+  if (b === "Ville non renseignée" && a !== "Ville non renseignée") return -1;
+
+  return a.localeCompare(b, "fr");
+}
+
 function filterProfiles(profiles: Profile[], search: string, cityFilter: string) {
-  const s = search.toLowerCase().trim();
+  const s = search.toLocaleLowerCase("fr-FR").trim();
 
   return profiles.filter((p) => {
-    const city = p.city || "Ville inconnue";
+    const city = normalizeCity(p.city);
 
     const matchCity = cityFilter === "all" || city === cityFilter;
 
     const matchSearch =
       !s ||
-      `${p.full_name || ""} ${p.email || ""} ${p.phone || ""} ${p.city || ""}`
-        .toLowerCase()
+      `${p.full_name || ""} ${p.email || ""} ${p.phone || ""} ${city}`
+        .toLocaleLowerCase("fr-FR")
         .includes(s);
 
     return matchCity && matchSearch;
@@ -380,7 +412,7 @@ function filterProfiles(profiles: Profile[], search: string, cityFilter: string)
 
 function groupByCity(profiles: Profile[]) {
   return profiles.reduce<Record<string, CityStats>>((acc, p) => {
-    const city = p.city || "Ville inconnue";
+    const city = normalizeCity(p.city);
 
     if (!acc[city]) {
       acc[city] = { total: 0, approved: 0, pending: 0, refused: 0 };
@@ -403,7 +435,7 @@ function exportCSV(profiles: Profile[], filename: string) {
       p.full_name || "",
       p.email || "",
       p.phone || "",
-      p.city || "",
+      normalizeCity(p.city),
       p.role || "",
       p.verification_status || "",
       formatDate(p.created_at),
