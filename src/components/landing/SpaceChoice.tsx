@@ -57,7 +57,7 @@ export default function SpaceChoice() {
         </p>
 
         <h2 className="mt-3 text-3xl font-black text-slate-950 sm:text-4xl">
-          HelpFlow pour vos besoins de proximité
+          Jalin Livraison pour vos besoins de proximité
         </h2>
 
         <p className="mt-4 text-lg leading-8 text-slate-600">

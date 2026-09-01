@@ -26,19 +26,26 @@ export async function sendOtpEmail({
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "HelpFlow <noreply@helpflow.fr>",
+      from: "Jalin Livraison <noreply@helpflow.fr>",
       to: [to],
-      subject: "Votre Code PIN HelpFlow",
+      subject: "Votre Code PIN Jalin Livraison",
       html: `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
-          <h2>Votre code de livraison HelpFlow</h2>
+          <h2>Votre code de livraison Jalin Livraison</h2>
 
-          <p>Votre commande HelpFlow a été créée avec succès.</p>
+          <p>
+            Votre commande Jalin Livraison a été créée avec succès.
+          </p>
 
-          <p><strong>Numéro de commande :</strong> ${orderId}</p>
+          <p>
+            <strong>Numéro de commande :</strong> ${orderId}
+          </p>
 
           <div style="margin: 24px 0; padding: 18px; background: #f3f4f6; border-radius: 12px; text-align: center;">
-            <p style="margin: 0 0 8px; font-size: 14px; color: #6b7280;">Code PIN de livraison</p>
+            <p style="margin: 0 0 8px; font-size: 14px; color: #6b7280;">
+              Code PIN de livraison
+            </p>
+
             <p style="margin: 0; font-size: 34px; font-weight: 700; letter-spacing: 5px; color: #2563eb;">
               ${otp}
             </p>
@@ -52,7 +59,10 @@ export async function sendOtpEmail({
             Si vous n'êtes pas à l'origine de cette commande, vous pouvez ignorer cet email.
           </p>
 
-          <p style="margin-top: 24px;">Merci,<br />L'équipe HelpFlow</p>
+          <p style="margin-top: 24px;">
+            Merci,<br />
+            L'équipe Jalin Livraison
+          </p>
         </div>
       `,
     }),
@@ -68,6 +78,7 @@ export async function sendOtpEmail({
 
   if (!response.ok) {
     console.error("RESEND EMAIL ERROR:", data);
+
     throw new Error(
       data?.message ||
         data?.error ||
@@ -77,6 +88,7 @@ export async function sendOtpEmail({
 
   return data;
 }
+
 export async function sendReturnPinEmail({
   to,
   pin,
@@ -115,12 +127,12 @@ export async function sendReturnPinEmail({
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "HelpFlow <noreply@helpflow.fr>",
-      to,
-      subject: "Votre Code PIN de retour HelpFlow",
+      from: "Jalin Livraison <noreply@helpflow.fr>",
+      to: [to],
+      subject: "Votre code PIN de retour Jalin Livraison",
       html: `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
-          <h2>Retour de votre colis HelpFlow</h2>
+          <h2>Retour de votre colis Jalin Livraison</h2>
 
           <p>
             Le retour de votre colis a été payé et peut maintenant être effectué.
@@ -136,7 +148,7 @@ export async function sendReturnPinEmail({
               : ""
           }
 
-          <div style="margin: 24px 0; padding: 18px; background: #f3f4f6; border-radius: 12px;">
+          <div style="margin: 24px 0; padding: 18px; background: #f3f4f6; border-radius: 12px; text-align: center;">
             <p style="margin: 0 0 8px; font-size: 14px; color: #6b7280;">
               Code PIN de retour
             </p>
@@ -147,8 +159,7 @@ export async function sendReturnPinEmail({
           </div>
 
           <p>
-            Communiquez ce Code PIN au livreur uniquement lorsque le colis
-            vous a bien été remis.
+            Communiquez ce Code PIN au livreur uniquement lorsque le colis vous a bien été remis.
           </p>
 
           <p style="font-size: 13px; color: #6b7280;">
@@ -157,7 +168,7 @@ export async function sendReturnPinEmail({
 
           <p style="margin-top: 24px;">
             Merci,<br />
-            L'équipe HelpFlow
+            L'équipe Jalin Livraison
           </p>
         </div>
       `,
