@@ -108,10 +108,12 @@ function LoginPageInner() {
           />
         </div>
 
-        <h1 className="text-center text-3xl font-bold text-white">Connexion</h1>
+        <h1 className="text-center text-3xl font-bold text-white">
+          Connexion
+        </h1>
 
         <p className="mt-2 text-center text-slate-300">
-          Connectez-vous à votre espace HelpFlow.
+          Connectez-vous à votre espace Jalin Livraison.
         </p>
 
         {error && (

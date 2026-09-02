@@ -1428,7 +1428,7 @@ export default function MissionsPage() {
                 <p>
                   Au retrait, l’expéditeur peut vous demander de présenter une pièce
                   d’identité afin de vérifier que vous correspondez bien au profil
-                  livreur HelpFlow.
+                  livreur Jalin Livraison.
                 </p>
                 <p className="font-semibold">
                   Présentez uniquement votre pièce d’identité à l’expéditeur.
@@ -1443,7 +1443,7 @@ export default function MissionsPage() {
               <p className="font-bold">🪪 Retrait sécurisé — colis important</p>
               <p className="mt-1">
                 L’expéditeur peut vérifier que votre identité correspond au profil
-                HelpFlow avant de vous remettre le colis.
+                Jalin Livraison avant de vous remettre le colis.
               </p>
               <p className="mt-1 font-semibold">
                 Le détail du colis est maintenant visible:{" "}
@@ -2174,7 +2174,7 @@ export default function MissionsPage() {
               📍
             </div>
             <h2 className="mt-4 text-center text-2xl font-black text-slate-900">
-              Préparer HelpFlow pour tes missions
+              Préparer Jalin Livraison pour tes missions
             </h2>
             <p className="mt-2 text-center text-sm leading-6 text-slate-600">
               La position sert à proposer des missions de proximité. Les notifications servent à t'informer des nouvelles missions et des changements importants.
@@ -2226,7 +2226,7 @@ export default function MissionsPage() {
             </div>
 
             <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-xs leading-5 text-slate-600">
-              HelpFlow ne demande pas ici l'autorisation de suivre ton activité sur d'autres applications ou sites. Une telle demande ne sera ajoutée que si elle devient réellement nécessaire.
+              Jalin Livraison ne demande pas ici l'autorisation de suivre ton activitésur d'autres applications ou sites. Une telle demande ne sera ajoutée que si elle devient réellement nécessaire.
             </div>
 
             <button
@@ -2308,7 +2308,7 @@ export default function MissionsPage() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-sm font-medium text-blue-100">
-                HelpFlow Livreur
+                Jalin Livraison
               </p>
 
               <h1 className="mt-2 text-4xl font-bold">
