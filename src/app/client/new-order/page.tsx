@@ -82,6 +82,12 @@ export default function NewOrderPage() {
   const MIN_PRICE_CENTS = 500;
   const MAX_PHOTO_SIZE = 5 * 1024 * 1024;
 
+  function getVehicleMinimumPriceCents(value: string) {
+    if (value === "Voiture") return 800;
+    if (value === "Utilitaire") return 2000;
+    return MIN_PRICE_CENTS;
+  }
+
   function elevatorValueToBoolean(value: string) {
     if (value === "true") return true;
     if (value === "false") return false;
@@ -128,6 +134,10 @@ export default function NewOrderPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [recipientEmail, setRecipientEmail] = useState("");
 
+  const vehicleMinimumPriceCents = vehicleRequired
+    ? getVehicleMinimumPriceCents(vehicleRequired)
+    : BASE_PRICE_CENTS;
+
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getUser();
@@ -142,8 +152,8 @@ export default function NewOrderPage() {
         : null;
 
     const finalPriceCents = proposedPriceCents
-      ? Math.max(MIN_PRICE_CENTS, proposedPriceCents)
-      : BASE_PRICE_CENTS;
+      ? Math.max(vehicleMinimumPriceCents, proposedPriceCents)
+      : vehicleMinimumPriceCents;
 
     const platformFeeCents = Math.round(finalPriceCents * 0.2);
     const courierEarningsCents = Math.max(
@@ -157,7 +167,7 @@ export default function NewOrderPage() {
       platformFeeCents,
       courierEarningsCents,
     };
-  }, [clientProposedPrice]);
+  }, [clientProposedPrice, vehicleMinimumPriceCents]);
 
   function validate(): string | null {
     if (!userId) return "Vous devez être connecté pour créer une commande.";
@@ -165,7 +175,8 @@ export default function NewOrderPage() {
     if (!senderPhone.trim()) return "Téléphone expéditeur manquant.";
     if (!senderAddress.trim() || !senderCity.trim())
       return "Adresse expéditeur incomplète.";
-    if (!pickupHasElevator) return "Veuillez indiquer si le retrait possède un ascenseur.";
+    if (!pickupHasElevator)
+      return "Veuillez indiquer si le retrait possède un ascenseur.";
     if (!pickupFloor) return "Étage de retrait manquant.";
 
     if (!receiverName.trim()) return "Nom receveur manquant.";
@@ -225,8 +236,10 @@ export default function NewOrderPage() {
     if (!parcelPhoto || !userId) return null;
 
     try {
-      const extension = parcelPhoto.name.split(".").pop()?.toLowerCase() || "jpg";
-      const safeExtension = extension.replace(/[^a-z0-9]/g, "") || "jpg";
+      const extension =
+        parcelPhoto.name.split(".").pop()?.toLowerCase() || "jpg";
+      const safeExtension =
+        extension.replace(/[^a-z0-9]/g, "") || "jpg";
       const path = `${userId}/${Date.now()}.${safeExtension}`;
 
       const { error } = await supabase.storage
@@ -242,7 +255,10 @@ export default function NewOrderPage() {
         return null;
       }
 
-      const { data } = supabase.storage.from("parcel-photos").getPublicUrl(path);
+      const { data } = supabase.storage
+        .from("parcel-photos")
+        .getPublicUrl(path);
+
       return data.publicUrl || null;
     } catch (error) {
       console.error("UPLOAD PHOTO FAILED =>", error);
@@ -261,23 +277,32 @@ export default function NewOrderPage() {
     }
 
     if (containsPhoneNumber(parcelNote)) {
-      setMsg("Les numéros de téléphone sont interdits dans la description du colis.");
+      setMsg(
+        "Les numéros de téléphone sont interdits dans la description du colis."
+      );
       return;
     }
 
     const proposedPrice = Number(clientProposedPrice);
+    const minimumPriceEuros = vehicleMinimumPriceCents / 100;
 
     if (
       !clientProposedPrice ||
       Number.isNaN(proposedPrice) ||
-      proposedPrice < 5
+      proposedPrice < minimumPriceEuros
     ) {
-      setMsg("Le tarif minimum est de 5 €.");
+      setMsg(
+        `Le tarif minimum pour ce transport est de ${formatEuro(
+          vehicleMinimumPriceCents
+        )}.`
+      );
       return;
     }
 
     if (!Number.isInteger(proposedPrice)) {
-      setMsg("Le tarif doit être un montant entier en euros : 5 €, 6 €, 7 €, 8 €...");
+      setMsg(
+        "Le tarif doit être un montant entier en euros : 5 €, 6 €, 7 €, 8 €..."
+      );
       return;
     }
 
@@ -294,7 +319,8 @@ export default function NewOrderPage() {
         pickup_address: cleanSimpleAddress(senderAddress),
         pickup_city: senderCity.trim(),
         pickup_floor: pickupFloor,
-        pickup_has_elevator: elevatorValueToBoolean(pickupHasElevator),
+        pickup_has_elevator:
+          elevatorValueToBoolean(pickupHasElevator),
 
         receiver_name: receiverName.trim(),
         receiver_phone: receiverPhone.trim(),
@@ -302,23 +328,28 @@ export default function NewOrderPage() {
         dropoff_address: cleanSimpleAddress(receiverAddress),
         dropoff_city: receiverCity.trim(),
         dropoff_floor: dropoffFloor,
-        dropoff_has_elevator: elevatorValueToBoolean(dropoffHasElevator),
+        dropoff_has_elevator:
+          elevatorValueToBoolean(dropoffHasElevator),
 
         bag_count: bagCountToNumber(bagCount),
         distance_km: 1,
         scheduled_at: scheduledAt || null,
         parcel_type: parcelType || null,
         is_important_parcel: isImportantParcel,
-        important_parcel_type: isImportantParcel ? importantParcelType || null : null,
+        important_parcel_type: isImportantParcel
+          ? importantParcelType || null
+          : null,
         parcel_note: parcelNote || null,
         parcel_photo_url: parcelPhotoUrl,
         vehicle_required: vehicleRequired || null,
         parcel_size: parcelSize || null,
 
         price_cents: pricingView.finalPriceCents,
-        client_proposed_price_cents: pricingView.proposedPriceCents,
+        client_proposed_price_cents:
+          pricingView.proposedPriceCents,
         platform_fee_cents: pricingView.platformFeeCents,
-        courier_earnings_cents: pricingView.courierEarningsCents,
+        courier_earnings_cents:
+          pricingView.courierEarningsCents,
         pricing_mode: pricingView.proposedPriceCents
           ? "client_proposal"
           : "standard",
@@ -358,7 +389,10 @@ export default function NewOrderPage() {
         .catch(() => ({}));
 
       if (!checkoutResponse.ok || !checkoutResult?.url) {
-        console.error("CREATE CHECKOUT ERROR =>", checkoutResult);
+        console.error(
+          "CREATE CHECKOUT ERROR =>",
+          checkoutResult
+        );
         setMsg(
           checkoutResult?.error ||
             `Commande créée (${data.id}), mais le paiement Stripe n'a pas pu s'ouvrir.`
@@ -385,12 +419,14 @@ export default function NewOrderPage() {
       <div className="mx-auto max-w-xl px-4 py-6">
         <div className="mb-5 flex items-center gap-3">
           <img
-            src="/logo-helpflow.png"
-            alt="HelpFlow"
-            className="h-10 w-10 rounded-xl object-cover"
+            src="/logo-jalin.png"
+            alt="Jalin Livraison"
+            className="h-10 w-10 rounded-xl object-contain"
           />
           <div>
-            <h1 className="text-xl font-semibold">Créer une commande</h1>
+            <h1 className="text-xl font-semibold">
+              Créer une commande
+            </h1>
             <p className="text-sm text-gray-600">
               Remplis les infos pour créer ta livraison.
             </p>
@@ -406,7 +442,9 @@ export default function NewOrderPage() {
         <form onSubmit={onSubmit} className="space-y-4">
           <section className="rounded-2xl border border-gray-200 bg-white p-4">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-semibold">Expéditeur</h2>
+              <h2 className="text-base font-semibold">
+                Expéditeur
+              </h2>
               <button
                 type="button"
                 onClick={() => {
@@ -423,40 +461,59 @@ export default function NewOrderPage() {
             <div className="grid grid-cols-1 gap-3">
               <input
                 value={senderName}
-                onChange={(e) => setSenderName(e.target.value)}
+                onChange={(e) =>
+                  setSenderName(e.target.value)
+                }
                 placeholder="Nom + Prénom"
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
               />
               <input
                 type="tel"
                 value={senderPhone}
-                onChange={(e) => setSenderPhone(e.target.value)}
+                onChange={(e) =>
+                  setSenderPhone(e.target.value)
+                }
                 placeholder="Téléphone"
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
               />
               <input
                 value={senderAddress}
-                onChange={(e) => setSenderAddress(e.target.value)}
-                onBlur={(e) => setSenderAddress(cleanSimpleAddress(e.target.value))}
+                onChange={(e) =>
+                  setSenderAddress(e.target.value)
+                }
+                onBlur={(e) =>
+                  setSenderAddress(
+                    cleanSimpleAddress(e.target.value)
+                  )
+                }
                 placeholder="Adresse départ"
                 autoComplete="off"
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
               />
               <input
                 value={senderCity}
-                onChange={(e) => setSenderCity(e.target.value)}
+                onChange={(e) =>
+                  setSenderCity(e.target.value)
+                }
                 placeholder="Ville"
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
               />
 
               <select
                 value={pickupHasElevator}
-                onChange={(e) => setPickupHasElevator(e.target.value)}
+                onChange={(e) =>
+                  setPickupHasElevator(e.target.value)
+                }
                 className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
               >
-                <option value="">Ascenseur retrait ?</option>
+                <option value="">
+                  Ascenseur retrait ?
+                </option>
                 {ELEVATOR_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
+                  <option
+                    key={option.value}
+                    value={option.value}
+                  >
                     {option.label}
                   </option>
                 ))}
@@ -464,10 +521,14 @@ export default function NewOrderPage() {
 
               <select
                 value={pickupFloor}
-                onChange={(e) => setPickupFloor(e.target.value)}
+                onChange={(e) =>
+                  setPickupFloor(e.target.value)
+                }
                 className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
               >
-                <option value="">Étage / lieu retrait</option>
+                <option value="">
+                  Étage / lieu retrait
+                </option>
                 {FLOOR_OPTIONS.map((floor) => (
                   <option key={floor} value={floor}>
                     {floor}
@@ -478,34 +539,46 @@ export default function NewOrderPage() {
           </section>
 
           <section className="rounded-2xl border border-gray-200 bg-white p-4">
-            <h2 className="mb-3 text-base font-semibold">Receveur</h2>
+            <h2 className="mb-3 text-base font-semibold">
+              Receveur
+            </h2>
 
             <div className="grid grid-cols-1 gap-3">
               <input
                 value={receiverName}
-                onChange={(e) => setReceiverName(e.target.value)}
+                onChange={(e) =>
+                  setReceiverName(e.target.value)
+                }
                 placeholder="Nom + Prénom"
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
               />
               <input
                 type="tel"
                 value={receiverPhone}
-                onChange={(e) => setReceiverPhone(e.target.value)}
+                onChange={(e) =>
+                  setReceiverPhone(e.target.value)
+                }
                 placeholder="Téléphone"
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
               />
               <input
                 type="email"
                 value={recipientEmail}
-                onChange={(e) => setRecipientEmail(e.target.value)}
+                onChange={(e) =>
+                  setRecipientEmail(e.target.value)
+                }
                 placeholder="Email du receveur"
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
               />
               <input
                 value={receiverAddress}
-                onChange={(e) => setReceiverAddress(e.target.value)}
+                onChange={(e) =>
+                  setReceiverAddress(e.target.value)
+                }
                 onBlur={(e) =>
-                  setReceiverAddress(cleanSimpleAddress(e.target.value))
+                  setReceiverAddress(
+                    cleanSimpleAddress(e.target.value)
+                  )
                 }
                 placeholder="Adresse livraison"
                 autoComplete="off"
@@ -513,19 +586,28 @@ export default function NewOrderPage() {
               />
               <input
                 value={receiverCity}
-                onChange={(e) => setReceiverCity(e.target.value)}
+                onChange={(e) =>
+                  setReceiverCity(e.target.value)
+                }
                 placeholder="Ville"
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
               />
 
               <select
                 value={dropoffHasElevator}
-                onChange={(e) => setDropoffHasElevator(e.target.value)}
+                onChange={(e) =>
+                  setDropoffHasElevator(e.target.value)
+                }
                 className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
               >
-                <option value="">Ascenseur livraison ?</option>
+                <option value="">
+                  Ascenseur livraison ?
+                </option>
                 {ELEVATOR_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
+                  <option
+                    key={option.value}
+                    value={option.value}
+                  >
                     {option.label}
                   </option>
                 ))}
@@ -533,10 +615,14 @@ export default function NewOrderPage() {
 
               <select
                 value={dropoffFloor}
-                onChange={(e) => setDropoffFloor(e.target.value)}
+                onChange={(e) =>
+                  setDropoffFloor(e.target.value)
+                }
                 className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
               >
-                <option value="">Étage / lieu livraison</option>
+                <option value="">
+                  Étage / lieu livraison
+                </option>
                 {FLOOR_OPTIONS.map((floor) => (
                   <option key={floor} value={floor}>
                     {floor}
@@ -547,15 +633,21 @@ export default function NewOrderPage() {
           </section>
 
           <section className="rounded-2xl border border-gray-200 bg-white p-4">
-            <h2 className="mb-3 text-base font-semibold">Colis & Livraison</h2>
+            <h2 className="mb-3 text-base font-semibold">
+              Colis & Livraison
+            </h2>
 
             <div className="grid grid-cols-1 gap-3">
               <select
                 value={bagCount}
-                onChange={(e) => setBagCount(e.target.value)}
+                onChange={(e) =>
+                  setBagCount(e.target.value)
+                }
                 className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
               >
-                <option value="">Nombre de sacs / colis</option>
+                <option value="">
+                  Nombre de sacs / colis
+                </option>
                 {BAG_OPTIONS.map((count) => (
                   <option key={count} value={count}>
                     {count}
@@ -565,39 +657,68 @@ export default function NewOrderPage() {
 
               <select
                 value={vehicleRequired}
-                onChange={(e) => setVehicleRequired(e.target.value)}
+                onChange={(e) => {
+                  const nextVehicle = e.target.value;
+
+                  setVehicleRequired(nextVehicle);
+
+                  const nextMinimumCents = nextVehicle
+                    ? getVehicleMinimumPriceCents(
+                        nextVehicle
+                      )
+                    : BASE_PRICE_CENTS;
+
+                  setClientProposedPrice(
+                    String(nextMinimumCents / 100)
+                  );
+                }}
                 className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
               >
-                <option value="">Véhicule requis</option>
-                <option value="Petit transport">
-                  À pied / Vélo / Scooter / Transports
+                <option value="">
+                  Véhicule requis
                 </option>
-                <option value="Voiture">Voiture</option>
-                <option value="Utilitaire">Utilitaire</option>
+                <option value="Petit transport">
+                  À pied / Vélo / Moto — à partir de 5 €
+                </option>
+                <option value="Voiture">
+                  Voiture — à partir de 8 €
+                </option>
+                <option value="Utilitaire">
+                  Camionnette / Camion — à partir de 20 €
+                </option>
               </select>
 
               <select
                 value={parcelSize}
-                onChange={(e) => setParcelSize(e.target.value)}
+                onChange={(e) =>
+                  setParcelSize(e.target.value)
+                }
                 className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
               >
-                <option value="">Taille du colis (optionnelle)</option>
+                <option value="">
+                  Taille du colis (optionnelle)
+                </option>
                 <option value="Petit">Petit</option>
                 <option value="Moyen">Moyen</option>
                 <option value="Grand">Grand</option>
-                <option value="Très grand">Très grand</option>
+                <option value="Très grand">
+                  Très grand
+                </option>
               </select>
             </div>
 
             <div className="mt-3 rounded-2xl border border-gray-200 bg-white p-4 space-y-3">
-              <h3 className="text-lg font-semibold">Description du colis</h3>
+              <h3 className="text-lg font-semibold">
+                Description du colis
+              </h3>
 
               <div className="rounded-xl border border-amber-200 bg-amber-50">
                 <button
                   type="button"
                   onClick={() => {
                     setIsImportantParcel((current) => {
-                      if (current) setImportantParcelType("");
+                      if (current)
+                        setImportantParcelType("");
                       return !current;
                     });
                   }}
@@ -605,7 +726,10 @@ export default function NewOrderPage() {
                   aria-expanded={isImportantParcel}
                 >
                   <span>Colis important</span>
-                  <span aria-hidden="true" className="text-lg">
+                  <span
+                    aria-hidden="true"
+                    className="text-lg"
+                  >
                     {isImportantParcel ? "▾" : "›"}
                   </span>
                 </button>
@@ -617,40 +741,58 @@ export default function NewOrderPage() {
                     </label>
                     <select
                       value={importantParcelType}
-                      onChange={(e) => setImportantParcelType(e.target.value)}
+                      onChange={(e) =>
+                        setImportantParcelType(
+                          e.target.value
+                        )
+                      }
                       className="w-full rounded-xl border border-gray-200 bg-white p-3"
                     >
-                      <option value="">Choisir…</option>
-                      {IMPORTANT_PARCEL_TYPES.map((type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ))}
+                      <option value="">
+                        Choisir…
+                      </option>
+                      {IMPORTANT_PARCEL_TYPES.map(
+                        (type) => (
+                          <option
+                            key={type}
+                            value={type}
+                          >
+                            {type}
+                          </option>
+                        )
+                      )}
                     </select>
                     <div className="mt-3 space-y-2 rounded-xl border border-amber-200 bg-white p-3">
                       <p className="text-sm font-semibold text-gray-900">
                         🔒 Confidentialité du contenu
                       </p>
                       <p className="text-xs leading-5 text-gray-700">
-                        Avant l’acceptation de la mission, le livreur voit uniquement
-                        la mention « Colis important ». Le détail précis de votre colis
-                        devient accessible seulement après qu’un livreur a accepté la
-                        mission.
+                        Avant l’acceptation de la mission,
+                        le livreur voit uniquement la
+                        mention « Colis important ». Le
+                        détail précis de votre colis
+                        devient accessible seulement après
+                        qu’un livreur a accepté la mission.
                       </p>
 
                       <p className="pt-1 text-sm font-semibold text-gray-900">
                         🪪 Vérification du livreur au retrait
                       </p>
                       <p className="text-xs leading-5 text-gray-700">
-                        Avant de remettre votre colis, vous pouvez vérifier que la
-                        personne présente correspond bien au profil du livreur affiché
-                        dans HelpFlow. Vous pouvez lui demander de présenter une pièce
-                        d’identité afin de vérifier son identité.
+                        Avant de remettre votre colis, vous
+                        pouvez vérifier que la personne
+                        présente correspond bien au profil
+                        du livreur affiché dans Jalin
+                        Livraison. Vous pouvez lui demander
+                        de présenter une pièce d’identité
+                        afin de vérifier son identité.
                       </p>
 
                       <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-gray-800">
-                        ✓ Conseil sécurité : ne remettez le colis qu’après avoir vérifié
-                        que le livreur correspond au profil affiché dans l’application.
+                        ✓ Conseil sécurité : ne remettez le
+                        colis qu’après avoir vérifié que le
+                        livreur correspond au profil affiché
+                        dans l’application.
                       </div>
                     </div>
                   </div>
@@ -659,10 +801,14 @@ export default function NewOrderPage() {
 
               <select
                 value={parcelType}
-                onChange={(e) => setParcelType(e.target.value)}
+                onChange={(e) =>
+                  setParcelType(e.target.value)
+                }
                 className="w-full rounded-xl border border-gray-200 bg-white p-3"
               >
-                <option value="">Type de colis courant…</option>
+                <option value="">
+                  Type de colis courant…
+                </option>
                 {PARCEL_TYPES.map((t) => (
                   <option key={t} value={t}>
                     {t}
@@ -672,7 +818,9 @@ export default function NewOrderPage() {
 
               <textarea
                 value={parcelNote}
-                onChange={(e) => setParcelNote(e.target.value)}
+                onChange={(e) =>
+                  setParcelNote(e.target.value)
+                }
                 placeholder="Exemple : fragile, ne pas pencher, petit colis, sac léger, objet à manipuler avec soin..."
                 className="w-full rounded-xl border border-gray-200 p-3"
               />
@@ -686,7 +834,9 @@ export default function NewOrderPage() {
                   type="file"
                   accept="image/*"
                   onChange={(e) =>
-                    handleParcelPhotoChange(e.target.files?.[0] || null)
+                    handleParcelPhotoChange(
+                      e.target.files?.[0] || null
+                    )
                   }
                   className="w-full text-sm"
                 />
@@ -704,7 +854,9 @@ export default function NewOrderPage() {
                     />
                     <button
                       type="button"
-                      onClick={() => handleParcelPhotoChange(null)}
+                      onClick={() =>
+                        handleParcelPhotoChange(null)
+                      }
                       className="mt-2 rounded-xl border border-gray-200 px-3 py-2 text-sm"
                     >
                       Retirer la photo
@@ -722,13 +874,16 @@ export default function NewOrderPage() {
               <input
                 type="datetime-local"
                 value={scheduledAt}
-                onChange={(e) => setScheduledAt(e.target.value)}
+                onChange={(e) =>
+                  setScheduledAt(e.target.value)
+                }
                 className="w-full rounded-xl border border-gray-300 bg-white px-3 py-3 text-gray-900"
               />
 
               <p className="mt-1 text-xs text-gray-500">
-                Optionnel : laissez vide si la livraison peut être effectuée dès
-                qu’un livreur est disponible.
+                Optionnel : laissez vide si la livraison
+                peut être effectuée dès qu’un livreur est
+                disponible.
               </p>
             </div>
 
@@ -739,12 +894,14 @@ export default function NewOrderPage() {
                     Proposez votre tarif
                   </h3>
                   <p className="mt-1 text-xs leading-5 text-gray-600">
-                    Choisissez librement votre tarif pour cette livraison.
+                    Choisissez librement votre tarif pour
+                    cette livraison.
                   </p>
                 </div>
 
                 <span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-100">
-                  Minimum {formatEuro(MIN_PRICE_CENTS)}
+                  Minimum{" "}
+                  {formatEuro(vehicleMinimumPriceCents)}
                 </span>
               </div>
 
@@ -752,14 +909,31 @@ export default function NewOrderPage() {
                 <button
                   type="button"
                   aria-label="Diminuer le tarif de 1 euro"
-                  disabled={Number(clientProposedPrice || 5) <= 5}
+                  disabled={
+                    Number(
+                      clientProposedPrice ||
+                        vehicleMinimumPriceCents / 100
+                    ) <=
+                    vehicleMinimumPriceCents / 100
+                  }
                   onClick={() => {
-                    const current = Number(clientProposedPrice || 5);
-                    const next = Math.max(
-                      5,
-                      (Number.isFinite(current) ? Math.floor(current) : 5) - 1
+                    const minimum =
+                      vehicleMinimumPriceCents / 100;
+
+                    const current = Number(
+                      clientProposedPrice || minimum
                     );
-                    setClientProposedPrice(String(next));
+
+                    const next = Math.max(
+                      minimum,
+                      (Number.isFinite(current)
+                        ? Math.floor(current)
+                        : minimum) - 1
+                    );
+
+                    setClientProposedPrice(
+                      String(next)
+                    );
                   }}
                   className="h-12 w-12 shrink-0 rounded-xl border border-gray-200 bg-white text-2xl font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -770,11 +944,17 @@ export default function NewOrderPage() {
                   <input
                     type="number"
                     inputMode="numeric"
-                    min="5"
+                    min={
+                      vehicleMinimumPriceCents / 100
+                    }
                     step="1"
                     required
                     value={clientProposedPrice}
-                    onChange={(e) => setClientProposedPrice(e.target.value)}
+                    onChange={(e) =>
+                      setClientProposedPrice(
+                        e.target.value
+                      )
+                    }
                     aria-label="Tarif proposé en euros"
                     aria-describedby="price-help"
                     className="h-12 w-full rounded-xl border border-gray-300 bg-white px-12 text-center text-lg font-semibold text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
@@ -788,10 +968,23 @@ export default function NewOrderPage() {
                   type="button"
                   aria-label="Augmenter le tarif de 1 euro"
                   onClick={() => {
-                    const current = Number(clientProposedPrice || 5);
+                    const minimum =
+                      vehicleMinimumPriceCents / 100;
+
+                    const current = Number(
+                      clientProposedPrice || minimum
+                    );
+
                     const next =
-                      (Number.isFinite(current) ? Math.floor(current) : 5) + 1;
-                    setClientProposedPrice(String(Math.max(5, next)));
+                      (Number.isFinite(current)
+                        ? Math.floor(current)
+                        : minimum) + 1;
+
+                    setClientProposedPrice(
+                      String(
+                        Math.max(minimum, next)
+                      )
+                    );
                   }}
                   className="h-12 w-12 shrink-0 rounded-xl border border-gray-200 bg-white text-2xl font-medium text-gray-700"
                 >
@@ -799,9 +992,14 @@ export default function NewOrderPage() {
                 </button>
               </div>
 
-              <p id="price-help" className="mt-3 text-xs leading-5 text-gray-600">
-                Un tarif plus élevé peut rendre votre demande plus attractive
-                pour un livreur. Le montant choisi sera confirmé avant le paiement.
+              <p
+                id="price-help"
+                className="mt-3 text-xs leading-5 text-gray-600"
+              >
+                Un tarif plus élevé peut rendre votre
+                demande plus attractive pour un livreur.
+                Le montant choisi sera confirmé avant le
+                paiement.
               </p>
             </div>
           </section>
@@ -811,7 +1009,9 @@ export default function NewOrderPage() {
             disabled={loading}
             className="w-full rounded-xl bg-black px-4 py-3 text-white disabled:opacity-60"
           >
-            {loading ? "Création..." : "Créer la commande"}
+            {loading
+              ? "Création..."
+              : "Créer la commande"}
           </button>
         </form>
       </div>
