@@ -7,8 +7,8 @@ export default function CGUPage() {
 
       <div className="space-y-4 text-gray-700">
         <p>
-          HelpFlow est une plateforme de mise en relation entre clients et
-          livreurs indépendants.
+          Jalin Livraison est une plateforme de mise en relation entre clients
+          et livreurs indépendants.
         </p>
 
         <h2 className="text-xl font-semibold">
@@ -33,9 +33,7 @@ export default function CGUPage() {
           3. Objets interdits
         </h2>
 
-        <p>
-          Il est interdit de transporter :
-        </p>
+        <p>Il est interdit de transporter :</p>
 
         <ul className="list-disc ml-6">
           <li>armes</li>
@@ -59,7 +57,7 @@ export default function CGUPage() {
         </h2>
 
         <p>
-          HelpFlow applique une commission de plateforme de 20 % sur les
+          Jalin Livraison applique une commission de plateforme de 20 % sur les
           transactions réalisées via le service.
         </p>
 
@@ -77,7 +75,7 @@ export default function CGUPage() {
         </h2>
 
         <p>
-          Pour toute question, contactez l'équipe HelpFlow.
+          Pour toute question, contactez l'équipe Jalin Livraison.
         </p>
       </div>
     </main>

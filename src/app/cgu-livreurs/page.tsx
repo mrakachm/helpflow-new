@@ -7,17 +7,17 @@ export default function CGULivreursPage() {
 
       <pre className="whitespace-pre-wrap">
 {`
-CONDITIONS GÉNÉRALES D’UTILISATION LIVREURS – HELPFLOW
+CONDITIONS GÉNÉRALES D’UTILISATION LIVREURS – JALIN LIVRAISON
 
 Dernière mise à jour : Juin 2026
 
 1. Objet
 
-HelpFlow permet à des livreurs indépendants de consulter, accepter et réaliser des missions proposées par des clients.
+Jalin Livraison permet à des livreurs indépendants de consulter, accepter et réaliser des missions proposées par des clients.
 
-HelpFlow est une plateforme de mise en relation.
+Jalin Livraison est une plateforme de mise en relation.
 
-HelpFlow ne garantit aucun volume de missions, aucun revenu minimum et aucune exclusivité.
+Jalin Livraison ne garantit aucun volume de missions, aucun revenu minimum et aucune exclusivité.
 
 2. Acceptation
 
@@ -29,7 +29,7 @@ Le livreur déclare avoir lu, compris et accepté les présentes conditions avan
 
 Le livreur agit en qualité d’indépendant.
 
-Il n’existe aucun contrat de travail entre le livreur et HelpFlow.
+Il n’existe aucun contrat de travail entre le livreur et Jalin Livraison.
 
 Le livreur organise librement son activité, ses horaires, ses trajets et ses moyens de transport.
 
@@ -47,15 +47,15 @@ Le livreur doit fournir des informations exactes :
 * document d’identité ;
 * informations nécessaires à la vérification du compte.
 
-HelpFlow peut refuser, suspendre ou supprimer un compte livreur si les informations sont incomplètes, fausses ou suspectes.
+Jalin Livraison peut refuser, suspendre ou supprimer un compte livreur si les informations sont incomplètes, fausses ou suspectes.
 
 5. Vérification d’identité
 
-HelpFlow peut demander un document d’identité afin de renforcer la sécurité de la plateforme.
+Jalin Livraison peut demander un document d’identité afin de renforcer la sécurité de la plateforme.
 
 Le livreur accepte que son compte puisse rester en attente tant que la vérification n’est pas terminée.
 
-HelpFlow peut refuser une inscription si l’identité n’est pas vérifiable.
+Jalin Livraison peut refuser une inscription si l’identité n’est pas vérifiable.
 
 6. Assurance obligatoire
 
@@ -74,7 +74,7 @@ Le livreur est responsable :
 * de son équipement ;
 * de sa sécurité.
 
-HelpFlow ne fournit pas de véhicule et ne prend pas en charge les frais de carburant, entretien, assurance, stationnement, amendes ou réparations.
+Jalin Livraison ne fournit pas de véhicule et ne prend pas en charge les frais de carburant, entretien, assurance, stationnement, amendes ou réparations.
 
 8. Respect de la loi
 
@@ -98,7 +98,7 @@ Une fois la mission acceptée, le livreur s’engage à l’exécuter sérieusem
 
 Le livreur ne doit pas abandonner une mission sans motif sérieux.
 
-En cas de problème, le livreur doit informer rapidement le client ou HelpFlow.
+En cas de problème, le livreur doit informer rapidement le client ou Jalin Livraison.
 
 Les abandons répétés peuvent entraîner une suspension.
 
@@ -122,17 +122,17 @@ Le livreur est responsable :
 
 En cas de vol, perte ou dommage causé par le livreur, celui-ci peut être tenu responsable envers le client ou les autorités compétentes.
 
-HelpFlow peut suspendre immédiatement le compte en cas de suspicion sérieuse.
+Jalin Livraison peut suspendre immédiatement le compte en cas de suspicion sérieuse.
 
 14. Paiement du livreur
 
-Le paiement du livreur est géré via Stripe Connect ou tout autre prestataire de paiement utilisé par HelpFlow.
+Le paiement du livreur est géré via Stripe Connect ou tout autre prestataire de paiement utilisé par Jalin Livraison.
 
 Le livreur doit fournir les informations nécessaires au paiement, notamment son identité et son IBAN lorsque demandé.
 
-15. Commission HelpFlow
+15. Commission Jalin Livraison
 
-HelpFlow prélève une commission de 20 % sur chaque mission réalisée et payée.
+Jalin Livraison prélève une commission de 20 % sur chaque mission réalisée et payée.
 
 Le livreur accepte expressément ce prélèvement.
 
@@ -142,7 +142,7 @@ Le montant restant est reversé au livreur selon les modalités du prestataire d
 
 Le livreur est seul responsable de ses déclarations fiscales, sociales et administratives.
 
-HelpFlow ne se substitue pas au livreur dans ses obligations personnelles ou professionnelles.
+Jalin Livraison ne se substitue pas au livreur dans ses obligations personnelles ou professionnelles.
 
 17. Comportement
 
@@ -161,7 +161,7 @@ Sont interdits :
 
 18. Suspension du compte
 
-HelpFlow peut suspendre ou supprimer un compte livreur en cas de :
+Jalin Livraison peut suspendre ou supprimer un compte livreur en cas de :
 
 * fausse identité ;
 * document invalide ;
@@ -175,17 +175,17 @@ HelpFlow peut suspendre ou supprimer un compte livreur en cas de :
 
 19. Absence de garantie de revenus
 
-HelpFlow ne garantit aucun revenu, aucune mission régulière et aucun volume d’activité.
+Jalin Livraison ne garantit aucun revenu, aucune mission régulière et aucun volume d’activité.
 
 Le livreur utilise la plateforme à ses propres risques économiques.
 
 20. Données personnelles
 
-Les données du livreur sont traitées conformément à la Politique de Confidentialité de HelpFlow.
+Les données du livreur sont traitées conformément à la Politique de Confidentialité de Jalin Livraison.
 
 21. Modification des conditions
 
-HelpFlow peut modifier les présentes conditions.
+Jalin Livraison peut modifier les présentes conditions.
 
 Le livreur sera informé en cas de modification importante.
 

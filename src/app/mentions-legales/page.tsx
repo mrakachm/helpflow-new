@@ -7,11 +7,11 @@ export default function MentionsLegalesPage() {
 
       <pre className="whitespace-pre-wrap">
 {`
-MENTIONS LÉGALES – HELPFLOW
+MENTIONS LÉGALES – JALIN LIVRAISON
 
 Éditeur du site
 
-Nom commercial : HelpFlow
+Nom commercial : Jalin Livraison
 
 Responsable de publication :
 Mohamed Larbi M'RAKACH
@@ -43,11 +43,11 @@ Prestataires techniques
 
 Objet du site
 
-HelpFlow est une plateforme de mise en relation entre clients et livreurs indépendants pour des missions de livraison, transport léger et assistance logistique.
+Jalin Livraison est une plateforme de mise en relation entre clients et livreurs indépendants pour des missions de livraison, transport léger et assistance logistique.
 
 Propriété intellectuelle
 
-L'ensemble du contenu présent sur le site HelpFlow (textes, logos, graphismes, fonctionnalités, code source et éléments visuels) est protégé par le droit de la propriété intellectuelle.
+L'ensemble du contenu présent sur le site Jalin Livraison (textes, logos, graphismes, fonctionnalités, code source et éléments visuels) est protégé par le droit de la propriété intellectuelle.
 
 Toute reproduction, diffusion ou utilisation sans autorisation préalable est interdite.
 
@@ -57,5 +57,5 @@ contact@helpflow.fr
 `}
       </pre>
     </main>
-  )
+  );
 }

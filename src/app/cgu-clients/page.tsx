@@ -7,15 +7,15 @@ export default function CGUClientsPage() {
 
       <pre className="whitespace-pre-wrap">
 {`
-CONDITIONS GÉNÉRALES D’UTILISATION CLIENTS – HELPFLOW
+CONDITIONS GÉNÉRALES D’UTILISATION CLIENTS – JALIN LIVRAISON
 
 Dernière mise à jour : Juin 2026
 
 1. Objet
 
-HelpFlow est une plateforme numérique de mise en relation permettant à des clients de publier des demandes de missions de livraison, transport léger, aide logistique ou prestation assimilée, et à des livreurs indépendants d’accepter ces missions.
+Jalin Livraison est une plateforme numérique de mise en relation permettant à des clients de publier des demandes de missions de livraison, transport léger, aide logistique ou prestation assimilée, et à des livreurs indépendants d’accepter ces missions.
 
-HelpFlow agit uniquement comme intermédiaire technique entre le client et le livreur indépendant.
+Jalin Livraison agit uniquement comme intermédiaire technique entre le client et le livreur indépendant.
 
 2. Acceptation des conditions
 
@@ -29,7 +29,7 @@ Le client doit fournir des informations exactes, complètes et à jour.
 
 Le client est responsable de la confidentialité de ses identifiants et de toute activité réalisée depuis son compte.
 
-HelpFlow peut suspendre ou supprimer un compte en cas d’informations fausses, frauduleuses, abusives ou contraires aux présentes conditions.
+Jalin Livraison peut suspendre ou supprimer un compte en cas d’informations fausses, frauduleuses, abusives ou contraires aux présentes conditions.
 
 4. Description des missions
 
@@ -61,7 +61,7 @@ Il est strictement interdit de confier au livreur :
 * documents frauduleux ;
 * tout objet interdit par la loi.
 
-HelpFlow peut annuler immédiatement toute mission suspecte.
+Jalin Livraison peut annuler immédiatement toute mission suspecte.
 
 6. Paiement
 
@@ -69,11 +69,11 @@ Le paiement est effectué en ligne via Stripe.
 
 Le paiement doit être confirmé avant que la mission soit proposée aux livreurs.
 
-HelpFlow ne conserve pas directement les données complètes de carte bancaire.
+Jalin Livraison ne conserve pas directement les données complètes de carte bancaire.
 
-7. Commission HelpFlow
+7. Commission Jalin Livraison
 
-Pour chaque mission réalisée, HelpFlow perçoit une commission de 20 % sur le montant de la prestation.
+Pour chaque mission réalisée, Jalin Livraison perçoit une commission de 20 % sur le montant de la prestation.
 
 Cette commission rémunère l’utilisation de la plateforme, la mise en relation, le traitement technique, la gestion des paiements et les outils numériques mis à disposition.
 
@@ -81,7 +81,7 @@ Cette commission rémunère l’utilisation de la plateforme, la mise en relatio
 
 Le livreur est un professionnel ou intervenant indépendant.
 
-Il n’est pas salarié de HelpFlow.
+Il n’est pas salarié de Jalin Livraison.
 
 Le livreur choisit librement les missions qu’il souhaite accepter.
 
@@ -97,19 +97,19 @@ Le client est responsable :
 
 Le client s’engage à ne pas mettre le livreur en danger.
 
-10. Responsabilité de HelpFlow
+10. Responsabilité de Jalin Livraison
 
-HelpFlow agit comme plateforme de mise en relation.
+Jalin Livraison agit comme plateforme de mise en relation.
 
-HelpFlow ne transporte pas directement les colis.
+Jalin Livraison ne transporte pas directement les colis.
 
-HelpFlow ne garantit pas qu’un livreur acceptera chaque mission.
+Jalin Livraison ne garantit pas qu’un livreur acceptera chaque mission.
 
-HelpFlow ne peut être tenue responsable des retards, pertes, vols, dommages ou incidents causés directement par un client, un livreur, un tiers ou un cas de force majeure.
+Jalin Livraison ne peut être tenue responsable des retards, pertes, vols, dommages ou incidents causés directement par un client, un livreur, un tiers ou un cas de force majeure.
 
 11. Limitation de responsabilité
 
-En cas de litige lié à une mission, la responsabilité éventuelle de HelpFlow est limitée au montant payé par le client pour la mission concernée, sauf faute lourde prouvée ou obligation légale contraire.
+En cas de litige lié à une mission, la responsabilité éventuelle de Jalin Livraison est limitée au montant payé par le client pour la mission concernée, sauf faute lourde prouvée ou obligation légale contraire.
 
 12. Annulation
 
@@ -117,7 +117,7 @@ Le client peut annuler une mission selon l’état d’avancement.
 
 Si un livreur a déjà accepté ou commencé la mission, des frais peuvent être retenus.
 
-HelpFlow peut annuler une mission en cas de fraude, suspicion, danger, erreur manifeste ou non-respect des présentes conditions.
+Jalin Livraison peut annuler une mission en cas de fraude, suspicion, danger, erreur manifeste ou non-respect des présentes conditions.
 
 13. Remboursement
 
@@ -141,7 +141,7 @@ Tout comportement insultant, menaçant, frauduleux ou dangereux peut entraîner 
 
 16. Suspension du compte
 
-HelpFlow peut suspendre ou supprimer un compte client en cas de :
+Jalin Livraison peut suspendre ou supprimer un compte client en cas de :
 
 * fraude ;
 * fausse déclaration ;
@@ -152,17 +152,17 @@ HelpFlow peut suspendre ou supprimer un compte client en cas de :
 
 17. Disponibilité du service
 
-HelpFlow fait ses meilleurs efforts pour maintenir la plateforme accessible.
+Jalin Livraison fait ses meilleurs efforts pour maintenir la plateforme accessible.
 
 Des interruptions peuvent intervenir pour maintenance, mise à jour, problème technique ou cas de force majeure.
 
 18. Données personnelles
 
-Les données personnelles sont traitées conformément à la Politique de Confidentialité de HelpFlow.
+Les données personnelles sont traitées conformément à la Politique de Confidentialité de Jalin Livraison.
 
 19. Modification des CGU
 
-HelpFlow peut modifier les présentes conditions.
+Jalin Livraison peut modifier les présentes conditions.
 
 Les utilisateurs seront informés en cas de modification importante.
 

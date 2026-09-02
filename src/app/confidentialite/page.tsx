@@ -7,17 +7,17 @@ export default function ConfidentialitePage() {
 
       <pre className="whitespace-pre-wrap">
 {`
-POLITIQUE DE CONFIDENTIALITÉ – HELPFLOW
+POLITIQUE DE CONFIDENTIALITÉ – JALIN LIVRAISON
 
 Dernière mise à jour : Juin 2026
 
 1. Objet
 
-La présente Politique de Confidentialité explique comment HelpFlow collecte, utilise, conserve et protège les données personnelles des utilisateurs.
+La présente Politique de Confidentialité explique comment Jalin Livraison collecte, utilise, conserve et protège les données personnelles des utilisateurs.
 
 2. Données collectées
 
-HelpFlow peut collecter :
+Jalin Livraison peut collecter :
 
 * nom ;
 * prénom ;
@@ -60,7 +60,7 @@ Les traitements reposent selon les cas sur :
 
 Les paiements sont traités via Stripe.
 
-HelpFlow ne conserve pas directement les numéros complets de carte bancaire.
+Jalin Livraison ne conserve pas directement les numéros complets de carte bancaire.
 
 Stripe peut traiter certaines données nécessaires au paiement, à la lutte contre la fraude et aux obligations réglementaires.
 
@@ -87,7 +87,7 @@ Elles peuvent être partagées avec :
 
 9. Sécurité
 
-HelpFlow met en œuvre des mesures raisonnables pour protéger les données contre l’accès non autorisé, la perte, la modification ou la divulgation.
+Jalin Livraison met en œuvre des mesures raisonnables pour protéger les données contre l’accès non autorisé, la perte, la modification ou la divulgation.
 
 10. Droits des utilisateurs
 
@@ -108,35 +108,35 @@ Pour exercer ses droits, l’utilisateur peut écrire à :
 
 12. Cookies
 
-HelpFlow peut utiliser des cookies nécessaires au fonctionnement du site.
+Jalin Livraison peut utiliser des cookies nécessaires au fonctionnement du site.
 
 Des cookies de mesure ou d’amélioration pourront être utilisés si nécessaire, conformément aux règles applicables.
 
 13. Réclamation
 
-L’utilisateur peut contacter HelpFlow en cas de question.
+L’utilisateur peut contacter Jalin Livraison en cas de question.
 
 Il peut également saisir l’autorité compétente en matière de protection des données.
 
 14. Modification
 
-HelpFlow peut modifier la présente Politique de Confidentialité.
+Jalin Livraison peut modifier la présente Politique de Confidentialité.
 
 Les utilisateurs seront informés en cas de modification importante.
 
-MENTIONS LÉGALES – HELPFLOW
+MENTIONS LÉGALES – JALIN LIVRAISON
 
 Éditeur du site :
 
-Nom commercial : HelpFlow
+Nom commercial : Jalin Livraison
 
-Responsable de publication : M'RAKACH  Mohamed Larbi
+Responsable de publication : M'RAKACH Mohamed Larbi
 
 Email : [contact@helpflow.fr](mailto:contact@helpflow.fr)
 
-Adresse : 07  Rue Lesage Reims
+Adresse : 07 Rue Lesage Reims
 
-Statut juridique :L&J Compagnie 
+Statut juridique : L&J Compagnie
 
 Numéro SIREN/SIRET : 887 793 768
 
@@ -156,11 +156,11 @@ Nom de domaine : OVH
 
 Objet du site :
 
-HelpFlow est une plateforme de mise en relation entre clients et livreurs indépendants pour des missions de livraison, transport léger et assistance logistique.
+Jalin Livraison est une plateforme de mise en relation entre clients et livreurs indépendants pour des missions de livraison, transport léger et assistance logistique.
 
 Propriété intellectuelle :
 
-Le contenu du site, les textes, éléments graphiques, logos, interfaces et fonctionnalités appartiennent à HelpFlow ou à leurs titulaires respectifs.
+Le contenu du site, les textes, éléments graphiques, logos, interfaces et fonctionnalités appartiennent à Jalin Livraison ou à leurs titulaires respectifs.
 
 Toute reproduction non autorisée est interdite.
 
