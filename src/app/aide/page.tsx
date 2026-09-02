@@ -32,11 +32,11 @@ export default function AidePage() {
       );
     } else if (q.includes("paiement")) {
       setReponse(
-        "Les paiements HelpFlow sont sécurisés."
+        "Les paiements Jalin Livraison sont sécurisés."
       );
     } else {
       setReponse(
-        "Je n’ai pas trouvé la réponse exacte. Contactez l’assistance HelpFlow."
+        "Je n’ai pas trouvé la réponse exacte. Contactez l’assistance Jalin Livraison."
       );
     }
   }
@@ -44,13 +44,12 @@ export default function AidePage() {
   return (
     <main className="min-h-screen bg-gray-50 p-4">
       <div className="mx-auto max-w-3xl space-y-5">
-
         <h1 className="text-3xl font-bold">
-          Centre d’aide HelpFlow
+          Centre d’aide Jalin Livraison
         </h1>
 
         <section className="rounded-3xl bg-white p-5 shadow">
-          <h2 className="text-xl font-bold mb-3">
+          <h2 className="mb-3 text-xl font-bold">
             Assistant automatique
           </h2>
 
@@ -62,6 +61,7 @@ export default function AidePage() {
           />
 
           <button
+            type="button"
             onClick={demander}
             className="mt-3 w-full rounded-xl bg-blue-600 p-3 font-bold text-white"
           >
@@ -75,37 +75,37 @@ export default function AidePage() {
           )}
         </section>
 
-
         <section className="rounded-3xl bg-white p-5 shadow">
           <h2 className="text-xl font-bold">
             Questions fréquentes
           </h2>
 
           <div className="mt-4 space-y-4">
-
             <p>
-              <b>Comment créer une livraison ?</b><br/>
+              <b>Comment créer une livraison ?</b>
+              <br />
               Remplissez les informations du colis et validez.
             </p>
 
             <p>
-              <b>Comment devenir livreur ?</b><br/>
+              <b>Comment devenir livreur ?</b>
+              <br />
               Complétez votre profil et passez en ligne.
             </p>
 
             <p>
-              <b>Comment suivre ma commande ?</b><br/>
+              <b>Comment suivre ma commande ?</b>
+              <br />
               Le suivi est disponible depuis votre compte.
             </p>
 
             <p>
-              <b>Comment recevoir mon argent ?</b><br/>
+              <b>Comment recevoir mon argent ?</b>
+              <br />
               Les gains arrivent dans votre portefeuille.
             </p>
-
           </div>
         </section>
-
 
         <Link
           href="/"
@@ -113,7 +113,6 @@ export default function AidePage() {
         >
           Retour accueil
         </Link>
-
       </div>
     </main>
   );
