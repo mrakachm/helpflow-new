@@ -34,6 +34,7 @@ export default function ProfileEditPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const [userId, setUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -95,6 +96,7 @@ export default function ProfileEditPage() {
       }
 
       setUserId(uid);
+      setUserEmail(userData.user?.email || "");
 
       const { data, error } = await supabase
         .from("profiles")
@@ -238,6 +240,27 @@ export default function ProfileEditPage() {
       return;
     }
 
+    const missingFields: string[] = [];
+
+    if (!String(form.full_name || "").trim()) missingFields.push("nom complet");
+    if (!String(form.phone || "").trim()) missingFields.push("téléphone");
+    if (!String(userEmail || "").trim()) missingFields.push("email");
+    if (!String(form.avatar_url || "").trim()) missingFields.push("photo de profil");
+    if (!String(form.city || "").trim()) missingFields.push("ville");
+    if (!String(form.vehicle_type || "").trim()) {
+      missingFields.push("moyen de transport");
+    }
+    if (!String(form.identity_document_path || "").trim()) {
+      missingFields.push("pièce d'identité");
+    }
+
+    if (missingFields.length > 0) {
+      setMsg(
+        `Pour terminer ton inscription, complète : ${missingFields.join(", ")}.`
+      );
+      return;
+    }
+
     setSaving(true);
     setMsg(null);
 
@@ -294,7 +317,7 @@ export default function ProfileEditPage() {
         <section className="rounded-3xl bg-blue-600 p-6 text-white">
           <h1 className="text-3xl font-bold">Modifier mon profil livreur</h1>
           <p className="mt-2 text-blue-100">
-            Complète ton profil pour recevoir des missions adaptées.
+            Complète les informations obligatoires pour que ton inscription puisse être validé avant ta première mission.
           </p>
         </section>
 
@@ -351,8 +374,8 @@ export default function ProfileEditPage() {
                 {uploading ? "Chargement..." : "Ajouter / changer ma photo"}
               </button>
 
-              <p className="mt-2 text-xs text-gray-500">
-                Photo facultative pour le lancement.
+              <p className="mt-2 text-xs font-semibold text-red-600">
+                Photo de profil obligatoire avant de pouvoir accepter une mission.
               </p>
             </div>
           </div>
@@ -361,15 +384,30 @@ export default function ProfileEditPage() {
             value={form.full_name || ""}
             onChange={(e) => updateField("full_name", e.target.value)}
             className="w-full rounded-xl border px-4 py-3"
-            placeholder="Nom complet"
+            placeholder="Nom complet obligatoire"
           />
 
           <input
             value={form.phone || ""}
             onChange={(e) => updateField("phone", e.target.value)}
             className="w-full rounded-xl border px-4 py-3"
-            placeholder="Téléphone"
+            placeholder="Téléphone obligatoire"
           />
+
+          <div>
+            <label className="mb-1 block text-sm font-semibold text-gray-700">
+              Email du compte
+            </label>
+            <input
+              value={userEmail}
+              readOnly
+              className="w-full rounded-xl border bg-gray-50 px-4 py-3 text-gray-700"
+              placeholder="Email obligatoire"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              L'email est celui utilisé pour la connexion au compte.
+            </p>
+          </div>
 
           <section className="rounded-3xl border border-blue-100 bg-blue-50 p-4">
             <h2 className="font-bold text-gray-900">Compte bancaire</h2>
@@ -384,7 +422,7 @@ export default function ProfileEditPage() {
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-gray-700">
-              Document officiel accepté : carte d'identité, passeport, titre de
+              Document obligatoire avant la première mission. Document officiel accepté : carte d'identité, passeport, titre de
               séjour ou document équivalent.
             </p>
 
@@ -442,7 +480,7 @@ export default function ProfileEditPage() {
             </h2>
 
             <p className="mt-2 text-sm text-gray-600">
-              Tu peux sélectionner plusieurs moyens de transport.
+              Sélectionne au moins un moyen de transport. Ce choix est obligatoire avant de pouvoir accepter une mission.
             </p>
 
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -474,7 +512,7 @@ export default function ProfileEditPage() {
             value={form.city || ""}
             onChange={(e) => updateField("city", e.target.value)}
             className="w-full rounded-xl border px-4 py-3"
-            placeholder="Ville actuelle : Reims"
+            placeholder="Ville obligatoire : Reims"
           />
 
           <div>

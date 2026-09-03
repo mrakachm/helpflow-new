@@ -74,6 +74,8 @@ type CourierProfile = {
   rating_average?: number | null;
   courier_availability?: string | null;
   courier_availability_updated_at?: string | null;
+  identity_document_path?: string | null;
+  verification_status?: string | null;
 };
 
 function formatEuro(cents?: number | null) {
@@ -135,10 +137,36 @@ function profileName(profile: CourierProfile | null) {
   );
 }
 
+function getMissingCourierProfileFields(
+  profile: CourierProfile | null,
+  email: string | null
+) {
+  const missing: string[] = [];
+
+  const fullName = String(
+    profile?.full_name ||
+      [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") ||
+      ""
+  ).trim();
+
+  if (!fullName) missing.push("nom complet");
+  if (!String(profile?.phone || "").trim()) missing.push("téléphone");
+  if (!String(email || "").trim()) missing.push("email");
+  if (!String(profile?.avatar_url || "").trim()) missing.push("photo de profil");
+  if (!String(profile?.city || "").trim()) missing.push("ville");
+  if (!String(profile?.vehicle_type || "").trim()) missing.push("moyen de transport");
+  if (!String(profile?.identity_document_path || "").trim()) {
+    missing.push("pièce d'identité");
+  }
+
+  return missing;
+}
+
 export default function MissionsPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const [userId, setUserId] = useState<string | null>(null);
+  const [courierEmail, setCourierEmail] = useState<string | null>(null);
   const [courierProfile, setCourierProfile] = useState<CourierProfile | null>(null);
   const [available, setAvailable] = useState<Order[]>([]);
   const [myMissions, setMyMissions] = useState<Order[]>([]);
@@ -344,6 +372,7 @@ export default function MissionsPage() {
       const uid = data.user?.id ?? null;
 
       setUserId(uid);
+      setCourierEmail(data.user?.email ?? null);
 
       if (uid) await loadCourierProfile(uid);
       await loadOrders(uid);
@@ -1029,6 +1058,27 @@ export default function MissionsPage() {
       return;
     }
 
+    const missingProfileFields = getMissingCourierProfileFields(
+      courierProfile,
+      courierEmail
+    );
+
+    if (missingProfileFields.length > 0) {
+      setMsg(
+        `Termine ton inscription avant d'accepter une mission : ${missingProfileFields.join(
+          ", "
+        )}.`
+      );
+      return;
+    }
+
+    if (cleanStatus(courierProfile?.verification_status) !== "APPROVED") {
+      setMsg(
+        "Ton Inscription incomplète doit être validée avant de pouvoir accepter une mission."
+      );
+      return;
+    }
+
     if (courierAvailability !== "ONLINE") {
       setMsg("Tu es en pause. Passe en ligne pour accepter une nouvelle mission.");
       return;
@@ -1211,6 +1261,15 @@ export default function MissionsPage() {
     const hideImportantDetails = type === "available" && isImportantParcel;
     const cancellationDeadline = getMissionCancellationDeadline(order);
     const cancellationAllowed = canCancelMissionBeforeDeadline(order);
+    const missingProfileFields = getMissingCourierProfileFields(
+      courierProfile,
+      courierEmail
+    );
+    const courierProfileComplete = missingProfileFields.length === 0;
+    const courierProfileApproved =
+      cleanStatus(courierProfile?.verification_status) === "APPROVED";
+    const courierMissionAccessGranted =
+      courierProfileComplete && courierProfileApproved;
 
     return (
       <div
@@ -1470,12 +1529,14 @@ export default function MissionsPage() {
             <button
               type="button"
               disabled={
+                !courierMissionAccessGranted ||
                 courierAvailability !== "ONLINE" ||
                 myMissions.length > 0 ||
                 hasOverdueReturn
               }
               onClick={() => acceptMission(order.id)}
               className={`w-full rounded-2xl px-4 py-3 font-semibold text-white ${
+                !courierMissionAccessGranted ||
                 courierAvailability !== "ONLINE" ||
                 myMissions.length > 0 ||
                 hasOverdueReturn
@@ -1483,13 +1544,17 @@ export default function MissionsPage() {
                   : "bg-blue-600"
               }`}
             >
-              {courierAvailability === "PAUSED"
-                ? "En pause"
-                : hasOverdueReturn
-                  ? "Retour en retard"
-                  : myMissions.length > 0
-                    ? "Mission en cours"
-                    : "Accepter cette mission"}
+              {!courierProfileComplete
+                ? "Inscription à terminer"
+                : !courierProfileApproved
+                  ? "Validation du compte en attente"
+                  : courierAvailability === "PAUSED"
+                    ? "En pause"
+                    : hasOverdueReturn
+                      ? "Retour en retard"
+                      : myMissions.length > 0
+                        ? "Mission en cours"
+                        : "Accepter cette mission"}
             </button>
           )}
 
@@ -2165,8 +2230,82 @@ export default function MissionsPage() {
     isReturnOverdue(order, returnClock)
   );
 
+  const missingCourierProfileFields = getMissingCourierProfileFields(
+    courierProfile,
+    courierEmail
+  );
+  const courierProfileComplete = missingCourierProfileFields.length === 0;
+  const courierVerificationStatus = cleanStatus(
+    courierProfile?.verification_status
+  );
+  const courierProfileApproved = courierVerificationStatus === "APPROVED";
+  const courierProfileRejected = courierVerificationStatus === "REJECTED";
+  const courierMissionAccessGranted =
+    courierProfileComplete && courierProfileApproved;
+
   return (
     <main className="min-h-screen bg-gray-50 p-4 pb-24 sm:pb-4">
+      {userId && !courierMissionAccessGranted ? (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-xl rounded-[2rem] border border-slate-200 bg-white p-6 text-center shadow-2xl sm:p-8">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 text-3xl">
+              {courierProfileComplete ? (courierProfileRejected ? "⚠️" : "⏳") : "🪪"}
+            </div>
+
+            <h2 className="mt-5 text-2xl font-black text-slate-900 sm:text-3xl">
+              {!courierProfileComplete
+                ? "Terminez votre inscription"
+                : courierProfileRejected
+                  ? "Votre inscription doit être corrigée"
+                  : "Votre inscription est en cours de validation"}
+            </h2>
+
+            {!courierProfileComplete ? (
+              <>
+                <p className="mt-3 text-base leading-7 text-slate-600">
+                  Merci de terminer votre inscription avant de pouvoir accepter une mission.
+                  Votre inscription pourra ensuite être vérifiée et validée.
+                </p>
+
+                <div className="mt-5 rounded-2xl bg-amber-50 p-4 text-left text-sm text-amber-950">
+                  <p className="font-bold">Informations à compléter :</p>
+                  <p className="mt-2 leading-6">
+                    {missingCourierProfileFields.join(" · ")}
+                  </p>
+                </div>
+              </>
+            ) : courierProfileRejected ? (
+              <p className="mt-3 text-base leading-7 text-slate-600">
+                La vérification de votre inscription a été refusée. Corrigez ou remplacez
+                les informations demandées, puis enregistrez à nouveau votre profil.
+              </p>
+            ) : (
+              <p className="mt-3 text-base leading-7 text-slate-600">
+                Votre inscription est complète. Elle doit maintenant être validée avant
+                que vous puissiez accepter une mission.
+              </p>
+            )}
+
+            <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+              La photo de profil, la pièce d'identité, le téléphone, l'email, la ville
+              et le moyen de transport sont obligatoires. Le compte bancaire peut être
+              ajouté plus tard.
+            </div>
+
+            <Link
+              href="/profile/edit"
+              className="mt-6 block w-full rounded-2xl bg-blue-600 px-5 py-4 text-base font-bold text-white"
+            >
+              {!courierProfileComplete
+                ? "Terminer mon inscription"
+                : courierProfileRejected
+                  ? "Corriger mon inscription"
+                  : "Voir mon profil"}
+            </Link>
+          </div>
+        </div>
+      ) : null}
+
       {permissionsOpen ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-3 sm:items-center">
           <div className="w-full max-w-lg rounded-[2rem] bg-white p-6 shadow-2xl">
