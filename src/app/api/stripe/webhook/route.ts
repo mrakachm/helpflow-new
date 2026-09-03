@@ -194,7 +194,7 @@ async function processInitialPayment(
   try {
     const smsResult = await sendSms(
       order.receiver_phone,
-      `HelpFlow - Votre Code PIN de livraison est ${codePin}. Communiquez-le au livreur uniquement lors de la remise du colis.`
+      `Jalin Livraison - Votre Code PIN de livraison est ${codePin}. Communiquez-le au livreur uniquement lors de la remise du colis.`
     );
 
     if (!smsResult.ok) {

@@ -109,7 +109,7 @@ export async function POST(req: Request) {
           price_data: {
             currency: "eur",
             product_data: {
-              name: `Retour à l'expéditeur HelpFlow (${order.id})`,
+              name: `Retour à l'expéditeur Jalin Livraison (${order.id})`,
             },
             unit_amount: returnAmount,
           },

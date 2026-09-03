@@ -16,15 +16,19 @@ webpush.setVapidDetails(
 export async function POST(req: Request) {
   const body = await req.json();
 
-  const title = body.title || "Nouvelle mission HelpFlow";
-  const message = body.message || "Une nouvelle mission est disponible.";
+  const title = body.title || "Nouvelle mission Jalin Livraison";
+  const message =
+    body.message || "Une nouvelle mission est disponible.";
 
   const { data, error } = await supabase
     .from("push_subscriptions")
     .select("subscription");
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500 }
+    );
   }
 
   await Promise.allSettled(

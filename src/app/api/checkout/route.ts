@@ -70,7 +70,7 @@ export async function POST(req: Request) {
         );
       }
 
-      productName = `Livraison HelpFlow (${order.id})`;
+      productName = `Livraison Jalin Livraison (${order.id})`;
 
       successUrl =
         `${origin}/payment/success` +
@@ -118,7 +118,7 @@ export async function POST(req: Request) {
         );
       }
 
-      productName = `Retour à l'expéditeur HelpFlow (${order.id})`;
+      productName = `Retour à l'expéditeur Jalin Livraison (${order.id})`;
 
       successUrl =
         `${origin}/payment/success` +

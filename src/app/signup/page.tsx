@@ -67,8 +67,8 @@ export default function SignupPage() {
       <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl p-6">
         <div className="text-center mb-8">
           <img
-            src="/logo-helpflow.png"
-            alt="HelpFlow"
+            src="/logo-jalin.png"
+            alt="Jalin Livraison"
             className="mx-auto mb-4 h-16 w-16 rounded-2xl object-contain"
           />
 
@@ -82,17 +82,60 @@ export default function SignupPage() {
         </div>
 
         <form onSubmit={onSubmit} className="grid gap-4">
-          <input type="text" placeholder="Prénom" value={firstName} onChange={(e) => setFirstName(e.target.value)} required className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white" />
+          <input
+            type="text"
+            placeholder="Prénom"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            required
+            className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white"
+          />
 
-          <input type="text" placeholder="Nom" value={lastName} onChange={(e) => setLastName(e.target.value)} required className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white" />
+          <input
+            type="text"
+            placeholder="Nom"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            required
+            className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white"
+          />
 
-          <input type="tel" placeholder="Téléphone" value={phone} onChange={(e) => setPhone(e.target.value)} required className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white" />
+          <input
+            type="tel"
+            placeholder="Téléphone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            required
+            className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white"
+          />
 
-          <input type="text" placeholder="Ville" value={city} onChange={(e) => setCity(e.target.value)} required className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white" />
+          <input
+            type="text"
+            placeholder="Ville"
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+            required
+            className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white"
+          />
 
-          <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white" />
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white"
+          />
 
-          <input type="password" placeholder="Mot de passe (6 caractères minimum)" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white" />
+          <input
+            type="password"
+            placeholder="Mot de passe (6 caractères minimum)"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={6}
+            className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white"
+          />
 
           <label className="flex gap-3 text-sm text-slate-300">
             <input
@@ -116,14 +159,21 @@ export default function SignupPage() {
             </div>
           )}
 
-          <button type="submit" disabled={loading} className="w-full rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 disabled:opacity-50">
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 disabled:opacity-50"
+          >
             {loading ? "Création..." : "Créer mon compte utilisateur"}
           </button>
         </form>
 
         <div className="mt-6 text-center text-slate-400">
           Déjà inscrit ?{" "}
-          <Link href="/login" className="text-emerald-400 font-semibold">
+          <Link
+            href="/login"
+            className="text-emerald-400 font-semibold"
+          >
             Se connecter
           </Link>
         </div>

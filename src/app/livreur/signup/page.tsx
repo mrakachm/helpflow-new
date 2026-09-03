@@ -51,23 +51,27 @@ export default function LivreurSignupPage() {
         role: "livreur",
       };
 
-      localStorage.setItem("helpflow_livreur_draft", JSON.stringify(draft));
+      localStorage.setItem(
+        "helpflow_livreur_draft",
+        JSON.stringify(draft)
+      );
 
-     const { data, error } = await supabase.auth.signUp({
-  email: email.trim(),
-  password,
-  options: {
-    data: {
-      first_name: firstName,
-      last_name: lastName,
-      full_name: `${firstName} ${lastName}`.trim(),
-      phone,
-      city,
-      role: "livreur",
-    },
-    emailRedirectTo: "https://www.helpflow.fr/login?next=/livreur/missions",
-  },
-});
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: {
+            first_name: firstName,
+            last_name: lastName,
+            full_name: `${firstName} ${lastName}`.trim(),
+            phone,
+            city,
+            role: "livreur",
+          },
+          emailRedirectTo:
+            "https://www.helpflow.fr/login?next=/livreur/missions",
+        },
+      });
 
       if (error) throw error;
       if (!data.user) throw new Error("Compte non créé.");
@@ -94,7 +98,10 @@ export default function LivreurSignupPage() {
 
       setSuccess(true);
     } catch (err: any) {
-      setErrorMsg(err?.message || "Erreur lors de la création du compte livreur");
+      setErrorMsg(
+        err?.message ||
+          "Erreur lors de la création du compte livreur"
+      );
     } finally {
       setLoading(false);
     }
@@ -105,8 +112,8 @@ export default function LivreurSignupPage() {
       <main className="min-h-screen bg-slate-950 flex items-center justify-center px-4 py-8">
         <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl p-6 text-center">
           <img
-            src="/logo-helpflow.png"
-            alt="HelpFlow"
+            src="/logo-jalin.png"
+            alt="Jalin Livraison"
             className="mx-auto mb-4 h-20 w-20 rounded-2xl object-contain"
           />
 
@@ -115,18 +122,25 @@ export default function LivreurSignupPage() {
           </h1>
 
           <div className="mt-5 rounded-2xl bg-emerald-500/10 border border-emerald-700 p-4 text-left text-emerald-200">
-            <p className="font-semibold">Votre compte livreur a été créé.</p>
-            <p className="mt-3">
-              Vérifiez votre boîte mail et cliquez sur le lien de confirmation.
+            <p className="font-semibold">
+              Votre compte livreur a été créé.
             </p>
+
             <p className="mt-3">
-              Ensuite, connectez-vous pour <strong>compléter votre inscription</strong> :
-              photo, pièce d'identité, véhicule et rayon d'intervention.
+              Vérifiez votre boîte mail et cliquez sur le lien de
+              confirmation.
+            </p>
+
+            <p className="mt-3">
+              Ensuite, connectez-vous pour{" "}
+              <strong>compléter votre inscription</strong> :
+              photo, pièce d'identité, véhicule et rayon
+              d'intervention.
             </p>
           </div>
 
           <Link
-           href="/login?next=/livreur/missions"
+            href="/login?next=/livreur/missions"
             className="mt-6 inline-block w-full rounded-xl bg-emerald-500 px-4 py-3 font-semibold text-white"
           >
             Se connecter et compléter mon inscription
@@ -141,8 +155,8 @@ export default function LivreurSignupPage() {
       <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl p-6">
         <div className="text-center mb-8">
           <img
-            src="/logo-helpflow.png"
-            alt="HelpFlow"
+            src="/logo-jalin.png"
+            alt="Jalin Livraison"
             className="mx-auto mb-4 h-20 w-20 rounded-2xl object-contain"
           />
 
@@ -151,7 +165,8 @@ export default function LivreurSignupPage() {
           </h1>
 
           <p className="mt-2 text-slate-400">
-            Créez votre compte. Vous compléterez ensuite votre dossier livreur après validation de votre email.
+            Créez votre compte. Vous compléterez ensuite votre
+            dossier livreur après validation de votre email.
           </p>
         </div>
 
@@ -248,23 +263,30 @@ export default function LivreurSignupPage() {
           </div>
 
           <div className="rounded-2xl bg-blue-500/10 border border-blue-700 p-4 text-sm text-blue-200">
-            La pièce d'identité sera demandée après confirmation de votre email,
-            dans la page <strong>Compléter mon inscription</strong>.
+            La pièce d'identité sera demandée après confirmation
+            de votre email, dans la page{" "}
+            <strong>Compléter mon inscription</strong>.
           </div>
 
           <label className="flex gap-3 text-sm text-slate-300">
             <input
               type="checkbox"
               checked={acceptedCgu}
-              onChange={(e) => setAcceptedCgu(e.target.checked)}
+              onChange={(e) =>
+                setAcceptedCgu(e.target.checked)
+              }
               required
             />
+
             <span>
               J'accepte les{" "}
-              <Link href="/cgu" className="text-emerald-400 underline">
+              <Link
+                href="/cgu"
+                className="text-emerald-400 underline"
+              >
                 CGU
               </Link>{" "}
-              et les conditions livreur HelpFlow.
+              et les conditions livreur Jalin Livraison.
             </span>
           </label>
 
@@ -279,7 +301,9 @@ export default function LivreurSignupPage() {
             disabled={loading}
             className="w-full rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 disabled:opacity-50"
           >
-            {loading ? "Création..." : "Créer mon compte livreur"}
+            {loading
+              ? "Création..."
+              : "Créer mon compte livreur"}
           </button>
         </form>
 

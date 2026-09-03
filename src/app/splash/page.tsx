@@ -20,8 +20,8 @@ export default function SplashPage() {
       <div className="w-full max-w-sm flex flex-col items-center text-center">
         <div className="rounded-3xl bg-white/5 border border-white/10 p-6 shadow-xl">
           <Image
-            src="/branding/photo-logo-helpflow.png"
-            alt="HelpFlow"
+            src="/logo-jalin.png"
+            alt="Jalin Livraison"
             width={260}
             height={260}
             priority

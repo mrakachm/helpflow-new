@@ -81,9 +81,12 @@ function LoginPageInner() {
     try {
       setResetLoading(true);
 
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: "https://www.helpflow.fr/update-password",
-      });
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        email.trim(),
+        {
+          redirectTo: "https://www.helpflow.fr/update-password",
+        }
+      );
 
       if (error) throw error;
 
@@ -95,15 +98,17 @@ function LoginPageInner() {
     }
   }
 
-  if (checking) return <div className="p-4">Chargement...</div>;
+  if (checking) {
+    return <div className="p-4">Chargement...</div>;
+  }
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-8 flex items-center justify-center">
       <div className="w-full max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
         <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500">
           <img
-            src="/logo-helpflow.png"
-            alt="HelpFlow"
+            src="/logo-jalin.png"
+            alt="Jalin Livraison"
             className="h-16 w-16 rounded-2xl object-contain"
           />
         </div>
@@ -176,7 +181,10 @@ function LoginPageInner() {
             {resetLoading ? "Envoi..." : "Mot de passe oublié ?"}
           </button>
 
-          <Link href="/signup" className="font-semibold text-emerald-400">
+          <Link
+            href="/signup"
+            className="font-semibold text-emerald-400"
+          >
             Créer un compte
           </Link>
         </div>
