@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
@@ -84,7 +84,7 @@ function LoginPageInner() {
       const { error } = await supabase.auth.resetPasswordForEmail(
         email.trim(),
         {
-          redirectTo: "https://www.helpflow.fr/update-password",
+          redirectTo: "https://www.jalinlivraison.fr/update-password",
         }
       );
 

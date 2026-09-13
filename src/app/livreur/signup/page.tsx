@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -69,7 +69,7 @@ export default function LivreurSignupPage() {
             role: "livreur",
           },
           emailRedirectTo:
-            "https://www.helpflow.fr/login?next=/livreur/missions",
+  "https://www.jalinlivraison.fr/login?next=/livreur/missions",
         },
       });
 

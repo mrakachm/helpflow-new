@@ -59,7 +59,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const origin = req.headers.get("origin") || "https://www.helpflow.fr";
+    const origin = req.headers.get("origin") || "https://www.jalinlivraison.fr";
 
     const accountLink = await stripe.accountLinks.create({
       account: stripeAccountId,

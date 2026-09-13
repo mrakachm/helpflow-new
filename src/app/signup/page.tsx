@@ -36,7 +36,7 @@ export default function SignupPage() {
         email,
         password,
         options: {
-          emailRedirectTo: "https://helpflow.fr/login",
+          emailRedirectTo: "https://www.jalinlivraison.fr/login",
         },
       });
 
