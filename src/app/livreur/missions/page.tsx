@@ -250,7 +250,7 @@ export default function MissionsPage() {
       .eq("id", userId);
 
     if (error) {
-      setMsg("Impossible de modifier ton statut livreur : " + error.message);
+      setMsg("Impossible de modifier ton statut : " + error.message);
       setCourierAvailabilitySaving(false);
       return;
     }
@@ -599,7 +599,7 @@ export default function MissionsPage() {
 
   async function recordDeliveryObstacle(order: Order) {
     if (!userId) {
-      setMsg("Tu dois être connecté comme livreur.");
+      setMsg("Tu dois être connecté à ton compte.");
       return;
     }
 
@@ -748,7 +748,7 @@ export default function MissionsPage() {
   }
 
   async function uploadRefusalPhoto(orderId: string, file: File) {
-    if (!userId) throw new Error("Livreur non connecté.");
+    if (!userId) throw new Error("Utilisateur non connecté.");
 
     if (!file.type.startsWith("image/")) {
       throw new Error("Le justificatif doit être une image.");
@@ -778,7 +778,7 @@ export default function MissionsPage() {
 
   async function confirmRecipientRefusal(order: Order) {
     if (!userId) {
-      setMsg("Tu dois être connecté comme livreur.");
+      setMsg("Tu dois être connecté à ton compte.");
       return;
     }
 
@@ -851,7 +851,7 @@ export default function MissionsPage() {
       setRefusalPhoto((current) => ({ ...current, [order.id]: null }));
       setPinByOrder((current) => ({ ...current, [order.id]: "" }));
       setMsg(
-        `✅ Refus enregistré. Première rémunération acquise. Retour calculé à ${formatEuro(returnPriceCents)}. Tu peux accepter une autre mission pendant l'attente.`
+        `✅ Refus enregistré. Montant mission acquis. Montant supplémentaire : ${formatEuro(returnPriceCents)}. Tu peux accepter une autre mission pendant l'attente.`
       );
       await loadOrders(userId, true);
     } catch (error: any) {
@@ -1014,7 +1014,7 @@ export default function MissionsPage() {
       const accessToken = sessionData.session?.access_token;
 
       if (!accessToken) {
-        throw new Error("Session livreur introuvable.");
+        throw new Error("Session introuvable.");
       }
 
       const response = await fetch("/api/verify-return-pin", {
@@ -1054,7 +1054,7 @@ export default function MissionsPage() {
 
   async function acceptMission(orderId: string) {
     if (!userId) {
-      setMsg("Tu dois être connecté comme livreur.");
+      setMsg("Tu dois être connecté à ton compte.");
       return;
     }
 
@@ -1215,7 +1215,7 @@ export default function MissionsPage() {
     }
 
     const confirmed = window.confirm(
-      "Annuler cette mission ? Elle redeviendra immédiatement disponible pour un autre livreur."
+      "Annuler cette mission ? Elle redeviendra immédiatement disponible pour un autre livreur particulier."
     );
 
     if (!confirmed) return;
@@ -1238,7 +1238,7 @@ export default function MissionsPage() {
       return;
     }
 
-    setMsg("✅ Mission annulée. Elle est de nouveau disponible pour les autres livreurs.");
+    setMsg("✅ Mission annulée. Elle est de nouveau disponible pour les autres livreurs particuliers.");
     await loadOrders(userId, true);
   }
 
@@ -1305,12 +1305,12 @@ export default function MissionsPage() {
         <div className="space-y-4 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-sm text-gray-500">Mission recommandée</p>
+              <p className="text-sm text-gray-500">Mission à proximité</p>
               <div className="text-yellow-400">★★★★★</div>
             </div>
 
             <div className="rounded-full bg-green-50 px-3 py-2 font-bold text-green-700">
-              Montant du livreur : {formatEuro(order.courier_earnings_cents)}
+              Vous recevez : {formatEuro(order.courier_earnings_cents)}
             </div>
           </div>
 
@@ -1486,8 +1486,8 @@ export default function MissionsPage() {
                 </p>
                 <p>
                   Au retrait, l’expéditeur peut vous demander de présenter une pièce
-                  d’identité afin de vérifier que vous correspondez bien au profil
-                  livreur Jalin Livraison.
+                  d’identité afin de vérifier que vous correspondez bien à votre profil
+                  Jalin Livraison.
                 </p>
                 <p className="font-semibold">
                   Présentez uniquement votre pièce d’identité à l’expéditeur.
@@ -1662,7 +1662,7 @@ export default function MissionsPage() {
 
                   <div>
                     <label className="mb-1 block text-sm font-semibold text-red-950">
-                      Précision du livreur *
+                      Votre précision *
                     </label>
                     <textarea
                       value={obstacleComment[order.id] || ""}
@@ -1804,7 +1804,7 @@ export default function MissionsPage() {
 
                 <div>
                   <label className="mb-1 block text-sm font-semibold text-gray-800">
-                    Commentaire du livreur *
+                    Votre commentaire *
                   </label>
                   <textarea
                     value={refusalComment[order.id] || ""}
@@ -2044,11 +2044,11 @@ export default function MissionsPage() {
           <p><b>Motif :</b> {order.refusal_reason || "-"}</p>
           <p><b>Commentaire :</b> {order.refusal_comment || "-"}</p>
           <p>
-            <b>Première rémunération :</b>{" "}
+            <b>Montant mission :</b>{" "}
             {formatEuro(order.courier_earnings_cents)} — acquise
           </p>
           <p>
-            <b>Rémunération du retour :</b>{" "}
+            <b>Montant supplémentaire :</b>{" "}
             {formatEuro(order.return_courier_earnings_cents || order.return_price_cents)}
           </p>
 
@@ -2494,7 +2494,7 @@ export default function MissionsPage() {
               {courierProfile?.avatar_url ? (
                 <img
                   src={courierProfile.avatar_url}
-                  alt="Photo du livreur"
+                  alt="Photo de profil"
                   className="h-16 w-16 rounded-full object-cover"
                 />
               ) : (
@@ -2521,7 +2521,7 @@ export default function MissionsPage() {
                   </button>
                 ) : (
                   <p className="mt-2 text-sm text-red-500">
-                    Téléphone livreur non renseigné
+                    Téléphone non renseigné
                   </p>
                 )}
 
@@ -2593,7 +2593,7 @@ export default function MissionsPage() {
                 </button>
 
                 <div className="text-center">
-                  <p className="font-bold text-slate-900">Livraisons disponibles</p>
+                  <p className="font-bold text-slate-900">Missions disponibles</p>
                   <p className="text-sm text-slate-500">
                     {availableIndex + 1} / {available.length}
                   </p>
