@@ -28,7 +28,7 @@ Adresse du siège :
 France
 
 Email :
-contact@helpflow.fr
+contact@jalinlivraison.fr
 
 Hébergement
 
@@ -53,7 +53,7 @@ Toute reproduction, diffusion ou utilisation sans autorisation préalable est in
 
 Contact
 
-contact@helpflow.fr
+contact@jalinlivraison.fr
 `}
       </pre>
     </main>

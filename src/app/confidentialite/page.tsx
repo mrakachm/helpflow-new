@@ -104,7 +104,7 @@ Chaque utilisateur peut demander :
 
 Pour exercer ses droits, l’utilisateur peut écrire à :
 
-[contact@helpflow.fr](mailto:contact@helpflow.fr)
+[contact@jalinlivraison.fr](mailto:contact@jalinlivraison.fr)
 
 12. Cookies
 
@@ -132,7 +132,7 @@ Nom commercial : Jalin Livraison
 
 Responsable de publication : M'RAKACH Mohamed Larbi
 
-Email : [contact@helpflow.fr](mailto:contact@helpflow.fr)
+Email : [contact@jalinlivraison.fr](mailto:contact@jalinlivraison.fr)
 
 Adresse : 07 Rue Lesage Reims
 
@@ -168,7 +168,7 @@ Contact :
 
 Pour toute demande :
 
-[contact@helpflow.fr](mailto:contact@helpflow.fr)
+[contact@jalinlivraison.fr](mailto:contact@jalinlivraison.fr)
 
 `}
       </pre>

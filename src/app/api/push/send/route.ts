@@ -8,7 +8,7 @@ const supabase = createClient(
 );
 
 webpush.setVapidDetails(
-  "mailto:contact@helpflow.fr",
+  "mailto:contact@jalinlivraison.fr",
   process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
   process.env.VAPID_PRIVATE_KEY!
 );
