@@ -17,7 +17,7 @@ export default function LivreurSignupPage() {
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
-  const [iban, setIban] = useState("");
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -46,7 +46,6 @@ export default function LivreurSignupPage() {
         phone,
         address,
         city,
-        iban,
         email: email.trim(),
         role: "livreur",
       };
@@ -88,7 +87,6 @@ export default function LivreurSignupPage() {
             phone,
             address,
             city,
-            iban,
             role: "livreur",
             verification_status: "pending",
           },
@@ -225,15 +223,6 @@ export default function LivreurSignupPage() {
           />
 
           <input
-            type="text"
-            placeholder="IBAN"
-            value={iban}
-            onChange={(e) => setIban(e.target.value)}
-            required
-            className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white"
-          />
-
-          <input
             type="email"
             placeholder="Email"
             value={email}
@@ -245,11 +234,11 @@ export default function LivreurSignupPage() {
           <div className="relative">
             <input
               type={showPassword ? "text" : "password"}
-              placeholder="Mot de passe (6 caractères minimum)"
+              placeholder="Mot de passe (8 caractères minimum)"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={6}
+              minLength={8}
               className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 pr-12 text-white"
             />
 
