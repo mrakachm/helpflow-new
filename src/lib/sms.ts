@@ -2,6 +2,24 @@ export type SmsResult =
   | { ok: true; data: unknown }
   | { ok: false; error: string; status?: number };
 
+type OvhClient = {
+  requestPromised: (
+    method: string,
+    path: string,
+    body?: unknown
+  ) => Promise<unknown>;
+};
+
+type OvhFactory = (options: {
+  endpoint: string;
+  appKey: string;
+  appSecret: string;
+  consumerKey: string;
+}) => OvhClient;
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const createOvhClient = require("@ovhcloud/node-ovh") as OvhFactory;
+
 function normalizePhone(phone: string) {
   let value = phone.replace(/[^\d+]/g, "");
 
@@ -21,58 +39,55 @@ export async function sendSms(
   phone: string,
   message: string
 ): Promise<SmsResult> {
-  const apiLogin = process.env.OCTOPUSH_API_LOGIN;
-  const apiKey = process.env.OCTOPUSH_API_KEY;
+  const appKey = process.env.OVH_APPLICATION_KEY;
+  const appSecret = process.env.OVH_APPLICATION_SECRET;
+  const consumerKey = process.env.OVH_CONSUMER_KEY;
+  const serviceName = process.env.OVH_SMS_SERVICE;
 
-  if (!apiLogin || !apiKey) {
+  if (!appKey || !appSecret || !consumerKey || !serviceName) {
     return {
       ok: false,
-      error: "Configuration SMS Octopush manquante",
+      error: "Configuration SMS OVHcloud manquante",
     };
   }
 
+  const ovh = createOvhClient({
+    endpoint: "ovh-eu",
+    appKey,
+    appSecret,
+    consumerKey,
+  });
+
   try {
-    const response = await fetch(
-      "https://api.octopush.com/v1/public/sms-campaign/send",
+    const data = await ovh.requestPromised(
+      "POST",
+      `/sms/${serviceName}/jobs`,
       {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "api-login": apiLogin,
-          "api-key": apiKey,
-        },
-        body: JSON.stringify({
-          recipients: [
-            {
-              phone_number: normalizePhone(phone),
-            },
-          ],
-          text: message,
-          type: "sms_premium",
-          purpose: "alert",
-          sender: "HelpFlow",
-        }),
+        message,
+        receivers: [normalizePhone(phone)],
+        senderForResponse: true,
       }
     );
-
-    const data = await response.json().catch(() => null);
-
-    if (!response.ok) {
-      return {
-        ok: false,
-        error: data?.message || "Erreur lors de l'envoi du SMS",
-        status: response.status,
-      };
-    }
 
     return {
       ok: true,
       data,
     };
-  } catch {
+  } catch (error: unknown) {
+    const ovhError = error as {
+      error?: number;
+      message?: string;
+    };
+
     return {
       ok: false,
-      error: "Impossible de contacter le service SMS",
+      error:
+        ovhError?.message ||
+        "Erreur lors de l'envoi du SMS OVHcloud",
+      status:
+        typeof ovhError?.error === "number"
+          ? ovhError.error
+          : undefined,
     };
   }
 }
