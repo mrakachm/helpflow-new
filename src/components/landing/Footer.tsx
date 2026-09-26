@@ -7,6 +7,7 @@ export default function Footer() {
         <div className="grid gap-8 md:grid-cols-3">
           <div>
             <h2 className="text-2xl font-black">Jalin Livraison</h2>
+
             <p className="mt-3 text-sm leading-6 text-slate-300">
               La livraison de proximité pour simplifier les besoins du quotidien.
             </p>
@@ -20,16 +21,24 @@ export default function Footer() {
                 Conditions Générales d’Utilisation
               </Link>
 
-              <Link href="/conditions-generales" className="block hover:text-white">
-                Conditions Générales
+              <Link href="/cgu-clients" className="block hover:text-white">
+                Conditions Clients
+              </Link>
+
+              <Link href="/cgu-livreurs" className="block hover:text-white">
+                Conditions Livreurs
               </Link>
 
               <Link href="/confidentialite" className="block hover:text-white">
                 Politique de confidentialité
               </Link>
 
-              <Link href="/contact" className="block hover:text-white">
-                Contact
+              <Link href="/mentions-legales" className="block hover:text-white">
+                Mentions légales
+              </Link>
+
+              <Link href="/aide" className="block hover:text-white">
+                Aide / Contact
               </Link>
             </div>
           </div>
@@ -45,7 +54,8 @@ export default function Footer() {
         </div>
 
         <div className="mt-8 border-t border-white/10 pt-6 text-center text-sm text-slate-400">
-          © {new Date().getFullYear()} Jalin Livraison — Livraison simple, rapide, efficace
+          © {new Date().getFullYear()} Jalin Livraison — Livraison simple,
+          rapide, efficace
         </div>
       </div>
     </footer>
