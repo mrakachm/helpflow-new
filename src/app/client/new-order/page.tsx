@@ -1,16 +1,14 @@
 "use client";
 
-
-
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+
 import { calculatePrice, type VehicleType } from "@/lib/pricing";
+
 import GoogleMapsScript from "@/components/GoogleMapsScript";
-
-
 
 function formatEuro(cents: number) {
 
@@ -23,8 +21,6 @@ function formatEuro(cents: number) {
   })} €`;
 
 }
-
-
 
 function cleanSimpleAddress(text: string) {
 
@@ -40,97 +36,144 @@ function cleanSimpleAddress(text: string) {
 
 }
 
-
-
 function containsPhoneNumber(text: string) {
 
-  const normalized = String(text || "").replace(/[\s.\\-_/()+]/g, "");
+  const normalized = String(text || "").replace(/[\s.**\\\**-_/()+]/g, "");
 
   return /0[67]\d{8}/.test(normalized) || /\d{8,}/.test(normalized);
 
 }
 
 function getAddressPart(
+
   components: any[] | undefined,
+
   type: string
+
 ) {
+
   return (
+
     components?.find((component) => component.types?.includes(type))
+
       ?.long_name || ""
+
   );
+
 }
 
 function extractGoogleAddress(place: any) {
+
   const components = place?.address_components || [];
 
   const streetNumber = getAddressPart(components, "street_number");
+
   const route = getAddressPart(components, "route");
 
   const city =
+
     getAddressPart(components, "locality") ||
+
     getAddressPart(components, "postal_town") ||
+
     getAddressPart(components, "administrative_area_level_2");
 
   const street = [streetNumber, route].filter(Boolean).join(" ").trim();
 
   return {
+
     address: street || place?.formatted_address || "",
+
     city,
+
   };
+
 }
 
 function vehicleToPricingType(value: string): VehicleType {
+
   if (value === "Voiture") return "voiture";
+
   if (value === "Utilitaire") return "camion";
+
   return "velo";
+
 }
 
 function buildFullAddress(address: string, city: string) {
+
   return `${cleanSimpleAddress(address)}, ${city.trim()}, France`;
+
 }
 
 async function waitForGoogleMaps(timeoutMs = 10000) {
+
   const startedAt = Date.now();
 
   while (Date.now() - startedAt < timeoutMs) {
+
     const google = (window as any).google;
+
     if (google?.maps?.DirectionsService) {
+
       return google;
+
     }
 
     await new Promise((resolve) => window.setTimeout(resolve, 150));
+
   }
 
   throw new Error(
+
     "Google Maps n’est pas encore disponible. Actualisez la page puis réessayez."
+
   );
+
 }
 
 async function getDrivingDistanceMeters(origin: string, destination: string) {
+
   const google = await waitForGoogleMaps();
+
   const service = new google.maps.DirectionsService();
 
   const result = await service.route({
+
     origin,
+
     destination,
+
     travelMode: google.maps.TravelMode.DRIVING,
+
     region: "FR",
+
   });
 
   const legs = result?.routes?.[0]?.legs || [];
+
   const distanceMeters = legs.reduce(
+
     (total: number, leg: any) =>
+
       total + Number(leg?.distance?.value || 0),
+
     0
+
   );
 
   if (!distanceMeters || !Number.isFinite(distanceMeters)) {
+
     throw new Error(
+
       "Impossible de calculer la distance entre ces deux adresses. Vérifiez les adresses."
+
     );
+
   }
 
   return distanceMeters;
+
 }
 
 export default function NewOrderPage() {
@@ -139,11 +182,8 @@ export default function NewOrderPage() {
 
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
-  const senderAddressRef = useRef<HTMLInputElement | null>(null);
-  const receiverAddressRef = useRef<HTMLInputElement | null>(null);
-
-
-
+  const senderSuggestionTimerRef = useRef<number | null>(null);
+  const receiverSuggestionTimerRef = useRef<number | null>(null);
 
   const PARCEL_TYPES = [
 
@@ -181,8 +221,6 @@ export default function NewOrderPage() {
 
   ];
 
-
-
   const IMPORTANT_PARCEL_TYPES = [
 
     "Téléphone",
@@ -207,8 +245,6 @@ export default function NewOrderPage() {
 
   ];
 
-
-
   const FLOOR_OPTIONS = [
 
     "Maison / RDC",
@@ -229,8 +265,6 @@ export default function NewOrderPage() {
 
   ];
 
-
-
   const ELEVATOR_OPTIONS = [
 
     { label: "Oui", value: "true" },
@@ -239,19 +273,13 @@ export default function NewOrderPage() {
 
   ];
 
-
-
   const BAG_OPTIONS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10+"];
-
-
 
   const BASE_PRICE_CENTS = 500;
 
   const MIN_PRICE_CENTS = 500;
 
   const MAX_PHOTO_SIZE = 5 * 1024 * 1024;
-
-
 
   function getVehicleMinimumPriceCents(value: string) {
 
@@ -263,8 +291,6 @@ export default function NewOrderPage() {
 
   }
 
-
-
   function elevatorValueToBoolean(value: string) {
 
     if (value === "true") return true;
@@ -275,8 +301,6 @@ export default function NewOrderPage() {
 
   }
 
-
-
   function bagCountToNumber(value: string) {
 
     if (value === "10+") return 10;
@@ -284,8 +308,6 @@ export default function NewOrderPage() {
     return Number(value || 0);
 
   }
-
-
 
   const [parcelType, setParcelType] = useState("");
 
@@ -303,8 +325,6 @@ export default function NewOrderPage() {
 
   );
 
-
-
   const [senderName, setSenderName] = useState("");
 
   const [senderPhone, setSenderPhone] = useState("");
@@ -312,12 +332,12 @@ export default function NewOrderPage() {
   const [senderAddress, setSenderAddress] = useState("");
 
   const [senderCity, setSenderCity] = useState("");
+  const [senderSuggestions, setSenderSuggestions] = useState<any[]>([]);
+  const [senderSuggestionsLoading, setSenderSuggestionsLoading] = useState(false);
 
   const [pickupFloor, setPickupFloor] = useState("");
 
   const [pickupHasElevator, setPickupHasElevator] = useState("");
-
-
 
   const [receiverName, setReceiverName] = useState("");
 
@@ -326,12 +346,12 @@ export default function NewOrderPage() {
   const [receiverAddress, setReceiverAddress] = useState("");
 
   const [receiverCity, setReceiverCity] = useState("");
+  const [receiverSuggestions, setReceiverSuggestions] = useState<any[]>([]);
+  const [receiverSuggestionsLoading, setReceiverSuggestionsLoading] = useState(false);
 
   const [dropoffFloor, setDropoffFloor] = useState("");
 
   const [dropoffHasElevator, setDropoffHasElevator] = useState("");
-
-
 
   const [bagCount, setBagCount] = useState("");
 
@@ -343,8 +363,6 @@ export default function NewOrderPage() {
 
   const [parcelSize, setParcelSize] = useState("");
 
-
-
   const [loading, setLoading] = useState(false);
 
   const [msg, setMsg] = useState<string | null>(null);
@@ -352,19 +370,20 @@ export default function NewOrderPage() {
   const [estimateVisible, setEstimateVisible] = useState(false);
 
   const [estimateError, setEstimateError] = useState<string | null>(null);
+
   const [estimateLoading, setEstimateLoading] = useState(false);
+
   const [estimatedDistanceMeters, setEstimatedDistanceMeters] =
+
     useState<number | null>(null);
+
   const [routeMinimumPriceCents, setRouteMinimumPriceCents] =
+
     useState<number | null>(null);
-
-
 
   const [userId, setUserId] = useState<string | null>(null);
 
   const [recipientEmail, setRecipientEmail] = useState("");
-
-
 
   const vehicleMinimumPriceCents = vehicleRequired
 
@@ -373,9 +392,8 @@ export default function NewOrderPage() {
     : BASE_PRICE_CENTS;
 
   const effectiveMinimumPriceCents =
+
     routeMinimumPriceCents ?? vehicleMinimumPriceCents;
-
-
 
   useEffect(() => {
 
@@ -389,90 +407,145 @@ export default function NewOrderPage() {
 
   }, [supabase]);
 
-  useEffect(() => {
-    let cancelled = false;
-    let senderAutocomplete: any = null;
-    let receiverAutocomplete: any = null;
-    let senderListener: any = null;
-    let receiverListener: any = null;
+  async function fetchAddressSuggestions(
+    query: string,
+    target: "sender" | "receiver"
+  ) {
+    const trimmed = query.trim();
 
-    async function setupAutocomplete() {
-      try {
-        const google = await waitForGoogleMaps();
-
-        if (cancelled || !google?.maps?.places?.Autocomplete) {
-          return;
-        }
-
-        if (senderAddressRef.current) {
-          senderAutocomplete = new google.maps.places.Autocomplete(
-            senderAddressRef.current,
-            {
-              componentRestrictions: { country: "fr" },
-              fields: ["address_components", "formatted_address"],
-              types: ["address"],
-            }
-          );
-
-          senderListener = senderAutocomplete.addListener(
-            "place_changed",
-            () => {
-              const place = senderAutocomplete.getPlace();
-              const parsed = extractGoogleAddress(place);
-
-              if (parsed.address) {
-                setSenderAddress(parsed.address);
-              }
-
-              if (parsed.city) {
-                setSenderCity(parsed.city);
-              }
-            }
-          );
-        }
-
-        if (receiverAddressRef.current) {
-          receiverAutocomplete = new google.maps.places.Autocomplete(
-            receiverAddressRef.current,
-            {
-              componentRestrictions: { country: "fr" },
-              fields: ["address_components", "formatted_address"],
-              types: ["address"],
-            }
-          );
-
-          receiverListener = receiverAutocomplete.addListener(
-            "place_changed",
-            () => {
-              const place = receiverAutocomplete.getPlace();
-              const parsed = extractGoogleAddress(place);
-
-              if (parsed.address) {
-                setReceiverAddress(parsed.address);
-              }
-
-              if (parsed.city) {
-                setReceiverCity(parsed.city);
-              }
-            }
-          );
-        }
-      } catch (error) {
-        console.error("GOOGLE AUTOCOMPLETE ERROR =>", error);
-      }
+    if (trimmed.length < 3) {
+      if (target === "sender") setSenderSuggestions([]);
+      else setReceiverSuggestions([]);
+      return;
     }
 
-    setupAutocomplete();
+    if (target === "sender") setSenderSuggestionsLoading(true);
+    else setReceiverSuggestionsLoading(true);
 
-    return () => {
-      cancelled = true;
-      senderListener?.remove?.();
-      receiverListener?.remove?.();
-    };
-  }, []);
+    try {
+      const google = await waitForGoogleMaps();
 
+      if (!google?.maps?.places?.AutocompleteService) {
+        throw new Error("Service de suggestions Google indisponible.");
+      }
 
+      const service = new google.maps.places.AutocompleteService();
 
+      const predictions = await new Promise<any[]>((resolve, reject) => {
+        service.getPlacePredictions(
+          {
+            input: trimmed,
+            componentRestrictions: { country: "fr" },
+            types: ["address"],
+          },
+          (results: any[] | null, status: string) => {
+            if (
+              status === google.maps.places.PlacesServiceStatus.OK ||
+              status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS
+            ) {
+              resolve(results || []);
+              return;
+            }
+
+            reject(
+              new Error(
+                "Les suggestions Google sont momentanément indisponibles."
+              )
+            );
+          }
+        );
+      });
+
+      if (target === "sender") setSenderSuggestions(predictions);
+      else setReceiverSuggestions(predictions);
+    } catch (error) {
+      console.error("GOOGLE ADDRESS SUGGESTIONS ERROR =>", error);
+
+      // La saisie libre reste toujours disponible.
+      if (target === "sender") setSenderSuggestions([]);
+      else setReceiverSuggestions([]);
+    } finally {
+      if (target === "sender") setSenderSuggestionsLoading(false);
+      else setReceiverSuggestionsLoading(false);
+    }
+  }
+
+  function scheduleAddressSuggestions(
+    query: string,
+    target: "sender" | "receiver"
+  ) {
+    const ref =
+      target === "sender"
+        ? senderSuggestionTimerRef
+        : receiverSuggestionTimerRef;
+
+    if (ref.current) {
+      window.clearTimeout(ref.current);
+    }
+
+    ref.current = window.setTimeout(() => {
+      void fetchAddressSuggestions(query, target);
+    }, 250);
+  }
+
+  async function selectAddressSuggestion(
+    prediction: any,
+    target: "sender" | "receiver"
+  ) {
+    try {
+      const google = await waitForGoogleMaps();
+
+      const placesService = new google.maps.places.PlacesService(
+        document.createElement("div")
+      );
+
+      const place = await new Promise<any>((resolve, reject) => {
+        placesService.getDetails(
+          {
+            placeId: prediction.place_id,
+            fields: ["address_components", "formatted_address"],
+          },
+          (result: any, status: string) => {
+            if (
+              status === google.maps.places.PlacesServiceStatus.OK &&
+              result
+            ) {
+              resolve(result);
+              return;
+            }
+
+            reject(
+              new Error(
+                "Impossible de récupérer les détails de cette adresse."
+              )
+            );
+          }
+        );
+      });
+
+      const parsed = extractGoogleAddress(place);
+
+      if (target === "sender") {
+        setSenderAddress(parsed.address || prediction.description || "");
+        setSenderCity(parsed.city || "");
+        setSenderSuggestions([]);
+      } else {
+        setReceiverAddress(parsed.address || prediction.description || "");
+        setReceiverCity(parsed.city || "");
+        setReceiverSuggestions([]);
+      }
+    } catch (error) {
+      console.error("GOOGLE ADDRESS DETAILS ERROR =>", error);
+
+      if (target === "sender") {
+        setSenderAddress(prediction.description || senderAddress);
+        setSenderSuggestions([]);
+      } else {
+        setReceiverAddress(prediction.description || receiverAddress);
+        setReceiverSuggestions([]);
+      }
+    }
+  }
 
   const pricingView = useMemo(() => {
 
@@ -484,15 +557,11 @@ export default function NewOrderPage() {
 
         : null;
 
-
-
     const finalPriceCents = proposedPriceCents
 
       ? Math.max(effectiveMinimumPriceCents, proposedPriceCents)
 
       : effectiveMinimumPriceCents;
-
-
 
     const platformFeeCents = Math.round(finalPriceCents * 0.2);
 
@@ -503,8 +572,6 @@ export default function NewOrderPage() {
       finalPriceCents - platformFeeCents
 
     );
-
-
 
     return {
 
@@ -520,101 +587,157 @@ export default function NewOrderPage() {
 
   }, [clientProposedPrice, effectiveMinimumPriceCents]);
 
-
-
-
-
   async function calculateRouteEstimate() {
+
     if (!senderAddress.trim() || !senderCity.trim()) {
+
       throw new Error(
+
         "Renseignez l’adresse et la ville de départ pour estimer la livraison."
+
       );
+
     }
 
     if (!receiverAddress.trim() || !receiverCity.trim()) {
+
       throw new Error(
+
         "Renseignez l’adresse et la ville d’arrivée pour estimer la livraison."
+
       );
+
     }
 
     if (!vehicleRequired) {
+
       throw new Error(
+
         "Choisissez le véhicule requis pour afficher l’estimation."
+
       );
+
     }
 
     const origin = buildFullAddress(senderAddress, senderCity);
+
     const destination = buildFullAddress(receiverAddress, receiverCity);
 
     const distanceMeters = await getDrivingDistanceMeters(
+
       origin,
+
       destination
+
     );
 
     const priceResult = calculatePrice(
+
       distanceMeters,
+
       vehicleToPricingType(vehicleRequired)
+
     );
 
     return {
+
       distanceMeters,
+
       distanceKm: priceResult.distanceKm,
+
       minimumPriceCents: Math.round(priceResult.price * 100),
+
     };
+
   }
 
   async function showEstimate() {
+
     setEstimateError(null);
+
     setEstimateVisible(false);
+
     setEstimateLoading(true);
 
     try {
+
       const result = await calculateRouteEstimate();
 
       setEstimatedDistanceMeters(result.distanceMeters);
+
       setRouteMinimumPriceCents(result.minimumPriceCents);
 
       const proposedPrice = Number(clientProposedPrice);
+
       const minimumPriceEuros = result.minimumPriceCents / 100;
 
       if (
+
         !clientProposedPrice ||
+
         Number.isNaN(proposedPrice) ||
+
         proposedPrice < minimumPriceEuros
+
       ) {
+
         setClientProposedPrice(String(Math.ceil(minimumPriceEuros)));
+
       }
 
       setEstimateVisible(true);
+
     } catch (error: unknown) {
+
       setEstimateError(
+
         error instanceof Error
+
           ? error.message
+
           : "Impossible de calculer l’estimation."
+
       );
+
     } finally {
+
       setEstimateLoading(false);
+
     }
+
   }
 
   useEffect(() => {
+
     setEstimateVisible(false);
+
     setEstimateError(null);
+
     setEstimatedDistanceMeters(null);
+
     setRouteMinimumPriceCents(null);
+
   }, [
+
     senderAddress,
+
     senderCity,
+
     receiverAddress,
+
     receiverCity,
+
     vehicleRequired,
+
   ]);
 
   useEffect(() => {
-    setEstimateVisible(false);
-    setEstimateError(null);
-  }, [clientProposedPrice]);
 
+    setEstimateVisible(false);
+
+    setEstimateError(null);
+
+  }, [clientProposedPrice]);
 
   function validate(): string | null {
 
@@ -634,13 +757,9 @@ export default function NewOrderPage() {
 
     if (!pickupFloor) return "Étage de retrait manquant.";
 
-
-
     if (!receiverName.trim()) return "Nom receveur manquant.";
 
     if (!receiverPhone.trim()) return "Téléphone receveur manquant.";
-
-
 
     if (!receiverAddress.trim() || !receiverCity.trim())
 
@@ -652,8 +771,6 @@ export default function NewOrderPage() {
 
     if (!dropoffFloor) return "Étage de livraison manquant.";
 
-
-
     if (!bagCount) return "Nombre de sacs / colis manquant.";
 
     if (!vehicleRequired)
@@ -664,13 +781,9 @@ export default function NewOrderPage() {
 
       return "Veuillez choisir le type de colis important.";
 
-
-
     return null;
 
   }
-
-
 
   function validateSender(): string | null {
 
@@ -686,13 +799,9 @@ export default function NewOrderPage() {
 
   }
 
-
-
   function handleParcelPhotoChange(file: File | null) {
 
     setMsg(null);
-
-
 
     if (!file) {
 
@@ -703,8 +812,6 @@ export default function NewOrderPage() {
       return;
 
     }
-
-
 
     if (!file.type.startsWith("image/")) {
 
@@ -718,8 +825,6 @@ export default function NewOrderPage() {
 
     }
 
-
-
     if (file.size > MAX_PHOTO_SIZE) {
 
       setMsg("La photo du colis ne doit pas dépasser 5 MB.");
@@ -732,21 +837,15 @@ export default function NewOrderPage() {
 
     }
 
-
-
     setParcelPhoto(file);
 
     setParcelPhotoPreview(URL.createObjectURL(file));
 
   }
 
-
-
   async function uploadParcelPhoto(): Promise<string | null> {
 
     if (!parcelPhoto || !userId) return null;
-
-
 
     try {
 
@@ -759,8 +858,6 @@ export default function NewOrderPage() {
         extension.replace(/[^a-z0-9]/g, "") || "jpg";
 
       const path = `${userId}/${Date.now()}.${safeExtension}`;
-
-
 
       const { error } = await supabase.storage
 
@@ -776,8 +873,6 @@ export default function NewOrderPage() {
 
         });
 
-
-
       if (error) {
 
         console.error("UPLOAD PHOTO ERROR =>", error);
@@ -786,15 +881,11 @@ export default function NewOrderPage() {
 
       }
 
-
-
       const { data } = supabase.storage
 
         .from("parcel-photos")
 
         .getPublicUrl(path);
-
-
 
       return data.publicUrl || null;
 
@@ -808,15 +899,11 @@ export default function NewOrderPage() {
 
   }
 
-
-
   async function onSubmit(e: React.FormEvent) {
 
     e.preventDefault();
 
     setMsg(null);
-
-
 
     const err = validate();
 
@@ -827,8 +914,6 @@ export default function NewOrderPage() {
       return;
 
     }
-
-
 
     if (containsPhoneNumber(parcelNote)) {
 
@@ -842,71 +927,99 @@ export default function NewOrderPage() {
 
     }
 
-
-
     let routeEstimate;
 
     try {
+
       routeEstimate = await calculateRouteEstimate();
+
     } catch (error: unknown) {
+
       setMsg(
+
         error instanceof Error
+
           ? error.message
+
           : "Impossible de calculer la distance de la livraison."
+
       );
+
       return;
+
     }
 
     const proposedPrice = Number(clientProposedPrice);
+
     const minimumPriceEuros =
+
       routeEstimate.minimumPriceCents / 100;
 
     if (
+
       !clientProposedPrice ||
+
       Number.isNaN(proposedPrice) ||
+
       proposedPrice < minimumPriceEuros
+
     ) {
+
       setMsg(
+
         `Le tarif minimum calculé pour cette distance est de ${formatEuro(
+
           routeEstimate.minimumPriceCents
+
         )}.`
+
       );
+
       return;
+
     }
 
     if (!Number.isInteger(proposedPrice)) {
+
       setMsg(
+
         "Le tarif proposé doit être un montant entier en euros : 5 €, 6 €, 7 €, 8 €..."
+
       );
+
       return;
+
     }
 
     const proposedPriceCents = Math.round(proposedPrice * 100);
+
     const finalPriceCents = Math.max(
+
       routeEstimate.minimumPriceCents,
+
       proposedPriceCents
+
     );
+
     const platformFeeCents = Math.round(finalPriceCents * 0.2);
+
     const courierEarningsCents = Math.max(
+
       0,
+
       finalPriceCents - platformFeeCents
+
     );
 
     setLoading(true);
-
-
 
     try {
 
       const parcelPhotoUrl = await uploadParcelPhoto();
 
-
-
       const payload: any = {
 
         client_id: userId,
-
-
 
         sender_name: senderName.trim(),
 
@@ -921,8 +1034,6 @@ export default function NewOrderPage() {
         pickup_has_elevator:
 
           elevatorValueToBoolean(pickupHasElevator),
-
-
 
         receiver_name: receiverName.trim(),
 
@@ -939,8 +1050,6 @@ export default function NewOrderPage() {
         dropoff_has_elevator:
 
           elevatorValueToBoolean(dropoffHasElevator),
-
-
 
         bag_count: bagCountToNumber(bagCount),
 
@@ -966,15 +1075,15 @@ export default function NewOrderPage() {
 
         parcel_size: parcelSize || null,
 
-
-
         price_cents: finalPriceCents,
+
         client_proposed_price_cents: proposedPriceCents,
+
         platform_fee_cents: platformFeeCents,
+
         courier_earnings_cents: courierEarningsCents,
+
         pricing_mode: "client_proposal",
-
-
 
         // La commande ne devient visible aux livreurs qu'après confirmation Stripe.
 
@@ -986,8 +1095,6 @@ export default function NewOrderPage() {
 
       };
 
-
-
       const { data, error } = await supabase
 
         .from("orders")
@@ -997,8 +1104,6 @@ export default function NewOrderPage() {
         .select("id")
 
         .single();
-
-
 
       if (error || !data?.id) {
 
@@ -1016,8 +1121,6 @@ export default function NewOrderPage() {
 
       }
 
-
-
       const checkoutResponse = await fetch("/api/checkout", {
 
         method: "POST",
@@ -1034,15 +1137,11 @@ export default function NewOrderPage() {
 
       });
 
-
-
       const checkoutResult = await checkoutResponse
 
         .json()
 
         .catch(() => ({}));
-
-
 
       if (!checkoutResponse.ok || !checkoutResult?.url) {
 
@@ -1068,8 +1167,6 @@ export default function NewOrderPage() {
 
       }
 
-
-
       window.location.assign(checkoutResult.url);
 
     } catch (e: unknown) {
@@ -1082,8 +1179,6 @@ export default function NewOrderPage() {
 
           : "Erreur pendant la création de la commande.";
 
-
-
       console.error("NEW ORDER UNCAUGHT ERROR =>", e);
 
       setMsg(message);
@@ -1094,12 +1189,12 @@ export default function NewOrderPage() {
 
   }
 
-
-
   return (
 
     <>
+
       <GoogleMapsScript />
+
       <main className="min-h-screen bg-gray-50">
 
       <div className="mx-auto max-w-xl px-4 py-6">
@@ -1140,8 +1235,6 @@ export default function NewOrderPage() {
 
         </div>
 
-
-
         {msg && (
 
           <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm">
@@ -1151,8 +1244,6 @@ export default function NewOrderPage() {
           </div>
 
         )}
-
-
 
         <form onSubmit={onSubmit} className="space-y-4">
 
@@ -1190,8 +1281,6 @@ export default function NewOrderPage() {
 
             </div>
 
-
-
             <div className="grid grid-cols-1 gap-3">
 
               <input
@@ -1228,34 +1317,48 @@ export default function NewOrderPage() {
 
               />
 
-              <input
-                ref={senderAddressRef}
+              <div className="relative">
+                <input
+                  value={senderAddress}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setSenderAddress(value);
+                    setSenderCity("");
+                    scheduleAddressSuggestions(value, "sender");
+                  }}
+                  onBlur={() => {
+                    window.setTimeout(() => setSenderSuggestions([]), 180);
+                  }}
+                  placeholder="Commencez à taper l’adresse de départ"
+                  autoComplete="off"
+                  inputMode="text"
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2"
+                />
 
-                value={senderAddress}
+                {senderSuggestionsLoading ? (
+                  <p className="mt-1 px-1 text-xs text-gray-500">
+                    Recherche d’adresses…
+                  </p>
+                ) : null}
 
-                onChange={(e) =>
-
-                  setSenderAddress(e.target.value)
-
-                }
-
-                onBlur={(e) =>
-
-                  setSenderAddress(
-
-                    cleanSimpleAddress(e.target.value)
-
-                  )
-
-                }
-
-                placeholder="Commencez à taper l’adresse de départ"
-
-                autoComplete="off"
-
-                className="w-full rounded-xl border border-gray-200 px-3 py-2"
-
-              />
+                {senderSuggestions.length > 0 ? (
+                  <div className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl">
+                    {senderSuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion.place_id}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() =>
+                          selectAddressSuggestion(suggestion, "sender")
+                        }
+                        className="block w-full border-b border-gray-100 px-3 py-3 text-left text-sm last:border-b-0 hover:bg-gray-50"
+                      >
+                        {suggestion.description}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
 
               <input
 
@@ -1267,13 +1370,11 @@ export default function NewOrderPage() {
 
                 }
 
-                placeholder="Ville (remplie automatiquement)"
+                placeholder="Ville (automatique, modifiable si besoin)"
 
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
 
               />
-
-
 
               <select
 
@@ -1313,8 +1414,6 @@ export default function NewOrderPage() {
 
               </select>
 
-
-
               <select
 
                 value={pickupFloor}
@@ -1351,8 +1450,6 @@ export default function NewOrderPage() {
 
           </section>
 
-
-
           <section className="rounded-2xl border border-gray-200 bg-white p-4">
 
             <h2 className="mb-3 text-base font-semibold">
@@ -1360,8 +1457,6 @@ export default function NewOrderPage() {
               Receveur
 
             </h2>
-
-
 
             <div className="grid grid-cols-1 gap-3">
 
@@ -1417,34 +1512,48 @@ export default function NewOrderPage() {
 
               />
 
-              <input
-                ref={receiverAddressRef}
+              <div className="relative">
+                <input
+                  value={receiverAddress}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setReceiverAddress(value);
+                    setReceiverCity("");
+                    scheduleAddressSuggestions(value, "receiver");
+                  }}
+                  onBlur={() => {
+                    window.setTimeout(() => setReceiverSuggestions([]), 180);
+                  }}
+                  placeholder="Commencez à taper l’adresse de livraison"
+                  autoComplete="off"
+                  inputMode="text"
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2"
+                />
 
-                value={receiverAddress}
+                {receiverSuggestionsLoading ? (
+                  <p className="mt-1 px-1 text-xs text-gray-500">
+                    Recherche d’adresses…
+                  </p>
+                ) : null}
 
-                onChange={(e) =>
-
-                  setReceiverAddress(e.target.value)
-
-                }
-
-                onBlur={(e) =>
-
-                  setReceiverAddress(
-
-                    cleanSimpleAddress(e.target.value)
-
-                  )
-
-                }
-
-                placeholder="Commencez à taper l’adresse de livraison"
-
-                autoComplete="off"
-
-                className="w-full rounded-xl border border-gray-200 px-3 py-2"
-
-              />
+                {receiverSuggestions.length > 0 ? (
+                  <div className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl">
+                    {receiverSuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion.place_id}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() =>
+                          selectAddressSuggestion(suggestion, "receiver")
+                        }
+                        className="block w-full border-b border-gray-100 px-3 py-3 text-left text-sm last:border-b-0 hover:bg-gray-50"
+                      >
+                        {suggestion.description}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
 
               <input
 
@@ -1456,13 +1565,11 @@ export default function NewOrderPage() {
 
                 }
 
-                placeholder="Ville (remplie automatiquement)"
+                placeholder="Ville (automatique, modifiable si besoin)"
 
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
 
               />
-
-
 
               <select
 
@@ -1502,8 +1609,6 @@ export default function NewOrderPage() {
 
               </select>
 
-
-
               <select
 
                 value={dropoffFloor}
@@ -1540,8 +1645,6 @@ export default function NewOrderPage() {
 
           </section>
 
-
-
           <section className="rounded-2xl border border-gray-200 bg-white p-4">
 
             <h2 className="mb-3 text-base font-semibold">
@@ -1549,8 +1652,6 @@ export default function NewOrderPage() {
               Colis & Livraison
 
             </h2>
-
-
 
             <div className="grid grid-cols-1 gap-3">
 
@@ -1586,8 +1687,6 @@ export default function NewOrderPage() {
 
               </select>
 
-
-
               <select
 
                 value={vehicleRequired}
@@ -1596,13 +1695,11 @@ export default function NewOrderPage() {
 
                   const nextVehicle = e.target.value;
 
-
-
                   setVehicleRequired(nextVehicle);
+
                   setEstimatedDistanceMeters(null);
+
                   setRouteMinimumPriceCents(null);
-
-
 
                   const nextMinimumCents = nextVehicle
 
@@ -1613,8 +1710,6 @@ export default function NewOrderPage() {
                       )
 
                     : BASE_PRICE_CENTS;
-
-
 
                   setClientProposedPrice(
 
@@ -1654,8 +1749,6 @@ export default function NewOrderPage() {
 
               </select>
 
-
-
               <select
 
                 value={parcelSize}
@@ -1692,8 +1785,6 @@ export default function NewOrderPage() {
 
             </div>
 
-
-
             <div className="mt-3 rounded-2xl border border-gray-200 bg-white p-4 space-y-3">
 
               <h3 className="text-lg font-semibold">
@@ -1701,8 +1792,6 @@ export default function NewOrderPage() {
                 Description du colis
 
               </h3>
-
-
 
               <div className="rounded-xl border border-amber-200 bg-amber-50">
 
@@ -1745,8 +1834,6 @@ export default function NewOrderPage() {
                   </span>
 
                 </button>
-
-
 
                 {isImportantParcel ? (
 
@@ -1828,8 +1915,6 @@ export default function NewOrderPage() {
 
                       </p>
 
-
-
                       <p className="pt-1 text-sm font-semibold text-gray-900">
 
                         🪪 Vérification du livreur au retrait
@@ -1854,8 +1939,6 @@ export default function NewOrderPage() {
 
                       </p>
 
-
-
                       <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-gray-800">
 
                         ✓ Conseil sécurité : ne remettez le
@@ -1875,8 +1958,6 @@ export default function NewOrderPage() {
                 ) : null}
 
               </div>
-
-
 
               <select
 
@@ -1910,8 +1991,6 @@ export default function NewOrderPage() {
 
               </select>
 
-
-
               <textarea
 
                 value={parcelNote}
@@ -1928,17 +2007,13 @@ export default function NewOrderPage() {
 
               />
 
-
-
               <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-3">
 
                 <p className="mb-2 text-sm font-medium">
 
-                  Photo du colis optionnelle
+                  Photo du colis optionnelle — appareil photo
 
                 </p>
-
-
 
                 <input
 
@@ -1947,6 +2022,7 @@ export default function NewOrderPage() {
                   accept="image/*"
 
                   capture="environment"
+
                   onChange={(e) =>
 
                     handleParcelPhotoChange(
@@ -1961,15 +2037,11 @@ export default function NewOrderPage() {
 
                 />
 
-
-
                 <p className="mt-2 text-xs text-gray-500">
 
-                  Image facultative. Taille maximum : 5 MB.
+                  Sur téléphone, vous pouvez prendre la photo directement. Taille maximum : 5 MB.
 
                 </p>
-
-
 
                 {parcelPhotoPreview ? (
 
@@ -2011,8 +2083,6 @@ export default function NewOrderPage() {
 
             </div>
 
-
-
             <div className="mt-4">
 
               <label className="mb-2 block text-sm font-semibold text-gray-700">
@@ -2020,8 +2090,6 @@ export default function NewOrderPage() {
                 Date et heure souhaitées pour la livraison
 
               </label>
-
-
 
               <input
 
@@ -2039,8 +2107,6 @@ export default function NewOrderPage() {
 
               />
 
-
-
               <p className="mt-1 text-xs text-gray-500">
 
                 Optionnel : laissez vide si la livraison
@@ -2052,8 +2118,6 @@ export default function NewOrderPage() {
               </p>
 
             </div>
-
-
 
             <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
 
@@ -2077,8 +2141,6 @@ export default function NewOrderPage() {
 
                 </div>
 
-
-
                 <span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-100">
 
                   Minimum{" "}
@@ -2088,8 +2150,6 @@ export default function NewOrderPage() {
                 </span>
 
               </div>
-
-
 
               <div className="mt-4 flex items-stretch gap-2">
 
@@ -2119,15 +2179,11 @@ export default function NewOrderPage() {
 
                       effectiveMinimumPriceCents / 100;
 
-
-
                     const current = Number(
 
                       clientProposedPrice || minimum
 
                     );
-
-
 
                     const next = Math.max(
 
@@ -2140,8 +2196,6 @@ export default function NewOrderPage() {
                         : minimum) - 1
 
                     );
-
-
 
                     setClientProposedPrice(
 
@@ -2158,8 +2212,6 @@ export default function NewOrderPage() {
                   −
 
                 </button>
-
-
 
                 <div className="relative min-w-0 flex-1">
 
@@ -2207,8 +2259,6 @@ export default function NewOrderPage() {
 
                 </div>
 
-
-
                 <button
 
                   type="button"
@@ -2221,15 +2271,11 @@ export default function NewOrderPage() {
 
                       effectiveMinimumPriceCents / 100;
 
-
-
                     const current = Number(
 
                       clientProposedPrice || minimum
 
                     );
-
-
 
                     const next =
 
@@ -2238,8 +2284,6 @@ export default function NewOrderPage() {
                         ? Math.floor(current)
 
                         : minimum) + 1;
-
-
 
                     setClientProposedPrice(
 
@@ -2263,8 +2307,6 @@ export default function NewOrderPage() {
 
               </div>
 
-
-
               <p
 
                 id="price-help"
@@ -2283,8 +2325,6 @@ export default function NewOrderPage() {
 
               </p>
 
-
-
               <div className="mt-4 border-t border-blue-100 pt-4">
 
                 <button
@@ -2292,6 +2332,7 @@ export default function NewOrderPage() {
                   type="button"
 
                   onClick={showEstimate}
+
                   disabled={estimateLoading}
 
                   className="w-full rounded-xl border-2 border-green-600 bg-white px-4 py-3 font-bold text-green-700 disabled:cursor-wait disabled:opacity-60"
@@ -2299,20 +2340,18 @@ export default function NewOrderPage() {
                 >
 
                   {estimateLoading
+
                     ? "Calcul de la distance..."
+
                     : "Estimer ma livraison avant de créer"}
 
                 </button>
-
-
 
                 <p className="mt-2 text-xs leading-5 text-gray-600">
 
                   Cette estimation n’enregistre aucune commande et ne lance aucun paiement.
 
                 </p>
-
-
 
                 {estimateError ? (
 
@@ -2323,8 +2362,6 @@ export default function NewOrderPage() {
                   </div>
 
                 ) : null}
-
-
 
                 {estimateVisible ? (
 
@@ -2343,15 +2380,23 @@ export default function NewOrderPage() {
                     </p>
 
                     <p className="mt-2 text-sm font-semibold text-green-900">
+
                       Distance routière :{" "}
+
                       {estimatedDistanceMeters
+
                         ? `${(estimatedDistanceMeters / 1000).toFixed(1)} km`
+
                         : "—"}
+
                     </p>
 
                     <p className="mt-1 text-xs text-green-800">
+
                       Minimum calculé selon la distance :{" "}
+
                       {formatEuro(effectiveMinimumPriceCents)}
+
                     </p>
 
                     <p className="mt-2 text-xs leading-5 text-green-800">
@@ -2365,9 +2410,13 @@ export default function NewOrderPage() {
                     </p>
 
                     <p className="mt-2 text-xs text-green-800">
+
                       Google Maps calcule la distance routière. Vous pouvez proposer
+
                       un tarif entier supérieur au minimum calculé. La distance réelle
+
                       sera enregistrée avec la commande.
+
                     </p>
 
                   </div>
@@ -2379,8 +2428,6 @@ export default function NewOrderPage() {
             </div>
 
           </section>
-
-
 
           <button
 
@@ -2405,6 +2452,7 @@ export default function NewOrderPage() {
       </div>
 
       </main>
+
     </>
 
   );
