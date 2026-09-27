@@ -146,6 +146,10 @@ function statusLabel(status?: string | null) {
     return "✅ Retour terminé";
   }
 
+  if (s === "return_declined") {
+    return "🚫 Retour non demandé";
+  }
+
   return status || "--";
 }
 
@@ -167,6 +171,10 @@ function paymentLabel(payment?: string | null) {
     p === "failed"
   ) {
     return "❌ Non payé";
+  }
+
+  if (p === "declined" || p === "refused") {
+    return "🚫 Non demandé";
   }
 
   return payment || "--";
@@ -194,6 +202,7 @@ export default function ClientOrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [decisionLoading, setDecisionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(
     null
@@ -357,6 +366,61 @@ export default function ClientOrderDetailPage() {
     }
   }
 
+  async function declineReturn() {
+    if (!order?.id || decisionLoading) return;
+
+    const confirmed = window.confirm(
+      "Confirmer que vous ne souhaitez pas récupérer ce colis ? Aucun retour ne sera demandé au livreur et aucun paiement de retour ne sera effectué."
+    );
+
+    if (!confirmed) return;
+
+    setDecisionLoading(true);
+    setPaymentError(null);
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
+      if (!accessToken) {
+        throw new Error("Session expirée. Reconnectez-vous puis réessayez.");
+      }
+
+      const response = await fetch("/api/orders/cancel", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          orderId: order.id,
+          action: "DECLINE_RETURN",
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          result?.error || "Impossible d’enregistrer votre choix."
+        );
+      }
+
+      await loadOrder(true);
+    } catch (declineError) {
+      console.error("DECLINE RETURN ERROR =>", declineError);
+
+      const message =
+        declineError instanceof Error
+          ? declineError.message
+          : "Erreur pendant l’enregistrement de votre choix.";
+
+      setPaymentError(message);
+    } finally {
+      setDecisionLoading(false);
+    }
+  }
+
   useEffect(() => {
     if (orderId) {
       loadOrder();
@@ -397,6 +461,19 @@ export default function ClientOrderDetailPage() {
   const returnCompleted =
     normalizedStatus === "return_completed" ||
     Boolean(order?.return_completed_at);
+
+  const returnDecisionRequired =
+    (normalizedStatus === "refused_by_recipient" ||
+      normalizedStatus === "return_payment_pending") &&
+    !returnPaymentConfirmed &&
+    !["declined", "refused", "canceled", "cancelled"].includes(
+      normalizedReturnPaymentStatus
+    ) &&
+    order?.return_price_cents != null;
+
+  const returnDeclined =
+    normalizedStatus === "return_declined" ||
+    normalizedReturnPaymentStatus === "declined";
 
   return (
     <main className="max-w-3xl mx-auto p-4 space-y-4">
@@ -621,6 +698,7 @@ export default function ClientOrderDetailPage() {
             !order.delivered_at &&
             normalizedStatus !== "refused_by_recipient" &&
             normalizedStatus !== "return_payment_pending" &&
+            normalizedStatus !== "return_declined" &&
             !returnInProgress &&
             !returnCompleted && (
               <div className="mt-4 rounded-xl border bg-gray-50 p-3">
@@ -638,6 +716,7 @@ export default function ClientOrderDetailPage() {
 
           {(normalizedStatus === "refused_by_recipient" ||
             normalizedStatus === "return_payment_pending" ||
+            returnDeclined ||
             returnInProgress ||
             returnCompleted) && (
             <div className="space-y-3 rounded-2xl border border-orange-200 bg-orange-50 p-4">
@@ -696,32 +775,30 @@ export default function ClientOrderDetailPage() {
                 </div>
               )}
 
-              {normalizedStatus === "return_payment_pending" &&
-                !returnPaymentConfirmed &&
-                order.return_price_cents != null && (
-                  <div className="space-y-3 rounded-xl border border-amber-200 bg-white p-3">
-                    <div>
-                      <h3 className="font-bold text-amber-900">
-                        Retour à payer
-                      </h3>
+              {returnDecisionRequired && (
+                <div className="space-y-3 rounded-xl border-2 border-orange-300 bg-white p-3">
+                  <div>
+                    <h3 className="font-bold text-red-800">
+                      Action requise — colis refusé
+                    </h3>
 
-                      <p className="mt-1 text-sm text-amber-800">
-                        Le retour du colis est en attente de ton paiement.
-                        Une fois le paiement confirmé, le retour pourra
-                        continuer.
-                      </p>
+                    <p className="mt-1 text-sm text-orange-900">
+                      Choisissez si vous souhaitez récupérer ce colis. Vous pouvez
+                      payer le retour ou renoncer au retour.
+                    </p>
+                  </div>
+
+                  {paymentError && (
+                    <div className="rounded-xl bg-red-100 p-3 text-sm text-red-700">
+                      {paymentError}
                     </div>
+                  )}
 
-                    {paymentError && (
-                      <div className="rounded-xl bg-red-100 p-3 text-sm text-red-700">
-                        {paymentError}
-                      </div>
-                    )}
-
+                  <div className="grid gap-2 sm:grid-cols-2">
                     <button
                       type="button"
                       onClick={payReturn}
-                      disabled={paymentLoading}
+                      disabled={paymentLoading || decisionLoading}
                       className="w-full rounded-xl bg-blue-600 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {paymentLoading
@@ -730,8 +807,26 @@ export default function ClientOrderDetailPage() {
                             order.return_price_cents
                           )}`}
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={declineReturn}
+                      disabled={paymentLoading || decisionLoading}
+                      className="w-full rounded-xl border border-red-300 bg-white px-4 py-3 font-bold text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {decisionLoading
+                        ? "Enregistrement..."
+                        : "Je renonce au retour"}
+                    </button>
                   </div>
-                )}
+                </div>
+              )}
+
+              {returnDeclined && (
+                <div className="rounded-xl border border-gray-300 bg-gray-100 p-3 text-sm font-semibold text-gray-700">
+                  Retour non demandé — aucun retour à effectuer.
+                </div>
+              )}
 
               {order.next_delivery_at && !returnCompleted && (
                 <div>

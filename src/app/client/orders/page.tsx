@@ -91,6 +91,8 @@ function statusLabel(status?: string | null) {
 
   if (s === "RETURN_COMPLETED") return "Retour terminé";
 
+  if (s === "RETURN_DECLINED") return "Retour non demandé";
+
   if (["CANCELED", "CANCELLED", "ANNULEE"].includes(s)) return "Annulée";
 
   if (["DRAFT", "BROUILLON"].includes(s)) return "Brouillon";
@@ -118,6 +120,9 @@ function statusClass(status?: string | null) {
   if (s === "RETURN_TO_SENDER")
     return "border-violet-200 bg-violet-50 text-violet-800";
 
+  if (s === "RETURN_DECLINED")
+    return "border-gray-300 bg-gray-100 text-gray-700";
+
   return "border-gray-200 bg-gray-50 text-gray-700";
 }
 
@@ -129,6 +134,7 @@ function paymentLabel(payment?: string | null) {
   if (["FAILED", "ECHEC", "CANCELED", "CANCELLED"].includes(p)) return "Échoué";
   if (["REFUNDED", "REMBOURSE"].includes(p)) return "Remboursé";
   if (["UNPAID", "NON_PAYE"].includes(p)) return "Non payé";
+  if (["DECLINED", "REFUSED"].includes(p)) return "Non demandé";
 
   return payment || "—";
 }
@@ -144,6 +150,59 @@ function addressLine(
     .join(", ");
 }
 
+function isReturnDecisionRequired(order: OrderRow) {
+  const status = normalize(order.status);
+  const returnPaymentStatus = normalize(order.return_payment_status);
+
+  const returnNotPaid = ![
+    "PAID",
+    "PAYE",
+    "DECLINED",
+    "REFUSED",
+    "CANCELED",
+    "CANCELLED",
+  ].includes(returnPaymentStatus);
+
+  return (
+    ["REFUSED_BY_RECIPIENT", "RETURN_PAYMENT_PENDING"].includes(status) &&
+    returnNotPaid &&
+    order.return_price_cents != null
+  );
+}
+
+function orderPriority(order: OrderRow) {
+  if (isReturnDecisionRequired(order)) return 0;
+
+  const status = normalize(order.status);
+
+  if (
+    [
+      "PUBLISHED",
+      "ACCEPTED",
+      "ACCEPTEE",
+      "OUT_FOR_DELIVERY",
+      "EN_COURS",
+      "LIVRAISON",
+      "LIVRAISON_EN_COURS",
+      "RETURN_TO_SENDER",
+    ].includes(status)
+  ) {
+    return 1;
+  }
+
+  if (["PAYMENT_PENDING", "PENDING", "EN_ATTENTE"].includes(status)) {
+    return 2;
+  }
+
+  return 3;
+}
+
+function createdAtTimestamp(value?: string | null) {
+  if (!value) return 0;
+  const timestamp = new Date(value).getTime();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
 export default function ClientOrdersPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router = useRouter();
@@ -153,6 +212,8 @@ export default function ClientOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   async function loadOrders(silent = false) {
     if (!silent) setLoading(true);
@@ -184,13 +245,23 @@ export default function ClientOrdersPage() {
       }
 
       const rows = (data || []) as OrderRow[];
-      setOrders(rows);
+      const sortedRows = [...rows].sort((a, b) => {
+        const priorityDifference = orderPriority(a) - orderPriority(b);
+
+        if (priorityDifference !== 0) return priorityDifference;
+
+        return createdAtTimestamp(b.created_at) - createdAtTimestamp(a.created_at);
+      });
+
+      setOrders(sortedRows);
 
       setSelected((current) => {
-        if (!rows.length) return null;
-        if (!current) return rows[0];
+        if (!sortedRows.length) return null;
+        if (!current) return sortedRows[0];
 
-        return rows.find((order) => order.id === current.id) || rows[0];
+        return (
+          sortedRows.find((order) => order.id === current.id) || sortedRows[0]
+        );
       });
     } catch (err) {
       console.error("LOAD CLIENT ORDERS UNCAUGHT ERROR =>", err);
@@ -201,10 +272,113 @@ export default function ClientOrdersPage() {
     }
   }
 
+
+  async function payReturn(order: OrderRow) {
+    if (!order.id || actionLoadingId) return;
+
+    setActionLoadingId(order.id);
+    setActionError(null);
+
+    try {
+      const response = await fetch("/api/checkout-return", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          orderId: order.id,
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          result?.error || "Impossible de lancer le paiement du retour."
+        );
+      }
+
+      const checkoutUrl = String(result?.url || "").trim();
+
+      if (!checkoutUrl) {
+        throw new Error(
+          "Stripe n’a pas retourné de lien de paiement pour le retour."
+        );
+      }
+
+      window.location.href = checkoutUrl;
+    } catch (paymentError) {
+      const message =
+        paymentError instanceof Error
+          ? paymentError.message
+          : "Erreur pendant le paiement du retour.";
+
+      setActionError(message);
+      setActionLoadingId(null);
+    }
+  }
+
+  async function declineReturn(order: OrderRow) {
+    if (!order.id || actionLoadingId) return;
+
+    const confirmed = window.confirm(
+      "Confirmer que vous ne souhaitez pas récupérer ce colis ? Aucun retour ne sera demandé au livreur et aucun paiement de retour ne sera effectué."
+    );
+
+    if (!confirmed) return;
+
+    setActionLoadingId(order.id);
+    setActionError(null);
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
+      if (!accessToken) {
+        throw new Error("Session expirée. Reconnectez-vous puis réessayez.");
+      }
+
+      const response = await fetch("/api/orders/cancel", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          orderId: order.id,
+          action: "DECLINE_RETURN",
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          result?.error || "Impossible d’enregistrer votre choix."
+        );
+      }
+
+      await loadOrders(true);
+    } catch (declineError) {
+      const message =
+        declineError instanceof Error
+          ? declineError.message
+          : "Erreur pendant l’enregistrement de votre choix.";
+
+      setActionError(message);
+    } finally {
+      setActionLoadingId(null);
+    }
+  }
+
   useEffect(() => {
     loadOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const selectedNeedsReturnDecision = selected
+    ? isReturnDecisionRequired(selected)
+    : false;
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -245,6 +419,12 @@ export default function ClientOrdersPage() {
         {error ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-800">
             {error}
+          </div>
+        ) : null}
+
+        {actionError ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-800">
+            {actionError}
           </div>
         ) : null}
 
@@ -289,59 +469,106 @@ export default function ClientOrdersPage() {
                   order.dropoff_city
                 );
 
+                const needsReturnDecision = isReturnDecisionRequired(order);
+                const actionLoading = actionLoadingId === order.id;
+
                 return (
-                  <button
+                  <div
                     key={order.id}
-                    type="button"
-                    onClick={() => setSelected(order)}
-                    className={`w-full rounded-2xl border bg-white p-4 text-left shadow-sm transition ${
-                      isSelected
-                        ? "border-blue-500 ring-2 ring-blue-100"
-                        : "border-gray-200 hover:border-gray-300"
+                    className={`w-full rounded-2xl border p-4 shadow-sm transition ${
+                      needsReturnDecision
+                        ? "border-orange-400 bg-orange-50 ring-2 ring-orange-100"
+                        : isSelected
+                          ? "border-blue-500 bg-white ring-2 ring-blue-100"
+                          : "border-gray-200 bg-white hover:border-gray-300"
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <span
-                          className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClass(
-                            order.status
-                          )}`}
-                        >
-                          {statusLabel(order.status)}
-                        </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelected(order)}
+                      className="w-full text-left"
+                    >
+                      {needsReturnDecision ? (
+                        <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-800">
+                          Action requise — colis refusé
+                        </div>
+                      ) : null}
 
-                        {order.is_important_parcel ? (
-                          <span className="ml-2 inline-flex rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
-                            Colis important
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <span
+                            className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClass(
+                              order.status
+                            )}`}
+                          >
+                            {statusLabel(order.status)}
                           </span>
-                        ) : null}
+
+                          {order.is_important_parcel ? (
+                            <span className="ml-2 inline-flex rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                              Colis important
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <div className="shrink-0 text-right">
+                          <p className="font-bold text-gray-950">
+                            {formatEURFromCents(order.price_cents)}
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {formatDate(order.created_at)}
+                          </p>
+                        </div>
                       </div>
 
-                      <div className="shrink-0 text-right">
-                        <p className="font-bold text-gray-950">
-                          {formatEURFromCents(order.price_cents)}
+                      <div className="mt-4 space-y-1.5 text-sm text-gray-700">
+                        <p className="truncate">
+                          <span className="font-semibold">Départ :</span>{" "}
+                          {pickup || "—"}
                         </p>
-                        <p className="mt-1 text-xs text-gray-500">
-                          {formatDate(order.created_at)}
+                        <p className="truncate">
+                          <span className="font-semibold">Arrivée :</span>{" "}
+                          {dropoff || "—"}
+                        </p>
+                        <p>
+                          <span className="font-semibold">Paiement :</span>{" "}
+                          {paymentLabel(order.payment_status)}
                         </p>
                       </div>
-                    </div>
+                    </button>
 
-                    <div className="mt-4 space-y-1.5 text-sm text-gray-700">
-                      <p className="truncate">
-                        <span className="font-semibold">Départ :</span>{" "}
-                        {pickup || "—"}
-                      </p>
-                      <p className="truncate">
-                        <span className="font-semibold">Arrivée :</span>{" "}
-                        {dropoff || "—"}
-                      </p>
-                      <p>
-                        <span className="font-semibold">Paiement :</span>{" "}
-                        {paymentLabel(order.payment_status)}
-                      </p>
-                    </div>
-                  </button>
+                    {needsReturnDecision ? (
+                      <div className="mt-4 space-y-3 border-t border-orange-200 pt-4">
+                        <p className="text-sm font-semibold text-orange-900">
+                          Retour à payer : {formatEURFromCents(order.return_price_cents)}
+                        </p>
+
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <button
+                            type="button"
+                            onClick={() => payReturn(order)}
+                            disabled={Boolean(actionLoadingId)}
+                            className="rounded-xl bg-blue-700 px-4 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {actionLoading
+                              ? "Traitement..."
+                              : `Payer le retour — ${formatEURFromCents(
+                                  order.return_price_cents
+                                )}`}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => declineReturn(order)}
+                            disabled={Boolean(actionLoadingId)}
+                            className="rounded-xl border border-red-300 bg-white px-4 py-3 text-sm font-bold text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Je renonce au retour
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
                 );
               })}
             </section>
@@ -456,15 +683,50 @@ export default function ClientOrdersPage() {
                   </div>
                 ) : null}
 
-                {normalize(selected.status) === "RETURN_PAYMENT_PENDING" ? (
-                  <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                    <p className="font-semibold">Retour en attente de paiement</p>
-                    {selected.return_price_cents != null ? (
+                {selectedNeedsReturnDecision ? (
+                  <div className="mt-4 space-y-3 rounded-2xl border-2 border-orange-300 bg-orange-50 p-4 text-sm text-orange-950">
+                    <div>
+                      <p className="text-base font-bold text-red-800">
+                        Action requise — colis refusé
+                      </p>
                       <p className="mt-1">
-                        Tarif du retour :{" "}
-                        {formatEURFromCents(selected.return_price_cents)}
+                        Choisissez si vous souhaitez récupérer le colis.
+                      </p>
+                    </div>
+
+                    {selected.return_price_cents != null ? (
+                      <p className="font-semibold">
+                        Tarif du retour : {formatEURFromCents(selected.return_price_cents)}
                       </p>
                     ) : null}
+
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => payReturn(selected)}
+                        disabled={Boolean(actionLoadingId)}
+                        className="rounded-xl bg-blue-700 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {actionLoadingId === selected.id
+                          ? "Traitement..."
+                          : `Payer le retour — ${formatEURFromCents(
+                              selected.return_price_cents
+                            )}`}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => declineReturn(selected)}
+                        disabled={Boolean(actionLoadingId)}
+                        className="rounded-xl border border-red-300 bg-white px-4 py-3 font-bold text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Je renonce au retour
+                      </button>
+                    </div>
+                  </div>
+                ) : normalize(selected.status) === "RETURN_DECLINED" ? (
+                  <div className="mt-4 rounded-2xl border border-gray-300 bg-gray-50 p-4 text-sm font-semibold text-gray-700">
+                    Retour non demandé — aucun retour à effectuer.
                   </div>
                 ) : null}
 

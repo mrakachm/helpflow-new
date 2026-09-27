@@ -130,6 +130,8 @@ export default function NewOrderPage() {
 
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [estimateVisible, setEstimateVisible] = useState(false);
+  const [estimateError, setEstimateError] = useState<string | null>(null);
 
   const [userId, setUserId] = useState<string | null>(null);
   const [recipientEmail, setRecipientEmail] = useState("");
@@ -168,6 +170,57 @@ export default function NewOrderPage() {
       courierEarningsCents,
     };
   }, [clientProposedPrice, vehicleMinimumPriceCents]);
+
+
+  function showEstimate() {
+    setEstimateError(null);
+    setEstimateVisible(false);
+
+    if (!senderAddress.trim() || !senderCity.trim()) {
+      setEstimateError("Renseignez l’adresse et la ville de départ pour estimer la livraison.");
+      return;
+    }
+
+    if (!receiverAddress.trim() || !receiverCity.trim()) {
+      setEstimateError("Renseignez l’adresse et la ville d’arrivée pour estimer la livraison.");
+      return;
+    }
+
+    if (!vehicleRequired) {
+      setEstimateError("Choisissez le véhicule requis pour afficher l’estimation.");
+      return;
+    }
+
+    const proposedPrice = Number(clientProposedPrice);
+    const minimumPriceEuros = vehicleMinimumPriceCents / 100;
+
+    if (
+      !clientProposedPrice ||
+      Number.isNaN(proposedPrice) ||
+      proposedPrice < minimumPriceEuros
+    ) {
+      setEstimateError(
+        `Le tarif minimum pour ce transport est de ${formatEuro(
+          vehicleMinimumPriceCents
+        )}.`
+      );
+      return;
+    }
+
+    setEstimateVisible(true);
+  }
+
+  useEffect(() => {
+    setEstimateVisible(false);
+    setEstimateError(null);
+  }, [
+    senderAddress,
+    senderCity,
+    receiverAddress,
+    receiverCity,
+    vehicleRequired,
+    clientProposedPrice,
+  ]);
 
   function validate(): string | null {
     if (!userId) return "Vous devez être connecté pour créer une commande.";
@@ -429,6 +482,9 @@ export default function NewOrderPage() {
             </h1>
             <p className="text-sm text-gray-600">
               Remplis les infos pour créer ta livraison.
+            </p>
+            <p className="mt-1 text-xs font-medium text-green-700">
+              Vous pouvez estimer le prix avant d’enregistrer la commande.
             </p>
           </div>
         </div>
@@ -1001,6 +1057,46 @@ export default function NewOrderPage() {
                 Le montant choisi sera confirmé avant le
                 paiement.
               </p>
+
+              <div className="mt-4 border-t border-blue-100 pt-4">
+                <button
+                  type="button"
+                  onClick={showEstimate}
+                  className="w-full rounded-xl border-2 border-green-600 bg-white px-4 py-3 font-bold text-green-700"
+                >
+                  Estimer ma livraison avant de créer
+                </button>
+
+                <p className="mt-2 text-xs leading-5 text-gray-600">
+                  Cette estimation n’enregistre aucune commande et ne lance aucun paiement.
+                </p>
+
+                {estimateError ? (
+                  <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
+                    {estimateError}
+                  </div>
+                ) : null}
+
+                {estimateVisible ? (
+                  <div className="mt-3 rounded-2xl border border-green-200 bg-green-50 p-4">
+                    <p className="text-sm font-semibold text-green-800">
+                      Estimation de votre livraison
+                    </p>
+                    <p className="mt-1 text-3xl font-bold text-green-900">
+                      {formatEuro(pricingView.finalPriceCents)}
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-green-800">
+                      Départ : {cleanSimpleAddress(senderAddress)}, {senderCity.trim()}
+                      <br />
+                      Arrivée : {cleanSimpleAddress(receiverAddress)}, {receiverCity.trim()}
+                    </p>
+                    <p className="mt-2 text-xs text-green-800">
+                      Estimation basée sur le véhicule et le tarif actuellement choisis.
+                      Le même montant sera utilisé lors de la création avec ces informations.
+                    </p>
+                  </div>
+                ) : null}
+              </div>
             </div>
           </section>
 
