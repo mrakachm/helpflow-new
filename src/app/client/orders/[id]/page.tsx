@@ -306,6 +306,57 @@ export default function ClientOrderDetailPage() {
     }
   }
 
+  async function payReturn() {
+    if (!order?.id || paymentLoading) return;
+
+    setPaymentLoading(true);
+    setPaymentError(null);
+
+    try {
+      const response = await fetch("/api/checkout-return", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          orderId: order.id,
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          result?.error ||
+            "Impossible de lancer le paiement du retour."
+        );
+      }
+
+      const checkoutUrl = String(result?.url || "").trim();
+
+      if (!checkoutUrl) {
+        throw new Error(
+          "Stripe n’a pas retourné de lien de paiement pour le retour."
+        );
+      }
+
+      window.location.href = checkoutUrl;
+    } catch (returnPaymentError) {
+      console.error(
+        "RETURN PAYMENT ERROR =>",
+        returnPaymentError
+      );
+
+      const message =
+        returnPaymentError instanceof Error
+          ? returnPaymentError.message
+          : "Erreur pendant le paiement du retour.";
+
+      setPaymentError(message);
+      setPaymentLoading(false);
+    }
+  }
+
   useEffect(() => {
     if (orderId) {
       loadOrder();
@@ -644,6 +695,43 @@ export default function ClientOrderDetailPage() {
                   {paymentLabel(order.return_payment_status)}
                 </div>
               )}
+
+              {normalizedStatus === "return_payment_pending" &&
+                !returnPaymentConfirmed &&
+                order.return_price_cents != null && (
+                  <div className="space-y-3 rounded-xl border border-amber-200 bg-white p-3">
+                    <div>
+                      <h3 className="font-bold text-amber-900">
+                        Retour à payer
+                      </h3>
+
+                      <p className="mt-1 text-sm text-amber-800">
+                        Le retour du colis est en attente de ton paiement.
+                        Une fois le paiement confirmé, le retour pourra
+                        continuer.
+                      </p>
+                    </div>
+
+                    {paymentError && (
+                      <div className="rounded-xl bg-red-100 p-3 text-sm text-red-700">
+                        {paymentError}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={payReturn}
+                      disabled={paymentLoading}
+                      className="w-full rounded-xl bg-blue-600 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {paymentLoading
+                        ? "Redirection vers Stripe..."
+                        : `Payer le retour — ${formatEURFromCents(
+                            order.return_price_cents
+                          )}`}
+                    </button>
+                  </div>
+                )}
 
               {order.next_delivery_at && !returnCompleted && (
                 <div>
