@@ -1990,216 +1990,234 @@ export default function MissionsPage() {
       Boolean(order.return_started_at) &&
       isReturnOverdue(order, returnClock);
 
-    return (
-      <div
-        key={order.id}
-        className={`space-y-4 rounded-3xl border p-5 shadow-sm ${
-          !paid
-            ? "border-amber-300 bg-amber-50"
-            : overdue
-              ? "border-red-300 bg-red-50"
-              : waitingForCourier
-                ? "border-violet-300 bg-violet-50"
-                : "border-blue-300 bg-blue-50"
-        }`}
-      >
-        <div>
-          <h3 className="text-xl font-bold">
-            {!paid
-              ? "Colis bloqué"
-              : waitingForCourier
-                ? "Retour payé — en attente de validation"
-                : overdue
-                  ? "Retour en retard"
-                  : "Retour en cours"}
-          </h3>
+    const summaryTitle = !paid
+      ? "Retour en attente de paiement"
+      : waitingForCourier
+        ? "Colis débloqué — retour payé"
+        : overdue
+          ? "Retour en retard"
+          : "Retour en cours";
 
+    const summaryClass = !paid
+      ? "border-amber-300 bg-amber-50 text-amber-950"
+      : overdue
+        ? "border-red-300 bg-red-50 text-red-950"
+        : waitingForCourier
+          ? "border-green-300 bg-green-50 text-green-950"
+          : "border-blue-300 bg-blue-50 text-blue-950";
+
+    return (
+      <details
+        key={order.id}
+        className={`group overflow-hidden rounded-2xl border shadow-sm ${summaryClass}`}
+      >
+        <summary className="cursor-pointer list-none px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-bold">{summaryTitle}</p>
+              <p className="mt-1 truncate text-xs opacity-80">
+                {cleanAddressDisplay(order.pickup_address) || "-"} {order.pickup_city || ""}
+              </p>
+            </div>
+
+            <div className="shrink-0 text-right">
+              <p className="text-sm font-bold">
+                {formatEuro(order.return_courier_earnings_cents || order.return_price_cents)}
+              </p>
+              <p className="mt-1 text-xs font-semibold group-open:hidden">Voir ▾</p>
+              <p className="mt-1 hidden text-xs font-semibold group-open:block">Fermer ▴</p>
+            </div>
+          </div>
+        </summary>
+
+        <div className="space-y-4 border-t border-black/5 p-4">
           <p
             className={
               !paid
-                ? "text-amber-800"
+                ? "text-sm text-amber-800"
                 : overdue
-                  ? "text-red-800"
+                  ? "text-sm text-red-800"
                   : waitingForCourier
-                    ? "text-violet-800"
-                    : "text-blue-800"
+                    ? "text-sm text-green-800"
+                    : "text-sm text-blue-800"
             }
           >
             {!paid
               ? "Retour en attente du paiement de l'expéditeur. Ce colis ne bloque pas les nouvelles missions."
               : waitingForCourier
-                ? "L'expéditeur a payé le retour. Valide sa prise en charge lorsque tu es disponible. Le délai de 24 heures commencera au moment de la prise en charge."
+                ? "L'expéditeur a payé le retour. Le colis est débloqué. Prends le retour en charge lorsque tu es disponible."
                 : overdue
                   ? "Le délai de 24 heures est dépassé. Termine ce retour avant d'accepter une nouvelle mission normale."
                   : "Retour pris en charge. Tu peux conserver une mission normale en parallèle. Le colis doit être remis à l'expéditeur avant l'échéance indiquée."}
           </p>
-        </div>
 
-        <div className="grid gap-2 rounded-2xl bg-white p-4 text-sm">
-          <p><b>Expéditeur :</b> {order.sender_name || "-"}</p>
-          <p>
-            <b>Adresse de retour :</b>{" "}
-            {cleanAddressDisplay(order.pickup_address) || "-"} {order.pickup_city || ""}
-          </p>
-          <p><b>Motif :</b> {order.refusal_reason || "-"}</p>
-          <p><b>Commentaire :</b> {order.refusal_comment || "-"}</p>
-          <p>
-            <b>Montant mission :</b>{" "}
-            {formatEuro(order.courier_earnings_cents)} — acquise
-          </p>
-          <p>
-            <b>Montant supplémentaire :</b>{" "}
-            {formatEuro(order.return_courier_earnings_cents || order.return_price_cents)}
-          </p>
+          <div className="grid gap-2 rounded-2xl bg-white p-4 text-sm text-slate-900">
+            <p><b>Expéditeur :</b> {order.sender_name || "-"}</p>
+            <p>
+              <b>Adresse de retour :</b>{" "}
+              {cleanAddressDisplay(order.pickup_address) || "-"} {order.pickup_city || ""}
+            </p>
+            <p><b>Motif :</b> {order.refusal_reason || "-"}</p>
+            <p><b>Commentaire :</b> {order.refusal_comment || "-"}</p>
+            <p>
+              <b>Montant mission :</b>{" "}
+              {formatEuro(order.courier_earnings_cents)} — acquise
+            </p>
+            <p>
+              <b>Montant supplémentaire :</b>{" "}
+              {formatEuro(order.return_courier_earnings_cents || order.return_price_cents)}
+            </p>
 
-          {paid && order.return_started_at ? (
-            <>
-              <p>
-                <b>Retour pris en charge :</b>{" "}
-                {new Date(order.return_started_at).toLocaleString("fr-FR")}
-              </p>
-              <p className={overdue ? "font-bold text-red-700" : "font-semibold text-blue-800"}>
-                <b>À remettre avant :</b>{" "}
-                {deadline ? deadline.toLocaleString("fr-FR") : "-"}
-              </p>
-            </>
-          ) : null}
+            {paid && order.return_started_at ? (
+              <>
+                <p>
+                  <b>Retour pris en charge :</b>{" "}
+                  {new Date(order.return_started_at).toLocaleString("fr-FR")}
+                </p>
+                <p className={overdue ? "font-bold text-red-700" : "font-semibold text-blue-800"}>
+                  <b>À remettre avant :</b>{" "}
+                  {deadline ? deadline.toLocaleString("fr-FR") : "-"}
+                </p>
+              </>
+            ) : null}
 
-          {order.refusal_photo_url ? (
-            <a
-              href={order.refusal_photo_url}
-              target="_blank"
-              rel="noreferrer"
-              className="font-semibold text-blue-700 underline"
-            >
-              Voir la photo du refus
-            </a>
-          ) : null}
+            {order.refusal_photo_url ? (
+              <a
+                href={order.refusal_photo_url}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-blue-700 underline"
+              >
+                Voir la photo du refus
+              </a>
+            ) : null}
 
-          {order.sender_phone ? (
-            <button
-              type="button"
-              onClick={() => callPhone(order.sender_phone)}
-              className="mt-1 w-fit rounded-xl border border-slate-200 px-3 py-2 font-semibold text-slate-700"
-            >
-              Appeler l'expéditeur
-            </button>
-          ) : null}
-        </div>
-
-        {!paid ? (
-          <div className="rounded-xl bg-white p-3 text-sm font-semibold text-amber-800">
-            Paiement du retour en attente : {formatEuro(order.return_price_cents)}
+            {order.sender_phone ? (
+              <button
+                type="button"
+                onClick={() => callPhone(order.sender_phone)}
+                className="mt-1 w-fit rounded-xl border border-slate-200 px-3 py-2 font-semibold text-slate-700"
+              >
+                Appeler l'expéditeur
+              </button>
+            ) : null}
           </div>
-        ) : waitingForCourier ? (
-          <button
-            type="button"
-            onClick={() => startReturnToday(order)}
-            className="w-full rounded-xl bg-violet-700 px-4 py-3 font-bold text-white"
-          >
-            Prendre en charge le retour
-          </button>
-        ) : (
-          <div className="space-y-3">
-            {overdue ? (
-              <div className="rounded-xl border border-red-200 bg-white p-3 text-sm font-bold text-red-700">
-                Délai dépassé : termine ce retour en priorité.
-              </div>
-            ) : null}
 
+          {!paid ? (
+            <div className="rounded-xl bg-white p-3 text-sm font-semibold text-amber-800">
+              Paiement du retour en attente : {formatEuro(order.return_price_cents)}
+            </div>
+          ) : waitingForCourier ? (
             <button
               type="button"
-              onClick={() =>
-                setReturnScheduleOpen((current) => ({
-                  ...current,
-                  [order.id]: !current[order.id],
-                }))
-              }
-              className="w-full rounded-xl bg-blue-700 px-4 py-3 font-bold text-white"
+              onClick={() => startReturnToday(order)}
+              className="w-full rounded-xl bg-green-700 px-4 py-3 font-bold text-white"
             >
-              Choisir l'heure du retour
+              Prendre en charge le retour
             </button>
-
-            {returnScheduleOpen[order.id] ? (
-              <div className="space-y-2 rounded-2xl bg-white p-4">
-                <label className="block text-sm font-semibold">
-                  Date et heure prévues pour le retour
-                </label>
-                <input
-                  type="datetime-local"
-                  value={returnScheduleAt[order.id] || ""}
-                  onChange={(e) =>
-                    setReturnScheduleAt((current) => ({
-                      ...current,
-                      [order.id]: e.target.value,
-                    }))
-                  }
-                  className="w-full rounded-xl border px-4 py-3"
-                />
-                <p className="text-xs text-slate-500">
-                  Le créneau doit rester dans les 24 heures suivant la prise en charge du retour.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => scheduleReturn(order)}
-                  className="w-full rounded-xl bg-blue-800 px-4 py-3 font-bold text-white"
-                >
-                  Enregistrer le créneau
-                </button>
-              </div>
-            ) : null}
-
-            {status === "RETURN_SCHEDULED" && order.next_delivery_at ? (
-              <div className="rounded-xl bg-white p-3 text-sm text-blue-800">
-                Retour prévu le {new Date(order.next_delivery_at).toLocaleString("fr-FR")}
-              </div>
-            ) : null}
-
-            <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
-              <div>
-                <p className="font-bold text-slate-900">Confirmation par Code PIN retour</p>
-                <p className="mt-1 text-sm text-slate-600">
-                  Demande à l'expéditeur le Code PIN retour reçu après le paiement.
-                </p>
-              </div>
-
-              <input
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={4}
-                value={returnPinByOrder[order.id] || ""}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/\D/g, "").slice(0, 4);
-
-                  setReturnPinByOrder((current) => ({
-                    ...current,
-                    [order.id]: value,
-                  }));
-                }}
-                placeholder="Code PIN retour à 4 chiffres"
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-center text-xl font-bold tracking-[0.35em] text-slate-900"
-              />
+          ) : (
+            <div className="space-y-3">
+              {overdue ? (
+                <div className="rounded-xl border border-red-200 bg-white p-3 text-sm font-bold text-red-700">
+                  Délai dépassé : termine ce retour en priorité.
+                </div>
+              ) : null}
 
               <button
                 type="button"
-                disabled={
-                  Boolean(returnCompleting[order.id]) ||
-                  (returnPinByOrder[order.id] || "").length !== 4
+                onClick={() =>
+                  setReturnScheduleOpen((current) => ({
+                    ...current,
+                    [order.id]: !current[order.id],
+                  }))
                 }
-                onClick={() => completeReturnToSender(order)}
-                className="w-full rounded-xl bg-slate-900 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-400"
+                className="w-full rounded-xl bg-blue-700 px-4 py-3 font-bold text-white"
               >
-                {returnCompleting[order.id]
-                  ? "Vérification..."
-                  : "Valider le retour avec le Code PIN"}
+                Choisir l'heure du retour
               </button>
+
+              {returnScheduleOpen[order.id] ? (
+                <div className="space-y-2 rounded-2xl bg-white p-4">
+                  <label className="block text-sm font-semibold">
+                    Date et heure prévues pour le retour
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={returnScheduleAt[order.id] || ""}
+                    onChange={(e) =>
+                      setReturnScheduleAt((current) => ({
+                        ...current,
+                        [order.id]: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-xl border px-4 py-3"
+                  />
+                  <p className="text-xs text-slate-500">
+                    Le créneau doit rester dans les 24 heures suivant la prise en charge du retour.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => scheduleReturn(order)}
+                    className="w-full rounded-xl bg-blue-800 px-4 py-3 font-bold text-white"
+                  >
+                    Enregistrer le créneau
+                  </button>
+                </div>
+              ) : null}
+
+              {status === "RETURN_SCHEDULED" && order.next_delivery_at ? (
+                <div className="rounded-xl bg-white p-3 text-sm text-blue-800">
+                  Retour prévu le {new Date(order.next_delivery_at).toLocaleString("fr-FR")}
+                </div>
+              ) : null}
+
+              <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
+                <div>
+                  <p className="font-bold text-slate-900">Confirmation par Code PIN retour</p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Demande à l'expéditeur le Code PIN retour reçu après le paiement.
+                  </p>
+                </div>
+
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={4}
+                  value={returnPinByOrder[order.id] || ""}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+
+                    setReturnPinByOrder((current) => ({
+                      ...current,
+                      [order.id]: value,
+                    }));
+                  }}
+                  placeholder="Code PIN retour à 4 chiffres"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-center text-xl font-bold tracking-[0.35em] text-slate-900"
+                />
+
+                <button
+                  type="button"
+                  disabled={
+                    Boolean(returnCompleting[order.id]) ||
+                    (returnPinByOrder[order.id] || "").length !== 4
+                  }
+                  onClick={() => completeReturnToSender(order)}
+                  className="w-full rounded-xl bg-slate-900 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-400"
+                >
+                  {returnCompleting[order.id]
+                    ? "Vérification..."
+                    : "Valider le retour avec le Code PIN"}
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      </details>
     );
   }
+
 
   if (loading) {
     return (
@@ -2482,10 +2500,20 @@ export default function MissionsPage() {
               <p className="mt-1 text-[11px] text-blue-100/80">Mission + retour actif</p>
             </div>
 
-            <div className="rounded-2xl border border-white/20 bg-white/10 p-3">
+            <div
+              className={`rounded-2xl border p-3 ${
+                blockedParcelCount > 0
+                  ? "border-amber-200 bg-amber-100 text-amber-950"
+                  : "border-green-200 bg-green-100 text-green-900"
+              }`}
+            >
               <p className="text-3xl font-bold">{blockedParcelCount}</p>
-              <p className="mt-2 text-sm font-semibold text-blue-100">Colis bloqués</p>
-              <p className="mt-1 text-[11px] text-blue-100/80">En attente de paiement</p>
+              <p className="mt-2 text-sm font-semibold">
+                {blockedParcelCount > 0 ? "Retours à payer" : "Aucun blocage"}
+              </p>
+              <p className="mt-1 text-[11px] opacity-80">
+                {blockedParcelCount > 0 ? "En attente du client" : "Retours à jour"}
+              </p>
             </div>
           </div>
 
@@ -2652,47 +2680,17 @@ export default function MissionsPage() {
           )}
         </section>
 
-        <section className="space-y-4">
-          <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4">
-            <h2 className="text-2xl font-bold text-amber-900">
-              Colis bloqués
-            </h2>
-            <p className="text-sm text-amber-800">
-              Retour en attente du paiement de l'expéditeur. Ces colis ne bloquent pas les nouvelles missions.
-            </p>
-          </div>
+        {pendingReturns.length > 0 ? (
+          <section className="space-y-2">
+            {pendingReturns.map((order) => ReturnCard({ order, paid: false }))}
+          </section>
+        ) : null}
 
-          {pendingReturns.length === 0 ? (
-            <div className="rounded-3xl bg-white p-6 text-center text-gray-600">
-              Aucun colis bloqué
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {pendingReturns.map((order) => ReturnCard({ order, paid: false }))}
-            </div>
-          )}
-        </section>
-
-        <section className="space-y-4">
-          <div className="rounded-3xl border border-blue-200 bg-blue-50 p-4">
-            <h2 className="text-2xl font-bold text-blue-900">
-              Retours payés
-            </h2>
-            <p className="text-sm text-blue-800">
-              Après paiement, prends le retour en charge quand tu es disponible. Le délai de 24 heures commence à ce moment-là.
-            </p>
-          </div>
-
-          {paidReturns.length === 0 ? (
-            <div className="rounded-3xl bg-white p-6 text-center text-gray-600">
-              Aucun retour payé à effectuer
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {paidReturns.map((order) => ReturnCard({ order, paid: true }))}
-            </div>
-          )}
-        </section>
+        {paidReturns.length > 0 ? (
+          <section className="space-y-2">
+            {paidReturns.map((order) => ReturnCard({ order, paid: true }))}
+          </section>
+        ) : null}
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 py-2 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur sm:hidden">
