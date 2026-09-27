@@ -185,6 +185,7 @@ export default function MissionsPage() {
   const [refusalReason, setRefusalReason] = useState<Record<string, string>>({});
   const [refusalComment, setRefusalComment] = useState<Record<string, string>>({});
   const [refusalPhoto, setRefusalPhoto] = useState<Record<string, File | null>>({});
+  const [refusalPhotoPreparing, setRefusalPhotoPreparing] = useState<Record<string, boolean>>({});
   const [refusalSubmitting, setRefusalSubmitting] = useState<Record<string, boolean>>({});
   const [returnCompleting, setReturnCompleting] = useState<Record<string, boolean>>({});
   const [pendingReturns, setPendingReturns] = useState<Order[]>([]);
@@ -747,6 +748,121 @@ export default function MissionsPage() {
     await loadOrders(userId, true);
   }
 
+  async function compressRefusalPhoto(file: File) {
+    if (!file.type.startsWith("image/")) {
+      throw new Error("Le justificatif doit être une image.");
+    }
+
+    // Une image déjà légère n'a pas besoin d'être retraitée.
+    if (file.size <= 1.5 * 1024 * 1024) {
+      return file;
+    }
+
+    const bitmap = await createImageBitmap(file);
+
+    try {
+      const maxDimension = 1600;
+      const scale = Math.min(
+        1,
+        maxDimension / Math.max(bitmap.width, bitmap.height)
+      );
+
+      const width = Math.max(1, Math.round(bitmap.width * scale));
+      const height = Math.max(1, Math.round(bitmap.height * scale));
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+
+      const context = canvas.getContext("2d", { alpha: false });
+
+      if (!context) {
+        throw new Error("Impossible de préparer la photo.");
+      }
+
+      context.drawImage(bitmap, 0, 0, width, height);
+
+      const makeBlob = (quality: number) =>
+        new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob(
+            (blob) => {
+              if (blob) resolve(blob);
+              else reject(new Error("Impossible de compresser la photo."));
+            },
+            "image/jpeg",
+            quality
+          );
+        });
+
+      let blob = await makeBlob(0.72);
+
+      // Deuxième passe si nécessaire pour rester très loin de la limite Supabase de 5 Mo.
+      if (blob.size > 3.5 * 1024 * 1024) {
+        blob = await makeBlob(0.55);
+      }
+
+      if (blob.size > 4.5 * 1024 * 1024) {
+        throw new Error(
+          "La photo reste trop volumineuse après compression. Reprends une photo plus simple."
+        );
+      }
+
+      const baseName = file.name.replace(/\.[^.]+$/, "") || "photo-refus";
+
+      return new File([blob], `${baseName}.jpg`, {
+        type: "image/jpeg",
+        lastModified: Date.now(),
+      });
+    } finally {
+      bitmap.close();
+    }
+  }
+
+  async function prepareRefusalPhoto(orderId: string, file: File | null) {
+    if (!file) {
+      setRefusalPhoto((current) => ({ ...current, [orderId]: null }));
+      return;
+    }
+
+    setRefusalPhotoPreparing((current) => ({
+      ...current,
+      [orderId]: true,
+    }));
+    setMsg(null);
+
+    try {
+      const prepared = await compressRefusalPhoto(file);
+
+      setRefusalPhoto((current) => ({
+        ...current,
+        [orderId]: prepared,
+      }));
+
+      const originalMb = file.size / (1024 * 1024);
+      const preparedMb = prepared.size / (1024 * 1024);
+
+      setMsg(
+        prepared.size < file.size
+          ? `✅ Photo préparée : ${originalMb.toFixed(1)} Mo → ${preparedMb.toFixed(1)} Mo.`
+          : `✅ Photo prête : ${preparedMb.toFixed(1)} Mo.`
+      );
+    } catch (error: any) {
+      setRefusalPhoto((current) => ({
+        ...current,
+        [orderId]: null,
+      }));
+      setMsg(
+        error?.message ||
+          "Impossible de préparer la photo. Essaie avec une autre photo."
+      );
+    } finally {
+      setRefusalPhotoPreparing((current) => ({
+        ...current,
+        [orderId]: false,
+      }));
+    }
+  }
+
   async function uploadRefusalPhoto(orderId: string, file: File) {
     if (!userId) throw new Error("Utilisateur non connecté.");
 
@@ -755,7 +871,7 @@ export default function MissionsPage() {
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      throw new Error("La photo ne doit pas dépasser 5 Mo.");
+      throw new Error("La photo préparée dépasse encore 5 Mo.");
     }
 
     const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
@@ -1831,16 +1947,19 @@ export default function MissionsPage() {
                     type="file"
                     accept="image/*"
                     capture="environment"
-                    onChange={(e) =>
-                      setRefusalPhoto((current) => ({
-                        ...current,
-                        [order.id]: e.target.files?.[0] || null,
-                      }))
-                    }
-                    className="w-full rounded-xl border border-red-200 bg-white px-3 py-3 text-sm"
+                    disabled={Boolean(refusalPhotoPreparing[order.id])}
+                    onChange={(e) => {
+                      const selectedFile = e.target.files?.[0] || null;
+                      void prepareRefusalPhoto(order.id, selectedFile);
+                    }}
+                    className="w-full rounded-xl border border-red-200 bg-white px-3 py-3 text-sm disabled:cursor-wait disabled:opacity-60"
                   />
                   <p className="mt-1 text-xs text-gray-500">
-                    Image obligatoire, 5 Mo maximum. Ne photographie pas de document d'identité.
+                    {refusalPhotoPreparing[order.id]
+                      ? "Préparation et compression de la photo..."
+                      : refusalPhoto[order.id]
+                        ? `Photo prête : ${(refusalPhoto[order.id]!.size / (1024 * 1024)).toFixed(1)} Mo.`
+                        : "Image obligatoire. Jalin Livraison réduit automatiquement la photo avant l’envoi. Ne photographie pas de document d'identité."}
                   </p>
                 </div>
 
@@ -1852,13 +1971,18 @@ export default function MissionsPage() {
 
                 <button
                   type="button"
-                  disabled={Boolean(refusalSubmitting[order.id])}
+                  disabled={
+                    Boolean(refusalSubmitting[order.id]) ||
+                    Boolean(refusalPhotoPreparing[order.id])
+                  }
                   onClick={() => confirmRecipientRefusal(order)}
                   className="w-full rounded-xl bg-red-700 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-400"
                 >
-                  {refusalSubmitting[order.id]
-                    ? "Enregistrement du refus..."
-                    : "Confirmer le refus et préparer le retour"}
+                  {refusalPhotoPreparing[order.id]
+                    ? "Préparation de la photo..."
+                    : refusalSubmitting[order.id]
+                      ? "Enregistrement du refus..."
+                      : "Confirmer le refus et préparer le retour"}
                 </button>
               </div>
             </div>
