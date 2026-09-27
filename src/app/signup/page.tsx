@@ -15,48 +15,106 @@ export default function SignupPage() {
   const [city, setCity] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
   const [acceptedCgu, setAcceptedCgu] = useState(false);
+  const [acceptedClientTerms, setAcceptedClientTerms] = useState(false);
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const allRequiredAccepted =
+    acceptedCgu && acceptedClientTerms && acceptedPrivacy;
+
+  function hasPendingEstimate() {
+    if (typeof window === "undefined") return false;
+
+    try {
+      const raw = sessionStorage.getItem("jalin_pending_estimate");
+      if (!raw) return false;
+
+      const parsed = JSON.parse(raw);
+      return Boolean(
+        parsed?.pickupAddress &&
+          parsed?.dropoffAddress &&
+          parsed?.vehicleRequired
+      );
+    } catch {
+      return false;
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErrorMsg(null);
 
-    if (!acceptedCgu) {
-      setErrorMsg("Tu dois accepter les CGU pour créer ton compte.");
+    if (!allRequiredAccepted) {
+      setErrorMsg(
+        "Vous devez accepter les CGU, les Conditions Clients et la Politique de confidentialité pour créer votre compte."
+      );
       return;
     }
 
     setLoading(true);
 
     try {
+      const pendingEstimate = hasPendingEstimate();
+
+      if (pendingEstimate) {
+        sessionStorage.setItem(
+          "jalin_after_login_path",
+          "/client/new-order?from=estimate"
+        );
+      }
+
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: email.trim(),
         password,
         options: {
-          emailRedirectTo: "https://www.jalinlivraison.fr/login",
+          emailRedirectTo: pendingEstimate
+            ? "https://www.jalinlivraison.fr/login?from=estimate"
+            : "https://www.jalinlivraison.fr/login",
         },
       });
 
       if (error) throw error;
 
       if (data.user) {
-        await supabase.from("profiles").upsert({
-          id: data.user.id,
-          first_name: firstName,
-          last_name: lastName,
-          full_name: `${firstName} ${lastName}`.trim(),
-          phone,
-          city,
-          role: "client",
-        });
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .upsert({
+            id: data.user.id,
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+            full_name: `${firstName.trim()} ${lastName.trim()}`.trim(),
+            phone: phone.trim(),
+            city: city.trim(),
+            role: "client",
+          });
+
+        if (profileError) {
+          console.error("PROFILE UPSERT ERROR =>", profileError);
+        }
       }
 
-      router.replace("/login");
+      if (data.session) {
+        router.replace(
+          pendingEstimate
+            ? "/client/new-order?from=estimate"
+            : "/client"
+        );
+        return;
+      }
+
+      router.replace(
+        pendingEstimate
+          ? "/login?from=estimate"
+          : "/login"
+      );
     } catch (err: any) {
-      setErrorMsg(err?.message || "Erreur lors de la création du compte");
+      setErrorMsg(
+        err?.message || "Erreur lors de la création du compte"
+      );
     } finally {
       setLoading(false);
     }
@@ -137,21 +195,78 @@ export default function SignupPage() {
             className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white"
           />
 
-          <label className="flex gap-3 text-sm text-slate-300">
-            <input
-              type="checkbox"
-              checked={acceptedCgu}
-              onChange={(e) => setAcceptedCgu(e.target.checked)}
-              required
-            />
-            <span>
-              J'accepte les{" "}
-              <Link href="/cgu" className="text-emerald-400 underline">
-                CGU
-              </Link>
-              .
-            </span>
-          </label>
+          <div className="rounded-2xl border border-slate-700 bg-slate-950/40 p-4 space-y-4">
+            <p className="text-sm font-semibold text-white">
+              Conditions obligatoires
+            </p>
+
+            <label className="flex items-start gap-3 text-sm text-slate-300">
+              <input
+                type="checkbox"
+                checked={acceptedCgu}
+                onChange={(e) => setAcceptedCgu(e.target.checked)}
+                required
+                className="mt-1 h-4 w-4"
+              />
+              <span>
+                J&apos;accepte les{" "}
+                <Link
+                  href="/cgu"
+                  target="_blank"
+                  className="text-emerald-400 underline"
+                >
+                  Conditions Générales d&apos;Utilisation
+                </Link>
+                .
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3 text-sm text-slate-300">
+              <input
+                type="checkbox"
+                checked={acceptedClientTerms}
+                onChange={(e) =>
+                  setAcceptedClientTerms(e.target.checked)
+                }
+                required
+                className="mt-1 h-4 w-4"
+              />
+              <span>
+                J&apos;accepte les{" "}
+                <Link
+                  href="/cgu-clients"
+                  target="_blank"
+                  className="text-emerald-400 underline"
+                >
+                  Conditions Clients
+                </Link>
+                .
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3 text-sm text-slate-300">
+              <input
+                type="checkbox"
+                checked={acceptedPrivacy}
+                onChange={(e) =>
+                  setAcceptedPrivacy(e.target.checked)
+                }
+                required
+                className="mt-1 h-4 w-4"
+              />
+              <span>
+                J&apos;ai lu la{" "}
+                <Link
+                  href="/confidentialite"
+                  target="_blank"
+                  className="text-emerald-400 underline"
+                >
+                  Politique de confidentialité
+                </Link>
+                .
+              </span>
+            </label>
+          </div>
 
           {errorMsg && (
             <div className="rounded-xl bg-red-900/30 border border-red-700 text-red-300 px-4 py-3">
@@ -161,10 +276,12 @@ export default function SignupPage() {
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 disabled:opacity-50"
+            disabled={loading || !allRequiredAccepted}
+            className="w-full rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loading ? "Création..." : "Créer mon compte utilisateur"}
+            {loading
+              ? "Création..."
+              : "Créer mon compte utilisateur"}
           </button>
         </form>
 

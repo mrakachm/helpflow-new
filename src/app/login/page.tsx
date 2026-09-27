@@ -10,10 +10,12 @@ function LoginPageInner() {
   const searchParams = useSearchParams();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
-  const nextUrl = useMemo(() => {
-    const raw = searchParams.get("next") || "/client";
-    return raw.startsWith("/") ? raw : "/client";
+  const requestedNextUrl = useMemo(() => {
+    const raw = searchParams.get("next");
+    return raw && raw.startsWith("/") ? raw : null;
   }, [searchParams]);
+
+  const fromEstimate = searchParams.get("from") === "estimate";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,6 +26,64 @@ function LoginPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
+  function getSafeStoredPath() {
+    if (typeof window === "undefined") return null;
+
+    const stored = sessionStorage.getItem("jalin_after_login_path");
+
+    if (!stored || !stored.startsWith("/")) {
+      return null;
+    }
+
+    return stored;
+  }
+
+  function hasPendingEstimate() {
+    if (typeof window === "undefined") return false;
+
+    try {
+      const raw = sessionStorage.getItem("jalin_pending_estimate");
+      if (!raw) return false;
+
+      const parsed = JSON.parse(raw);
+
+      return Boolean(
+        parsed?.pickupAddress &&
+          parsed?.dropoffAddress &&
+          parsed?.vehicleRequired
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  function resolveNextUrl() {
+    if (requestedNextUrl) {
+      return requestedNextUrl;
+    }
+
+    const storedPath = getSafeStoredPath();
+
+    if (storedPath) {
+      return storedPath;
+    }
+
+    if (fromEstimate || hasPendingEstimate()) {
+      return "/client/new-order?from=estimate";
+    }
+
+    return "/client";
+  }
+
+  function clearLoginRedirectIfUsed(destination: string) {
+    if (
+      destination === "/client/new-order?from=estimate" ||
+      destination.startsWith("/client/new-order")
+    ) {
+      sessionStorage.removeItem("jalin_after_login_path");
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
 
@@ -33,7 +93,9 @@ function LoginPageInner() {
       if (cancelled) return;
 
       if (data.user) {
-        router.replace(nextUrl);
+        const destination = resolveNextUrl();
+        clearLoginRedirectIfUsed(destination);
+        router.replace(destination);
         return;
       }
 
@@ -45,10 +107,11 @@ function LoginPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [supabase, router, nextUrl]);
+  }, [supabase, router, requestedNextUrl, fromEstimate]);
 
   async function onLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
     setLoading(true);
     setError(null);
     setInfo(null);
@@ -59,9 +122,15 @@ function LoginPageInner() {
         password,
       });
 
-      if (error) throw new Error("Email ou mot de passe incorrect.");
+      if (error) {
+        throw new Error("Email ou mot de passe incorrect.");
+      }
 
-      router.replace(nextUrl);
+      const destination = resolveNextUrl();
+
+      clearLoginRedirectIfUsed(destination);
+
+      router.replace(destination);
     } catch (err: any) {
       setError(err?.message || "Erreur de connexion");
     } finally {
@@ -74,7 +143,9 @@ function LoginPageInner() {
     setInfo(null);
 
     if (!email.trim()) {
-      setError("Entre ton email avant de demander la réinitialisation.");
+      setError(
+        "Entre ton email avant de demander la réinitialisation."
+      );
       return;
     }
 
@@ -84,19 +155,29 @@ function LoginPageInner() {
       const { error } = await supabase.auth.resetPasswordForEmail(
         email.trim(),
         {
-          redirectTo: "https://www.jalinlivraison.fr/update-password",
+          redirectTo:
+            "https://www.jalinlivraison.fr/update-password",
         }
       );
 
       if (error) throw error;
 
-      setInfo("Email de réinitialisation envoyé. Vérifie ta boîte mail.");
+      setInfo(
+        "Email de réinitialisation envoyé. Vérifie ta boîte mail."
+      );
     } catch (err: any) {
-      setError(err?.message || "Erreur réinitialisation mot de passe");
+      setError(
+        err?.message || "Erreur réinitialisation mot de passe"
+      );
     } finally {
       setResetLoading(false);
     }
   }
+
+  const signupHref =
+    fromEstimate || requestedNextUrl?.includes("/client/new-order")
+      ? "/signup?from=estimate&next=/client/new-order"
+      : "/signup";
 
   if (checking) {
     return <div className="p-4">Chargement...</div>;
@@ -121,6 +202,13 @@ function LoginPageInner() {
           Connectez-vous à votre espace Jalin Livraison.
         </p>
 
+        {(fromEstimate || hasPendingEstimate()) && (
+          <div className="mt-4 rounded-xl border border-blue-500/30 bg-blue-500/10 p-3 text-sm text-blue-200">
+            Votre estimation est conservée. Après connexion, vous
+            reprendrez directement votre commande.
+          </div>
+        )}
+
         {error && (
           <p className="mt-4 rounded-xl bg-red-500/10 p-3 text-sm text-red-300">
             {error}
@@ -140,6 +228,7 @@ function LoginPageInner() {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
             required
           />
 
@@ -150,13 +239,19 @@ function LoginPageInner() {
               placeholder="Mot de passe"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
               required
             />
 
             <button
               type="button"
-              onClick={() => setShowPassword(!showPassword)}
+              onClick={() => setShowPassword((current) => !current)}
               className="absolute right-4 top-1/2 -translate-y-1/2 text-xl text-slate-300"
+              aria-label={
+                showPassword
+                  ? "Masquer le mot de passe"
+                  : "Afficher le mot de passe"
+              }
             >
               👁️
             </button>
@@ -178,11 +273,13 @@ function LoginPageInner() {
             disabled={resetLoading}
             className="text-emerald-300 disabled:opacity-60"
           >
-            {resetLoading ? "Envoi..." : "Mot de passe oublié ?"}
+            {resetLoading
+              ? "Envoi..."
+              : "Mot de passe oublié ?"}
           </button>
 
           <Link
-            href="/signup"
+            href={signupHref}
             className="font-semibold text-emerald-400"
           >
             Créer un compte

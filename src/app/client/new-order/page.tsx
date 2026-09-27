@@ -10,6 +10,20 @@ import { calculatePrice, type VehicleType } from "@/lib/pricing";
 
 import GoogleMapsScript from "@/components/GoogleMapsScript";
 
+type PendingHomeEstimate = {
+  pickupAddress?: string;
+  pickupCity?: string;
+  dropoffAddress?: string;
+  dropoffCity?: string;
+  vehicleRequired?: string;
+  distanceKm?: number;
+  distanceMeters?: number;
+  minimumPriceCents?: number;
+  deliveryMode?: "standard" | "scheduled";
+  scheduledAt?: string | null;
+  createdAt?: string;
+};
+
 function formatEuro(cents: number) {
 
   return `${(cents / 100).toLocaleString("fr-FR", {
@@ -38,7 +52,7 @@ function cleanSimpleAddress(text: string) {
 
 function containsPhoneNumber(text: string) {
 
-  const normalized = String(text || "").replace(/[\s.**\\\**-_/()+]/g, "");
+  const normalized = String(text || "").replace(/[\s.****\\\\\\****-_/()+]/g, "");
 
   return /0[67]\d{8}/.test(normalized) || /\d{8,}/.test(normalized);
 
@@ -183,7 +197,9 @@ export default function NewOrderPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const senderSuggestionTimerRef = useRef<number | null>(null);
+
   const receiverSuggestionTimerRef = useRef<number | null>(null);
+  const pendingEstimateLoadedRef = useRef(false);
 
   const PARCEL_TYPES = [
 
@@ -332,7 +348,9 @@ export default function NewOrderPage() {
   const [senderAddress, setSenderAddress] = useState("");
 
   const [senderCity, setSenderCity] = useState("");
+
   const [senderSuggestions, setSenderSuggestions] = useState<any[]>([]);
+
   const [senderSuggestionsLoading, setSenderSuggestionsLoading] = useState(false);
 
   const [pickupFloor, setPickupFloor] = useState("");
@@ -346,7 +364,9 @@ export default function NewOrderPage() {
   const [receiverAddress, setReceiverAddress] = useState("");
 
   const [receiverCity, setReceiverCity] = useState("");
+
   const [receiverSuggestions, setReceiverSuggestions] = useState<any[]>([]);
+
   const [receiverSuggestionsLoading, setReceiverSuggestionsLoading] = useState(false);
 
   const [dropoffFloor, setDropoffFloor] = useState("");
@@ -407,144 +427,316 @@ export default function NewOrderPage() {
 
   }, [supabase]);
 
-  async function fetchAddressSuggestions(
-    query: string,
-    target: "sender" | "receiver"
-  ) {
-    const trimmed = query.trim();
+  useEffect(() => {
+    if (pendingEstimateLoadedRef.current) return;
 
-    if (trimmed.length < 3) {
-      if (target === "sender") setSenderSuggestions([]);
-      else setReceiverSuggestions([]);
+    const raw = sessionStorage.getItem("jalin_pending_estimate");
+
+    if (!raw) {
+      pendingEstimateLoadedRef.current = true;
       return;
     }
 
+    try {
+      const estimate = JSON.parse(raw) as PendingHomeEstimate;
+
+      if (
+        !estimate?.pickupAddress ||
+        !estimate?.dropoffAddress ||
+        !estimate?.vehicleRequired
+      ) {
+        pendingEstimateLoadedRef.current = true;
+        return;
+      }
+
+      pendingEstimateLoadedRef.current = true;
+
+      setSenderAddress(estimate.pickupAddress || "");
+      setSenderCity(estimate.pickupCity || "");
+      setReceiverAddress(estimate.dropoffAddress || "");
+      setReceiverCity(estimate.dropoffCity || "");
+      setVehicleRequired(estimate.vehicleRequired || "");
+
+      if (
+        estimate.deliveryMode === "scheduled" &&
+        estimate.scheduledAt
+      ) {
+        setScheduledAt(estimate.scheduledAt);
+      } else {
+        setScheduledAt("");
+      }
+
+      if (
+        typeof estimate.minimumPriceCents === "number" &&
+        Number.isFinite(estimate.minimumPriceCents)
+      ) {
+        setClientProposedPrice(
+          String(Math.ceil(estimate.minimumPriceCents / 100))
+        );
+      }
+
+      window.setTimeout(() => {
+        if (
+          typeof estimate.distanceMeters === "number" &&
+          Number.isFinite(estimate.distanceMeters)
+        ) {
+          setEstimatedDistanceMeters(estimate.distanceMeters);
+        }
+
+        if (
+          typeof estimate.minimumPriceCents === "number" &&
+          Number.isFinite(estimate.minimumPriceCents)
+        ) {
+          setRouteMinimumPriceCents(estimate.minimumPriceCents);
+          setEstimateVisible(true);
+        }
+
+        setEstimateError(null);
+      }, 0);
+    } catch (error) {
+      console.error("PENDING HOME ESTIMATE ERROR =>", error);
+      pendingEstimateLoadedRef.current = true;
+    }
+  }, []);
+
+  async function fetchAddressSuggestions(
+
+    query: string,
+
+    target: "sender" | "receiver"
+
+  ) {
+
+    const trimmed = query.trim();
+
+    if (trimmed.length < 3) {
+
+      if (target === "sender") setSenderSuggestions([]);
+
+      else setReceiverSuggestions([]);
+
+      return;
+
+    }
+
     if (target === "sender") setSenderSuggestionsLoading(true);
+
     else setReceiverSuggestionsLoading(true);
 
     try {
+
       const google = await waitForGoogleMaps();
 
       if (!google?.maps?.places?.AutocompleteService) {
+
         throw new Error("Service de suggestions Google indisponible.");
+
       }
 
       const service = new google.maps.places.AutocompleteService();
 
       const predictions = await new Promise<any[]>((resolve, reject) => {
+
         service.getPlacePredictions(
+
           {
+
             input: trimmed,
+
             componentRestrictions: { country: "fr" },
+
             types: ["address"],
+
           },
+
           (results: any[] | null, status: string) => {
+
             if (
+
               status === google.maps.places.PlacesServiceStatus.OK ||
+
               status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS
+
             ) {
+
               resolve(results || []);
+
               return;
+
             }
 
             reject(
+
               new Error(
+
                 "Les suggestions Google sont momentanément indisponibles."
+
               )
+
             );
+
           }
+
         );
+
       });
 
       if (target === "sender") setSenderSuggestions(predictions);
+
       else setReceiverSuggestions(predictions);
+
     } catch (error) {
+
       console.error("GOOGLE ADDRESS SUGGESTIONS ERROR =>", error);
 
       // La saisie libre reste toujours disponible.
+
       if (target === "sender") setSenderSuggestions([]);
+
       else setReceiverSuggestions([]);
+
     } finally {
+
       if (target === "sender") setSenderSuggestionsLoading(false);
+
       else setReceiverSuggestionsLoading(false);
+
     }
+
   }
 
   function scheduleAddressSuggestions(
+
     query: string,
+
     target: "sender" | "receiver"
+
   ) {
+
     const ref =
+
       target === "sender"
+
         ? senderSuggestionTimerRef
+
         : receiverSuggestionTimerRef;
 
     if (ref.current) {
+
       window.clearTimeout(ref.current);
+
     }
 
     ref.current = window.setTimeout(() => {
+
       void fetchAddressSuggestions(query, target);
+
     }, 250);
+
   }
 
   async function selectAddressSuggestion(
+
     prediction: any,
+
     target: "sender" | "receiver"
+
   ) {
+
     try {
+
       const google = await waitForGoogleMaps();
 
       const placesService = new google.maps.places.PlacesService(
+
         document.createElement("div")
+
       );
 
       const place = await new Promise<any>((resolve, reject) => {
+
         placesService.getDetails(
+
           {
+
             placeId: prediction.place_id,
+
             fields: ["address_components", "formatted_address"],
+
           },
+
           (result: any, status: string) => {
+
             if (
+
               status === google.maps.places.PlacesServiceStatus.OK &&
+
               result
+
             ) {
+
               resolve(result);
+
               return;
+
             }
 
             reject(
+
               new Error(
+
                 "Impossible de récupérer les détails de cette adresse."
+
               )
+
             );
+
           }
+
         );
+
       });
 
       const parsed = extractGoogleAddress(place);
 
       if (target === "sender") {
+
         setSenderAddress(parsed.address || prediction.description || "");
+
         setSenderCity(parsed.city || "");
+
         setSenderSuggestions([]);
+
       } else {
+
         setReceiverAddress(parsed.address || prediction.description || "");
+
         setReceiverCity(parsed.city || "");
+
         setReceiverSuggestions([]);
+
       }
+
     } catch (error) {
+
       console.error("GOOGLE ADDRESS DETAILS ERROR =>", error);
 
       if (target === "sender") {
+
         setSenderAddress(prediction.description || senderAddress);
+
         setSenderSuggestions([]);
+
       } else {
+
         setReceiverAddress(prediction.description || receiverAddress);
+
         setReceiverSuggestions([]);
+
       }
+
     }
+
   }
 
   const pricingView = useMemo(() => {
@@ -1167,6 +1359,9 @@ export default function NewOrderPage() {
 
       }
 
+      sessionStorage.removeItem("jalin_pending_estimate");
+      sessionStorage.removeItem("jalin_after_login_path");
+
       window.location.assign(checkoutResult.url);
 
     } catch (e: unknown) {
@@ -1230,6 +1425,12 @@ export default function NewOrderPage() {
               Vous pouvez estimer le prix avant d’enregistrer la commande.
 
             </p>
+
+            {estimatedDistanceMeters !== null ? (
+              <p className="mt-1 text-xs font-semibold text-blue-700">
+                ✓ Votre estimation de la page d’accueil a été reprise automatiquement.
+              </p>
+            ) : null}
 
           </div>
 
@@ -1318,46 +1519,83 @@ export default function NewOrderPage() {
               />
 
               <div className="relative">
+
                 <input
+
                   value={senderAddress}
+
                   onChange={(e) => {
+
                     const value = e.target.value;
+
                     setSenderAddress(value);
+
                     setSenderCity("");
+
                     scheduleAddressSuggestions(value, "sender");
+
                   }}
+
                   onBlur={() => {
+
                     window.setTimeout(() => setSenderSuggestions([]), 180);
+
                   }}
+
                   placeholder="Commencez à taper l’adresse de départ"
+
                   autoComplete="off"
+
                   inputMode="text"
+
                   className="w-full rounded-xl border border-gray-200 px-3 py-2"
+
                 />
 
                 {senderSuggestionsLoading ? (
+
                   <p className="mt-1 px-1 text-xs text-gray-500">
+
                     Recherche d’adresses…
+
                   </p>
+
                 ) : null}
 
                 {senderSuggestions.length > 0 ? (
+
                   <div className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl">
+
                     {senderSuggestions.map((suggestion) => (
+
                       <button
+
                         key={suggestion.place_id}
+
                         type="button"
+
                         onMouseDown={(e) => e.preventDefault()}
+
                         onClick={() =>
+
                           selectAddressSuggestion(suggestion, "sender")
+
                         }
+
                         className="block w-full border-b border-gray-100 px-3 py-3 text-left text-sm last:border-b-0 hover:bg-gray-50"
+
                       >
+
                         {suggestion.description}
+
                       </button>
+
                     ))}
+
                   </div>
+
                 ) : null}
+
               </div>
 
               <input
@@ -1513,46 +1751,83 @@ export default function NewOrderPage() {
               />
 
               <div className="relative">
+
                 <input
+
                   value={receiverAddress}
+
                   onChange={(e) => {
+
                     const value = e.target.value;
+
                     setReceiverAddress(value);
+
                     setReceiverCity("");
+
                     scheduleAddressSuggestions(value, "receiver");
+
                   }}
+
                   onBlur={() => {
+
                     window.setTimeout(() => setReceiverSuggestions([]), 180);
+
                   }}
+
                   placeholder="Commencez à taper l’adresse de livraison"
+
                   autoComplete="off"
+
                   inputMode="text"
+
                   className="w-full rounded-xl border border-gray-200 px-3 py-2"
+
                 />
 
                 {receiverSuggestionsLoading ? (
+
                   <p className="mt-1 px-1 text-xs text-gray-500">
+
                     Recherche d’adresses…
+
                   </p>
+
                 ) : null}
 
                 {receiverSuggestions.length > 0 ? (
+
                   <div className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl">
+
                     {receiverSuggestions.map((suggestion) => (
+
                       <button
+
                         key={suggestion.place_id}
+
                         type="button"
+
                         onMouseDown={(e) => e.preventDefault()}
+
                         onClick={() =>
+
                           selectAddressSuggestion(suggestion, "receiver")
+
                         }
+
                         className="block w-full border-b border-gray-100 px-3 py-3 text-left text-sm last:border-b-0 hover:bg-gray-50"
+
                       >
+
                         {suggestion.description}
+
                       </button>
+
                     ))}
+
                   </div>
+
                 ) : null}
+
               </div>
 
               <input
@@ -2108,13 +2383,9 @@ export default function NewOrderPage() {
               />
 
               <p className="mt-1 text-xs text-gray-500">
-
-                Optionnel : laissez vide si la livraison
-
-                peut être effectuée dès qu’un livreur est
-
-                disponible.
-
+                Standard par défaut : laissez vide pour une livraison dès qu’un livreur
+                est disponible. Choisissez une date et une heure seulement si vous souhaitez
+                programmer la livraison.
               </p>
 
             </div>
