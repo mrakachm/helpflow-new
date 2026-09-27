@@ -11,7 +11,7 @@ export default function Hero() {
     <section className="mx-auto w-full max-w-6xl px-6 pt-6">
       <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
         <div className="grid items-center gap-10 p-6 md:p-10 lg:grid-cols-[1.15fr_0.85fr]">
-          <div>
+          <div className="order-1">
             <p className="inline-flex rounded-full bg-blue-100 px-4 py-2 text-sm font-bold text-blue-700">
               Livraison de proximité
             </p>
@@ -72,7 +72,13 @@ export default function Hero() {
             </div>
           </div>
 
-          <div className="relative min-h-[380px] overflow-hidden rounded-[1.5rem] bg-slate-100">
+          {estimateOpen && (
+            <div className="order-2 -mx-2 lg:order-3 lg:col-span-2 lg:mx-0">
+              <HomeEstimator />
+            </div>
+          )}
+
+          <div className="order-3 relative min-h-[380px] overflow-hidden rounded-[1.5rem] bg-slate-100 lg:order-2">
             <img
               src="/jalin-hero.png"
               alt="Livreuse de proximité Jalin Livraison"
@@ -91,12 +97,6 @@ export default function Hero() {
           </div>
         </div>
       </div>
-
-      {estimateOpen && (
-        <div className="mt-4">
-          <HomeEstimator />
-        </div>
-      )}
     </section>
   );
 }
