@@ -403,9 +403,9 @@ export default function HomeEstimator() {
     <>
       <GoogleMapsScript />
 
-      <section className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
+      <section className="w-full py-4">
         <div className="overflow-hidden rounded-[2rem] border border-blue-200 bg-gradient-to-br from-blue-600 via-blue-700 to-slate-900 shadow-xl">
-          <div className="px-5 py-7 text-white sm:px-8 sm:py-10">
+          <div className="px-4 py-7 text-white sm:px-8 sm:py-10">
             <div className="mx-auto max-w-3xl text-center">
               <span className="inline-flex rounded-full bg-white/15 px-4 py-2 text-sm font-semibold ring-1 ring-white/20">
                 Estimation rapide

@@ -73,7 +73,7 @@ export default function Hero() {
           </div>
 
           {estimateOpen && (
-            <div className="order-2 -mx-2 lg:order-3 lg:col-span-2 lg:mx-0">
+            <div className="order-2 -mx-6 lg:order-3 lg:col-span-2 lg:-mx-10">
               <HomeEstimator />
             </div>
           )}
