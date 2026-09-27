@@ -2,12 +2,13 @@
 
 
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { calculatePrice, type VehicleType } from "@/lib/pricing";
+import GoogleMapsScript from "@/components/GoogleMapsScript";
 
 
 
@@ -49,6 +50,34 @@ function containsPhoneNumber(text: string) {
 
 }
 
+function getAddressPart(
+  components: any[] | undefined,
+  type: string
+) {
+  return (
+    components?.find((component) => component.types?.includes(type))
+      ?.long_name || ""
+  );
+}
+
+function extractGoogleAddress(place: any) {
+  const components = place?.address_components || [];
+
+  const streetNumber = getAddressPart(components, "street_number");
+  const route = getAddressPart(components, "route");
+
+  const city =
+    getAddressPart(components, "locality") ||
+    getAddressPart(components, "postal_town") ||
+    getAddressPart(components, "administrative_area_level_2");
+
+  const street = [streetNumber, route].filter(Boolean).join(" ").trim();
+
+  return {
+    address: street || place?.formatted_address || "",
+    city,
+  };
+}
 
 function vehicleToPricingType(value: string): VehicleType {
   if (value === "Voiture") return "voiture";
@@ -64,8 +93,9 @@ async function waitForGoogleMaps(timeoutMs = 10000) {
   const startedAt = Date.now();
 
   while (Date.now() - startedAt < timeoutMs) {
-    if (window.google?.maps?.DirectionsService) {
-      return window.google;
+    const google = (window as any).google;
+    if (google?.maps?.DirectionsService) {
+      return google;
     }
 
     await new Promise((resolve) => window.setTimeout(resolve, 150));
@@ -108,6 +138,10 @@ export default function NewOrderPage() {
   const router = useRouter();
 
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+
+  const senderAddressRef = useRef<HTMLInputElement | null>(null);
+  const receiverAddressRef = useRef<HTMLInputElement | null>(null);
+
 
 
 
@@ -354,6 +388,89 @@ export default function NewOrderPage() {
     })();
 
   }, [supabase]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let senderAutocomplete: any = null;
+    let receiverAutocomplete: any = null;
+    let senderListener: any = null;
+    let receiverListener: any = null;
+
+    async function setupAutocomplete() {
+      try {
+        const google = await waitForGoogleMaps();
+
+        if (cancelled || !google?.maps?.places?.Autocomplete) {
+          return;
+        }
+
+        if (senderAddressRef.current) {
+          senderAutocomplete = new google.maps.places.Autocomplete(
+            senderAddressRef.current,
+            {
+              componentRestrictions: { country: "fr" },
+              fields: ["address_components", "formatted_address"],
+              types: ["address"],
+            }
+          );
+
+          senderListener = senderAutocomplete.addListener(
+            "place_changed",
+            () => {
+              const place = senderAutocomplete.getPlace();
+              const parsed = extractGoogleAddress(place);
+
+              if (parsed.address) {
+                setSenderAddress(parsed.address);
+              }
+
+              if (parsed.city) {
+                setSenderCity(parsed.city);
+              }
+            }
+          );
+        }
+
+        if (receiverAddressRef.current) {
+          receiverAutocomplete = new google.maps.places.Autocomplete(
+            receiverAddressRef.current,
+            {
+              componentRestrictions: { country: "fr" },
+              fields: ["address_components", "formatted_address"],
+              types: ["address"],
+            }
+          );
+
+          receiverListener = receiverAutocomplete.addListener(
+            "place_changed",
+            () => {
+              const place = receiverAutocomplete.getPlace();
+              const parsed = extractGoogleAddress(place);
+
+              if (parsed.address) {
+                setReceiverAddress(parsed.address);
+              }
+
+              if (parsed.city) {
+                setReceiverCity(parsed.city);
+              }
+            }
+          );
+        }
+      } catch (error) {
+        console.error("GOOGLE AUTOCOMPLETE ERROR =>", error);
+      }
+    }
+
+    setupAutocomplete();
+
+    return () => {
+      cancelled = true;
+      senderListener?.remove?.();
+      receiverListener?.remove?.();
+    };
+  }, []);
+
 
 
 
@@ -981,7 +1098,9 @@ export default function NewOrderPage() {
 
   return (
 
-    <main className="min-h-screen bg-gray-50">
+    <>
+      <GoogleMapsScript />
+      <main className="min-h-screen bg-gray-50">
 
       <div className="mx-auto max-w-xl px-4 py-6">
 
@@ -1110,6 +1229,7 @@ export default function NewOrderPage() {
               />
 
               <input
+                ref={senderAddressRef}
 
                 value={senderAddress}
 
@@ -1129,7 +1249,7 @@ export default function NewOrderPage() {
 
                 }
 
-                placeholder="Adresse départ"
+                placeholder="Commencez à taper l’adresse de départ"
 
                 autoComplete="off"
 
@@ -1147,7 +1267,7 @@ export default function NewOrderPage() {
 
                 }
 
-                placeholder="Ville"
+                placeholder="Ville (remplie automatiquement)"
 
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
 
@@ -1298,6 +1418,7 @@ export default function NewOrderPage() {
               />
 
               <input
+                ref={receiverAddressRef}
 
                 value={receiverAddress}
 
@@ -1317,7 +1438,7 @@ export default function NewOrderPage() {
 
                 }
 
-                placeholder="Adresse livraison"
+                placeholder="Commencez à taper l’adresse de livraison"
 
                 autoComplete="off"
 
@@ -1335,7 +1456,7 @@ export default function NewOrderPage() {
 
                 }
 
-                placeholder="Ville"
+                placeholder="Ville (remplie automatiquement)"
 
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
 
@@ -1825,6 +1946,7 @@ export default function NewOrderPage() {
 
                   accept="image/*"
 
+                  capture="environment"
                   onChange={(e) =>
 
                     handleParcelPhotoChange(
@@ -2282,9 +2404,9 @@ export default function NewOrderPage() {
 
       </div>
 
-    </main>
+      </main>
+    </>
 
   );
 
 }
-
