@@ -1993,7 +1993,7 @@ export default function MissionsPage() {
     const summaryTitle = !paid
       ? "Retour en attente de paiement"
       : waitingForCourier
-        ? "Colis débloqué — retour payé"
+        ? "🟠 Retour prioritaire"
         : overdue
           ? "Retour en retard"
           : "Retour en cours";
@@ -2003,7 +2003,7 @@ export default function MissionsPage() {
       : overdue
         ? "border-red-300 bg-red-50 text-red-950"
         : waitingForCourier
-          ? "border-green-300 bg-green-50 text-green-950"
+          ? "border-orange-300 bg-orange-50 text-orange-950 ring-2 ring-orange-200"
           : "border-blue-300 bg-blue-50 text-blue-950";
 
     return (
@@ -2038,14 +2038,14 @@ export default function MissionsPage() {
                 : overdue
                   ? "text-sm text-red-800"
                   : waitingForCourier
-                    ? "text-sm text-green-800"
+                    ? "text-sm font-semibold text-orange-800"
                     : "text-sm text-blue-800"
             }
           >
             {!paid
               ? "Retour en attente du paiement de l'expéditeur. Ce colis ne bloque pas les nouvelles missions."
               : waitingForCourier
-                ? "L'expéditeur a payé le retour. Le colis est débloqué. Prends le retour en charge lorsque tu es disponible."
+                ? "Retour payé — prêt à être pris en charge. Ce retour est prioritaire : prends-le en charge ou programme-le avant de poursuivre."
                 : overdue
                   ? "Le délai de 24 heures est dépassé. Termine ce retour avant d'accepter une nouvelle mission normale."
                   : "Retour pris en charge. Tu peux conserver une mission normale en parallèle. Le colis doit être remis à l'expéditeur avant l'échéance indiquée."}
@@ -2111,7 +2111,7 @@ export default function MissionsPage() {
             <button
               type="button"
               onClick={() => startReturnToday(order)}
-              className="w-full rounded-xl bg-green-700 px-4 py-3 font-bold text-white"
+              className="w-full rounded-xl bg-orange-600 px-4 py-3 font-bold text-white shadow-sm"
             >
               Prendre en charge le retour
             </button>
@@ -2241,8 +2241,14 @@ export default function MissionsPage() {
       .filter(Boolean)
       .join(" · ") || "Véhicule non renseigné";
 
+  const priorityReturns = paidReturns.filter(
+    (order) =>
+      cleanStatus(order.return_payment_status) === "PAID" &&
+      !order.return_started_at
+  );
   const activeReturns = paidReturns.filter((order) => Boolean(order.return_started_at));
   const currentMissionCount = myMissions.length + activeReturns.length;
+  const takeNowCount = available.length + priorityReturns.length;
   const blockedParcelCount = pendingReturns.length;
   const hasOverdueReturn = activeReturns.some((order) =>
     isReturnOverdue(order, returnClock)
@@ -2489,9 +2495,13 @@ export default function MissionsPage() {
 
           <div className="mt-6 grid grid-cols-3 gap-3">
             <div className="rounded-2xl border border-white/20 bg-white/10 p-3">
-              <p className="text-3xl font-bold">{available.length}</p>
+              <p className="text-3xl font-bold">{takeNowCount}</p>
               <p className="mt-2 text-sm font-semibold text-blue-100">À prendre</p>
-              <p className="mt-1 text-[11px] text-blue-100/80">Missions disponibles</p>
+              <p className="mt-1 text-[11px] text-blue-100/80">
+                {priorityReturns.length > 0
+                  ? `${priorityReturns.length} retour(s) prioritaire(s)`
+                  : "Missions disponibles"}
+              </p>
             </div>
 
             <div className="rounded-2xl border border-white/20 bg-white/10 p-3">
@@ -2574,6 +2584,28 @@ export default function MissionsPage() {
             {msg}
           </div>
         )}
+
+        {priorityReturns.length > 0 ? (
+          <section className="space-y-3">
+            <div className="rounded-3xl border-2 border-orange-300 bg-orange-50 p-4 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-2xl text-white">
+                  ↩️
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-orange-950">
+                    Retour prioritaire
+                  </h2>
+                  <p className="mt-1 text-sm font-semibold leading-6 text-orange-800">
+                    Retour payé — prêt à être pris en charge. Traite ce retour en priorité pour ne pas l'oublier.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {priorityReturns.map((order) => ReturnCard({ order, paid: true }))}
+          </section>
+        ) : null}
 
         <section className="space-y-4">
           <div>
@@ -2686,9 +2718,9 @@ export default function MissionsPage() {
           </section>
         ) : null}
 
-        {paidReturns.length > 0 ? (
+        {activeReturns.length > 0 ? (
           <section className="space-y-2">
-            {paidReturns.map((order) => ReturnCard({ order, paid: true }))}
+            {activeReturns.map((order) => ReturnCard({ order, paid: true }))}
           </section>
         ) : null}
       </div>
