@@ -10,18 +10,36 @@ import { calculatePrice, type VehicleType } from "@/lib/pricing";
 
 import GoogleMapsScript from "@/components/GoogleMapsScript";
 
+type AddressSuggestion = {
+  description: string;
+  placeId: string;
+  prediction: any;
+};
+
 type PendingHomeEstimate = {
+
   pickupAddress?: string;
+
   pickupCity?: string;
+
   dropoffAddress?: string;
+
   dropoffCity?: string;
+
   vehicleRequired?: string;
+
   distanceKm?: number;
+
   distanceMeters?: number;
+
   minimumPriceCents?: number;
+
   deliveryMode?: "standard" | "scheduled";
+
   scheduledAt?: string | null;
+
   createdAt?: string;
+
 };
 
 function formatEuro(cents: number) {
@@ -52,142 +70,151 @@ function cleanSimpleAddress(text: string) {
 
 function containsPhoneNumber(text: string) {
 
-  const normalized = String(text || "").replace(/[\s.****\\\\\\****-_/()+]/g, "");
+  const normalized = String(text || "").replace(/[\s.******\\\\\\\\\\\******-_/()+]/g, "");
 
   return /0[67]\d{8}/.test(normalized) || /\d{8,}/.test(normalized);
 
 }
 
-function getAddressPart(
-
-  components: any[] | undefined,
-
-  type: string
-
-) {
-
+function componentText(component: any) {
   return (
-
-    components?.find((component) => component.types?.includes(type))
-
-      ?.long_name || ""
-
+    component?.longText ||
+    component?.long_name ||
+    component?.shortText ||
+    component?.short_name ||
+    ""
   );
-
 }
 
-function extractGoogleAddress(place: any) {
+function getAddressPart(
+  components: any[] | undefined,
+  type: string
+) {
+  const component = components?.find((item) =>
+    item?.types?.includes(type)
+  );
+  return componentText(component);
+}
 
-  const components = place?.address_components || [];
-
+function extractAddressPartsFromComponents(
+  components: any[] | undefined,
+  formattedAddress = ""
+) {
   const streetNumber = getAddressPart(components, "street_number");
-
   const route = getAddressPart(components, "route");
-
   const city =
-
     getAddressPart(components, "locality") ||
-
     getAddressPart(components, "postal_town") ||
-
+    getAddressPart(components, "administrative_area_level_3") ||
     getAddressPart(components, "administrative_area_level_2");
-
+  const postalCode = getAddressPart(components, "postal_code");
   const street = [streetNumber, route].filter(Boolean).join(" ").trim();
 
   return {
-
-    address: street || place?.formatted_address || "",
-
+    address: street || formattedAddress || "",
     city,
-
+    postalCode,
+    cityLabel: [postalCode, city].filter(Boolean).join(" ").trim(),
   };
-
 }
 
 function vehicleToPricingType(value: string): VehicleType {
-
   if (value === "Voiture") return "voiture";
-
   if (value === "Utilitaire") return "camion";
-
   return "velo";
-
-}
-
-function buildFullAddress(address: string, city: string) {
-
-  return `${cleanSimpleAddress(address)}, ${city.trim()}, France`;
-
 }
 
 async function waitForGoogleMaps(timeoutMs = 10000) {
-
   const startedAt = Date.now();
 
   while (Date.now() - startedAt < timeoutMs) {
-
     const google = (window as any).google;
 
-    if (google?.maps?.DirectionsService) {
-
+    if (
+      google?.maps?.DirectionsService &&
+      google?.maps?.Geocoder &&
+      google?.maps?.importLibrary
+    ) {
       return google;
-
     }
 
     await new Promise((resolve) => window.setTimeout(resolve, 150));
-
   }
 
   throw new Error(
-
     "Google Maps n’est pas encore disponible. Actualisez la page puis réessayez."
-
   );
-
 }
 
-async function getDrivingDistanceMeters(origin: string, destination: string) {
-
+async function geocodeFrenchAddress(
+  address: string,
+  cityOrPostal: string
+) {
   const google = await waitForGoogleMaps();
+  const geocoder = new google.maps.Geocoder();
 
+  const query = [
+    cleanSimpleAddress(address),
+    cityOrPostal.trim(),
+    "France",
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  const response = await geocoder.geocode({
+    address: query,
+    region: "FR",
+    componentRestrictions: { country: "FR" },
+  });
+
+  const result = response?.results?.[0];
+
+  if (!result?.geometry?.location) {
+    throw new Error(
+      `Adresse introuvable : ${cleanSimpleAddress(address)}. Choisissez une suggestion Google ou vérifiez l’adresse.`
+    );
+  }
+
+  const parsed = extractAddressPartsFromComponents(
+    result.address_components,
+    result.formatted_address
+  );
+
+  return {
+    location: result.geometry.location,
+    address: parsed.address || cleanSimpleAddress(address),
+    cityLabel: parsed.cityLabel || cityOrPostal.trim(),
+  };
+}
+
+async function getDrivingDistanceMeters(
+  origin: any,
+  destination: any
+) {
+  const google = await waitForGoogleMaps();
   const service = new google.maps.DirectionsService();
 
   const result = await service.route({
-
     origin,
-
     destination,
-
     travelMode: google.maps.TravelMode.DRIVING,
-
     region: "FR",
-
   });
 
   const legs = result?.routes?.[0]?.legs || [];
-
   const distanceMeters = legs.reduce(
-
     (total: number, leg: any) =>
-
       total + Number(leg?.distance?.value || 0),
-
     0
-
   );
 
   if (!distanceMeters || !Number.isFinite(distanceMeters)) {
-
     throw new Error(
-
-      "Impossible de calculer la distance entre ces deux adresses. Vérifiez les adresses."
-
+      "Impossible de calculer la distance entre ces deux adresses. Choisissez les adresses proposées par Google."
     );
-
   }
 
   return distanceMeters;
-
 }
 
 export default function NewOrderPage() {
@@ -199,6 +226,11 @@ export default function NewOrderPage() {
   const senderSuggestionTimerRef = useRef<number | null>(null);
 
   const receiverSuggestionTimerRef = useRef<number | null>(null);
+
+  const senderSessionTokenRef = useRef<any>(null);
+
+  const receiverSessionTokenRef = useRef<any>(null);
+
   const pendingEstimateLoadedRef = useRef(false);
 
   const PARCEL_TYPES = [
@@ -349,7 +381,7 @@ export default function NewOrderPage() {
 
   const [senderCity, setSenderCity] = useState("");
 
-  const [senderSuggestions, setSenderSuggestions] = useState<any[]>([]);
+  const [senderSuggestions, setSenderSuggestions] = useState<AddressSuggestion[]>([]);
 
   const [senderSuggestionsLoading, setSenderSuggestionsLoading] = useState(false);
 
@@ -365,7 +397,7 @@ export default function NewOrderPage() {
 
   const [receiverCity, setReceiverCity] = useState("");
 
-  const [receiverSuggestions, setReceiverSuggestions] = useState<any[]>([]);
+  const [receiverSuggestions, setReceiverSuggestions] = useState<AddressSuggestion[]>([]);
 
   const [receiverSuggestionsLoading, setReceiverSuggestionsLoading] = useState(false);
 
@@ -428,181 +460,199 @@ export default function NewOrderPage() {
   }, [supabase]);
 
   useEffect(() => {
+
     if (pendingEstimateLoadedRef.current) return;
 
     const raw = sessionStorage.getItem("jalin_pending_estimate");
 
     if (!raw) {
+
       pendingEstimateLoadedRef.current = true;
+
       return;
+
     }
 
     try {
+
       const estimate = JSON.parse(raw) as PendingHomeEstimate;
 
       if (
+
         !estimate?.pickupAddress ||
+
         !estimate?.dropoffAddress ||
+
         !estimate?.vehicleRequired
+
       ) {
+
         pendingEstimateLoadedRef.current = true;
+
         return;
+
       }
 
       pendingEstimateLoadedRef.current = true;
 
       setSenderAddress(estimate.pickupAddress || "");
+
       setSenderCity(estimate.pickupCity || "");
+
       setReceiverAddress(estimate.dropoffAddress || "");
+
       setReceiverCity(estimate.dropoffCity || "");
+
       setVehicleRequired(estimate.vehicleRequired || "");
 
       if (
+
         estimate.deliveryMode === "scheduled" &&
+
         estimate.scheduledAt
+
       ) {
+
         setScheduledAt(estimate.scheduledAt);
+
       } else {
+
         setScheduledAt("");
+
       }
 
       if (
+
         typeof estimate.minimumPriceCents === "number" &&
+
         Number.isFinite(estimate.minimumPriceCents)
+
       ) {
+
         setClientProposedPrice(
+
           String(Math.ceil(estimate.minimumPriceCents / 100))
+
         );
+
       }
 
       window.setTimeout(() => {
+
         if (
+
           typeof estimate.distanceMeters === "number" &&
+
           Number.isFinite(estimate.distanceMeters)
+
         ) {
+
           setEstimatedDistanceMeters(estimate.distanceMeters);
+
         }
 
         if (
+
           typeof estimate.minimumPriceCents === "number" &&
+
           Number.isFinite(estimate.minimumPriceCents)
+
         ) {
+
           setRouteMinimumPriceCents(estimate.minimumPriceCents);
+
           setEstimateVisible(true);
+
         }
 
         setEstimateError(null);
+
       }, 0);
+
     } catch (error) {
+
       console.error("PENDING HOME ESTIMATE ERROR =>", error);
+
       pendingEstimateLoadedRef.current = true;
+
     }
+
   }, []);
 
   async function fetchAddressSuggestions(
-
     query: string,
-
     target: "sender" | "receiver"
-
   ) {
-
     const trimmed = query.trim();
 
     if (trimmed.length < 3) {
-
       if (target === "sender") setSenderSuggestions([]);
-
       else setReceiverSuggestions([]);
-
       return;
-
     }
 
     if (target === "sender") setSenderSuggestionsLoading(true);
-
     else setReceiverSuggestionsLoading(true);
 
     try {
-
       const google = await waitForGoogleMaps();
+      const placesLibrary: any =
+        await google.maps.importLibrary("places");
 
-      if (!google?.maps?.places?.AutocompleteService) {
+      const {
+        AutocompleteSuggestion,
+        AutocompleteSessionToken,
+      } = placesLibrary;
 
-        throw new Error("Service de suggestions Google indisponible.");
+      const tokenRef =
+        target === "sender"
+          ? senderSessionTokenRef
+          : receiverSessionTokenRef;
 
+      if (!tokenRef.current) {
+        tokenRef.current = new AutocompleteSessionToken();
       }
 
-      const service = new google.maps.places.AutocompleteService();
+      const { suggestions } =
+        await AutocompleteSuggestion.fetchAutocompleteSuggestions({
+          input: trimmed,
+          includedRegionCodes: ["fr"],
+          language: "fr",
+          region: "fr",
+          sessionToken: tokenRef.current,
+        });
 
-      const predictions = await new Promise<any[]>((resolve, reject) => {
+      const predictions: AddressSuggestion[] =
+        (suggestions || [])
+          .map((item: any) => item?.placePrediction)
+          .filter(Boolean)
+          .slice(0, 6)
+          .map((prediction: any) => ({
+            description:
+              prediction.text?.toString?.() || "",
+            placeId: prediction.placeId || "",
+            prediction,
+          }))
+          .filter((item: AddressSuggestion) => item.description);
 
-        service.getPlacePredictions(
-
-          {
-
-            input: trimmed,
-
-            componentRestrictions: { country: "fr" },
-
-            types: ["address"],
-
-          },
-
-          (results: any[] | null, status: string) => {
-
-            if (
-
-              status === google.maps.places.PlacesServiceStatus.OK ||
-
-              status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS
-
-            ) {
-
-              resolve(results || []);
-
-              return;
-
-            }
-
-            reject(
-
-              new Error(
-
-                "Les suggestions Google sont momentanément indisponibles."
-
-              )
-
-            );
-
-          }
-
-        );
-
-      });
-
-      if (target === "sender") setSenderSuggestions(predictions);
-
-      else setReceiverSuggestions(predictions);
-
+      if (target === "sender") {
+        setSenderSuggestions(predictions);
+      } else {
+        setReceiverSuggestions(predictions);
+      }
     } catch (error) {
-
       console.error("GOOGLE ADDRESS SUGGESTIONS ERROR =>", error);
 
-      // La saisie libre reste toujours disponible.
-
       if (target === "sender") setSenderSuggestions([]);
-
       else setReceiverSuggestions([]);
 
+      setMsg(
+        "Les suggestions Google ne sont pas disponibles pour le moment. Vous pouvez encore saisir l’adresse manuellement."
+      );
     } finally {
-
       if (target === "sender") setSenderSuggestionsLoading(false);
-
       else setReceiverSuggestionsLoading(false);
-
     }
-
   }
 
   function scheduleAddressSuggestions(
@@ -636,107 +686,70 @@ export default function NewOrderPage() {
   }
 
   async function selectAddressSuggestion(
-
-    prediction: any,
-
+    suggestion: AddressSuggestion,
     target: "sender" | "receiver"
-
   ) {
-
     try {
+      const place = suggestion.prediction.toPlace();
 
-      const google = await waitForGoogleMaps();
-
-      const placesService = new google.maps.places.PlacesService(
-
-        document.createElement("div")
-
-      );
-
-      const place = await new Promise<any>((resolve, reject) => {
-
-        placesService.getDetails(
-
-          {
-
-            placeId: prediction.place_id,
-
-            fields: ["address_components", "formatted_address"],
-
-          },
-
-          (result: any, status: string) => {
-
-            if (
-
-              status === google.maps.places.PlacesServiceStatus.OK &&
-
-              result
-
-            ) {
-
-              resolve(result);
-
-              return;
-
-            }
-
-            reject(
-
-              new Error(
-
-                "Impossible de récupérer les détails de cette adresse."
-
-              )
-
-            );
-
-          }
-
-        );
-
+      await place.fetchFields({
+        fields: [
+          "addressComponents",
+          "formattedAddress",
+          "location",
+        ],
       });
 
-      const parsed = extractGoogleAddress(place);
+      const parsed =
+        extractAddressPartsFromComponents(
+          place.addressComponents,
+          place.formattedAddress || suggestion.description
+        );
+
+      const finalAddress =
+        parsed.address ||
+        place.formattedAddress ||
+        suggestion.description;
+
+      const finalCity =
+        parsed.cityLabel ||
+        parsed.city ||
+        "";
 
       if (target === "sender") {
-
-        setSenderAddress(parsed.address || prediction.description || "");
-
-        setSenderCity(parsed.city || "");
-
+        setSenderAddress(finalAddress);
+        setSenderCity(finalCity);
         setSenderSuggestions([]);
-
+        senderSessionTokenRef.current = null;
       } else {
-
-        setReceiverAddress(parsed.address || prediction.description || "");
-
-        setReceiverCity(parsed.city || "");
-
+        setReceiverAddress(finalAddress);
+        setReceiverCity(finalCity);
         setReceiverSuggestions([]);
-
+        receiverSessionTokenRef.current = null;
       }
 
+      setEstimateVisible(false);
+      setEstimateError(null);
+      setEstimatedDistanceMeters(null);
+      setRouteMinimumPriceCents(null);
+      setMsg(null);
     } catch (error) {
-
       console.error("GOOGLE ADDRESS DETAILS ERROR =>", error);
 
       if (target === "sender") {
-
-        setSenderAddress(prediction.description || senderAddress);
-
+        setSenderAddress(suggestion.description);
         setSenderSuggestions([]);
-
+        senderSessionTokenRef.current = null;
       } else {
-
-        setReceiverAddress(prediction.description || receiverAddress);
-
+        setReceiverAddress(suggestion.description);
         setReceiverSuggestions([]);
-
+        receiverSessionTokenRef.current = null;
       }
 
+      setMsg(
+        "Impossible de récupérer automatiquement cette adresse. Essayez une autre suggestion."
+      );
     }
-
   }
 
   const pricingView = useMemo(() => {
@@ -780,67 +793,51 @@ export default function NewOrderPage() {
   }, [clientProposedPrice, effectiveMinimumPriceCents]);
 
   async function calculateRouteEstimate() {
-
-    if (!senderAddress.trim() || !senderCity.trim()) {
-
+    if (!senderAddress.trim()) {
       throw new Error(
-
-        "Renseignez l’adresse et la ville de départ pour estimer la livraison."
-
+        "Renseignez l’adresse de départ pour estimer la livraison."
       );
-
     }
 
-    if (!receiverAddress.trim() || !receiverCity.trim()) {
-
+    if (!receiverAddress.trim()) {
       throw new Error(
-
-        "Renseignez l’adresse et la ville d’arrivée pour estimer la livraison."
-
+        "Renseignez l’adresse d’arrivée pour estimer la livraison."
       );
-
     }
 
     if (!vehicleRequired) {
-
       throw new Error(
-
         "Choisissez le véhicule requis pour afficher l’estimation."
-
       );
-
     }
 
-    const origin = buildFullAddress(senderAddress, senderCity);
+    const [senderResolved, receiverResolved] =
+      await Promise.all([
+        geocodeFrenchAddress(senderAddress, senderCity),
+        geocodeFrenchAddress(receiverAddress, receiverCity),
+      ]);
 
-    const destination = buildFullAddress(receiverAddress, receiverCity);
+    setSenderAddress(senderResolved.address);
+    setSenderCity(senderResolved.cityLabel);
+    setReceiverAddress(receiverResolved.address);
+    setReceiverCity(receiverResolved.cityLabel);
 
-    const distanceMeters = await getDrivingDistanceMeters(
-
-      origin,
-
-      destination
-
-    );
+    const distanceMeters =
+      await getDrivingDistanceMeters(
+        senderResolved.location,
+        receiverResolved.location
+      );
 
     const priceResult = calculatePrice(
-
       distanceMeters,
-
       vehicleToPricingType(vehicleRequired)
-
     );
 
     return {
-
       distanceMeters,
-
       distanceKm: priceResult.distanceKm,
-
       minimumPriceCents: Math.round(priceResult.price * 100),
-
     };
-
   }
 
   async function showEstimate() {
@@ -1360,6 +1357,7 @@ export default function NewOrderPage() {
       }
 
       sessionStorage.removeItem("jalin_pending_estimate");
+
       sessionStorage.removeItem("jalin_after_login_path");
 
       window.location.assign(checkoutResult.url);
@@ -1427,9 +1425,13 @@ export default function NewOrderPage() {
             </p>
 
             {estimatedDistanceMeters !== null ? (
+
               <p className="mt-1 text-xs font-semibold text-blue-700">
+
                 ✓ Votre estimation de la page d’accueil a été reprise automatiquement.
+
               </p>
+
             ) : null}
 
           </div>
@@ -1570,7 +1572,7 @@ export default function NewOrderPage() {
 
                       <button
 
-                        key={suggestion.place_id}
+                        key={suggestion.placeId}
 
                         type="button"
 
@@ -1608,7 +1610,7 @@ export default function NewOrderPage() {
 
                 }
 
-                placeholder="Ville (automatique, modifiable si besoin)"
+                placeholder="Ville / code postal (automatique après sélection)"
 
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
 
@@ -1802,7 +1804,7 @@ export default function NewOrderPage() {
 
                       <button
 
-                        key={suggestion.place_id}
+                        key={suggestion.placeId}
 
                         type="button"
 
@@ -1840,7 +1842,7 @@ export default function NewOrderPage() {
 
                 }
 
-                placeholder="Ville (automatique, modifiable si besoin)"
+                placeholder="Ville / code postal (automatique après sélection)"
 
                 className="w-full rounded-xl border border-gray-200 px-3 py-2"
 
@@ -2383,9 +2385,13 @@ export default function NewOrderPage() {
               />
 
               <p className="mt-1 text-xs text-gray-500">
+
                 Standard par défaut : laissez vide pour une livraison dès qu’un livreur
+
                 est disponible. Choisissez une date et une heure seulement si vous souhaitez
+
                 programmer la livraison.
+
               </p>
 
             </div>
