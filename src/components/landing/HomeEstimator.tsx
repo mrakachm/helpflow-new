@@ -10,7 +10,8 @@ type Target = "pickup" | "dropoff";
 
 type Suggestion = {
   description: string;
-  place_id: string;
+  placeId: string;
+  prediction: any;
 };
 
 type EstimateData = {
@@ -42,28 +43,46 @@ function cleanAddress(text: string) {
     .trim();
 }
 
-function getAddressPart(components: any[] | undefined, type: string) {
+function componentText(component: any) {
   return (
-    components?.find((component) => component.types?.includes(type))
-      ?.long_name || ""
+    component?.longText ||
+    component?.long_name ||
+    component?.shortText ||
+    component?.short_name ||
+    ""
   );
 }
 
-function extractGoogleAddress(place: any) {
-  const components = place?.address_components || [];
+function getAddressPart(components: any[] | undefined, type: string) {
+  const component = components?.find((item) =>
+    item?.types?.includes(type)
+  );
+
+  return componentText(component);
+}
+
+function extractAddressPartsFromComponents(
+  components: any[] | undefined,
+  formattedAddress = ""
+) {
   const streetNumber = getAddressPart(components, "street_number");
   const route = getAddressPart(components, "route");
 
   const city =
     getAddressPart(components, "locality") ||
     getAddressPart(components, "postal_town") ||
+    getAddressPart(components, "administrative_area_level_3") ||
     getAddressPart(components, "administrative_area_level_2");
+
+  const postalCode = getAddressPart(components, "postal_code");
 
   const street = [streetNumber, route].filter(Boolean).join(" ").trim();
 
   return {
-    address: street || place?.formatted_address || "",
+    address: street || formattedAddress || "",
     city,
+    postalCode,
+    cityLabel: [postalCode, city].filter(Boolean).join(" ").trim(),
   };
 }
 
@@ -71,10 +90,6 @@ function vehicleToPricingType(value: string): VehicleType {
   if (value === "Voiture") return "voiture";
   if (value === "Utilitaire") return "camion";
   return "velo";
-}
-
-function buildFullAddress(address: string, city: string) {
-  return `${cleanAddress(address)}, ${city.trim()}, France`;
 }
 
 async function waitForGoogleMaps(timeoutMs = 10000) {
@@ -85,8 +100,8 @@ async function waitForGoogleMaps(timeoutMs = 10000) {
 
     if (
       google?.maps?.DirectionsService &&
-      google?.maps?.places?.AutocompleteService &&
-      google?.maps?.places?.PlacesService
+      google?.maps?.Geocoder &&
+      google?.maps?.importLibrary
     ) {
       return google;
     }
@@ -99,7 +114,46 @@ async function waitForGoogleMaps(timeoutMs = 10000) {
   );
 }
 
-async function getDrivingDistanceMeters(origin: string, destination: string) {
+async function geocodeFrenchAddress(address: string, cityOrPostal: string) {
+  const google = await waitForGoogleMaps();
+  const geocoder = new google.maps.Geocoder();
+
+  const query = [cleanAddress(address), cityOrPostal.trim(), "France"]
+    .filter(Boolean)
+    .join(", ");
+
+  const response = await geocoder.geocode({
+    address: query,
+    region: "FR",
+    componentRestrictions: { country: "FR" },
+  });
+
+  const result = response?.results?.[0];
+
+  if (!result?.geometry?.location) {
+    throw new Error(
+      `Adresse introuvable : ${address}. Choisissez une suggestion Google ou vérifiez l’adresse.`
+    );
+  }
+
+  const parsed = extractAddressPartsFromComponents(
+    result.address_components,
+    result.formatted_address
+  );
+
+  return {
+    location: result.geometry.location,
+    address: parsed.address || cleanAddress(address),
+    city: parsed.city,
+    postalCode: parsed.postalCode,
+    cityLabel:
+      parsed.cityLabel ||
+      cityOrPostal.trim(),
+    formattedAddress: result.formatted_address || query,
+  };
+}
+
+async function getDrivingDistanceMeters(origin: any, destination: any) {
   const google = await waitForGoogleMaps();
   const service = new google.maps.DirectionsService();
 
@@ -119,7 +173,7 @@ async function getDrivingDistanceMeters(origin: string, destination: string) {
 
   if (!distanceMeters || !Number.isFinite(distanceMeters)) {
     throw new Error(
-      "Impossible de calculer la distance entre ces deux adresses. Vérifiez les adresses."
+      "Impossible de calculer la distance entre ces deux adresses. Choisissez les adresses proposées par Google."
     );
   }
 
@@ -132,6 +186,8 @@ export default function HomeEstimator() {
 
   const pickupTimerRef = useRef<number | null>(null);
   const dropoffTimerRef = useRef<number | null>(null);
+  const pickupSessionTokenRef = useRef<any>(null);
+  const dropoffSessionTokenRef = useRef<any>(null);
 
   const [pickupAddress, setPickupAddress] = useState("");
   const [pickupCity, setPickupCity] = useState("");
@@ -172,32 +228,41 @@ export default function HomeEstimator() {
 
     try {
       const google = await waitForGoogleMaps();
-      const service = new google.maps.places.AutocompleteService();
+      const placesLibrary: any = await google.maps.importLibrary("places");
 
-      const predictions = await new Promise<Suggestion[]>((resolve, reject) => {
-        service.getPlacePredictions(
-          {
-            input: trimmed,
-            componentRestrictions: { country: "fr" },
-            types: ["address"],
-          },
-          (results: Suggestion[] | null, status: string) => {
-            if (
-              status === google.maps.places.PlacesServiceStatus.OK ||
-              status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS
-            ) {
-              resolve(results || []);
-              return;
-            }
+      const {
+        AutocompleteSuggestion,
+        AutocompleteSessionToken,
+      } = placesLibrary;
 
-            reject(
-              new Error(
-                "Les suggestions Google sont momentanément indisponibles."
-              )
-            );
-          }
-        );
-      });
+      const tokenRef =
+        target === "pickup"
+          ? pickupSessionTokenRef
+          : dropoffSessionTokenRef;
+
+      if (!tokenRef.current) {
+        tokenRef.current = new AutocompleteSessionToken();
+      }
+
+      const { suggestions } =
+        await AutocompleteSuggestion.fetchAutocompleteSuggestions({
+          input: trimmed,
+          includedRegionCodes: ["fr"],
+          language: "fr",
+          region: "fr",
+          sessionToken: tokenRef.current,
+        });
+
+      const predictions: Suggestion[] = (suggestions || [])
+        .map((item: any) => item?.placePrediction)
+        .filter(Boolean)
+        .slice(0, 6)
+        .map((prediction: any) => ({
+          description: prediction.text?.toString?.() || "",
+          placeId: prediction.placeId || "",
+          prediction,
+        }))
+        .filter((item: Suggestion) => item.description);
 
       if (target === "pickup") setPickupSuggestions(predictions);
       else setDropoffSuggestions(predictions);
@@ -206,6 +271,10 @@ export default function HomeEstimator() {
 
       if (target === "pickup") setPickupSuggestions([]);
       else setDropoffSuggestions([]);
+
+      setEstimateError(
+        "Les suggestions d’adresse Google ne sont pas disponibles. Vérifiez que Places API (New) est activée dans Google Cloud."
+      );
     } finally {
       if (target === "pickup") setPickupSuggestionsLoading(false);
       else setDropoffSuggestionsLoading(false);
@@ -230,46 +299,41 @@ export default function HomeEstimator() {
     target: Target
   ) {
     try {
-      const google = await waitForGoogleMaps();
+      const place = suggestion.prediction.toPlace();
 
-      const placesService = new google.maps.places.PlacesService(
-        document.createElement("div")
-      );
-
-      const place = await new Promise<any>((resolve, reject) => {
-        placesService.getDetails(
-          {
-            placeId: suggestion.place_id,
-            fields: ["address_components", "formatted_address"],
-          },
-          (result: any, status: string) => {
-            if (
-              status === google.maps.places.PlacesServiceStatus.OK &&
-              result
-            ) {
-              resolve(result);
-              return;
-            }
-
-            reject(
-              new Error(
-                "Impossible de récupérer les détails de cette adresse."
-              )
-            );
-          }
-        );
+      await place.fetchFields({
+        fields: [
+          "addressComponents",
+          "formattedAddress",
+          "location",
+        ],
       });
 
-      const parsed = extractGoogleAddress(place);
+      const parsed = extractAddressPartsFromComponents(
+        place.addressComponents,
+        place.formattedAddress || suggestion.description
+      );
+
+      const finalAddress =
+        parsed.address ||
+        place.formattedAddress ||
+        suggestion.description;
+
+      const finalCity =
+        parsed.cityLabel ||
+        parsed.city ||
+        "";
 
       if (target === "pickup") {
-        setPickupAddress(parsed.address || suggestion.description);
-        setPickupCity(parsed.city || "");
+        setPickupAddress(finalAddress);
+        setPickupCity(finalCity);
         setPickupSuggestions([]);
+        pickupSessionTokenRef.current = null;
       } else {
-        setDropoffAddress(parsed.address || suggestion.description);
-        setDropoffCity(parsed.city || "");
+        setDropoffAddress(finalAddress);
+        setDropoffCity(finalCity);
         setDropoffSuggestions([]);
+        dropoffSessionTokenRef.current = null;
       }
 
       clearEstimate();
@@ -279,12 +343,18 @@ export default function HomeEstimator() {
       if (target === "pickup") {
         setPickupAddress(suggestion.description);
         setPickupSuggestions([]);
+        pickupSessionTokenRef.current = null;
       } else {
         setDropoffAddress(suggestion.description);
         setDropoffSuggestions([]);
+        dropoffSessionTokenRef.current = null;
       }
 
-      clearEstimate();
+      setEstimatedDistanceMeters(null);
+      setEstimatedPriceCents(null);
+      setEstimateError(
+        "Impossible de récupérer automatiquement cette adresse. Essayez une autre suggestion."
+      );
     }
   }
 
@@ -299,17 +369,13 @@ export default function HomeEstimator() {
     setEstimatedDistanceMeters(null);
     setEstimatedPriceCents(null);
 
-    if (!pickupAddress.trim() || !pickupCity.trim()) {
-      setEstimateError(
-        "Choisissez une adresse de départ et vérifiez la ville."
-      );
+    if (!pickupAddress.trim()) {
+      setEstimateError("Renseignez l’adresse de départ.");
       return;
     }
 
-    if (!dropoffAddress.trim() || !dropoffCity.trim()) {
-      setEstimateError(
-        "Choisissez une adresse d’arrivée et vérifiez la ville."
-      );
+    if (!dropoffAddress.trim()) {
+      setEstimateError("Renseignez l’adresse d’arrivée.");
       return;
     }
 
@@ -328,12 +394,19 @@ export default function HomeEstimator() {
     setEstimateLoading(true);
 
     try {
-      const origin = buildFullAddress(pickupAddress, pickupCity);
-      const destination = buildFullAddress(dropoffAddress, dropoffCity);
+      const [pickupResolved, dropoffResolved] = await Promise.all([
+        geocodeFrenchAddress(pickupAddress, pickupCity),
+        geocodeFrenchAddress(dropoffAddress, dropoffCity),
+      ]);
+
+      setPickupAddress(pickupResolved.address);
+      setPickupCity(pickupResolved.cityLabel);
+      setDropoffAddress(dropoffResolved.address);
+      setDropoffCity(dropoffResolved.cityLabel);
 
       const distanceMeters = await getDrivingDistanceMeters(
-        origin,
-        destination
+        pickupResolved.location,
+        dropoffResolved.location
       );
 
       const pricing = calculatePrice(
@@ -344,6 +417,8 @@ export default function HomeEstimator() {
       setEstimatedDistanceMeters(distanceMeters);
       setEstimatedPriceCents(Math.round(pricing.price * 100));
     } catch (error: unknown) {
+      console.error("HOME ESTIMATOR CALCULATION ERROR =>", error);
+
       setEstimateError(
         error instanceof Error
           ? error.message
@@ -461,7 +536,7 @@ export default function HomeEstimator() {
                       <div className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl">
                         {pickupSuggestions.map((suggestion) => (
                           <button
-                            key={suggestion.place_id}
+                            key={suggestion.placeId}
                             type="button"
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() =>
@@ -485,7 +560,7 @@ export default function HomeEstimator() {
                       setPickupCity(e.target.value);
                       clearEstimate();
                     }}
-                    placeholder="Ville (automatique, modifiable si besoin)"
+                    placeholder="Ville / code postal (automatique après sélection)"
                     className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500"
                   />
                 </div>
@@ -527,7 +602,7 @@ export default function HomeEstimator() {
                       <div className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl">
                         {dropoffSuggestions.map((suggestion) => (
                           <button
-                            key={suggestion.place_id}
+                            key={suggestion.placeId}
                             type="button"
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() =>
@@ -551,7 +626,7 @@ export default function HomeEstimator() {
                       setDropoffCity(e.target.value);
                       clearEstimate();
                     }}
-                    placeholder="Ville (automatique, modifiable si besoin)"
+                    placeholder="Ville / code postal (automatique après sélection)"
                     className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500"
                   />
                 </div>
